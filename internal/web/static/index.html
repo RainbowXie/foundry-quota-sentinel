@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>OpenCode Go 额度监控</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#c9d1d9;padding:24px}
+.container{max-width:900px;margin:0 auto}
+h1{color:#58a6ff;margin-bottom:24px;font-size:22px}
+h2{color:#f0f6fc;font-size:16px;margin-bottom:16px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+.bar-row{display:flex;align-items:center;gap:12px;margin:10px 0}
+.bar-label{width:80px;font-weight:600;flex-shrink:0}
+.bar-container{flex:1;background:#21262d;border-radius:4px;height:24px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.rolling .bar-fill{background:linear-gradient(90deg,#2ea043,#3fb950)}
+.weekly .bar-fill{background:linear-gradient(90deg,#d29922,#e3b341)}
+.monthly .bar-fill{background:linear-gradient(90deg,#1f6feb,#58a6ff)}
+.bar-reset{width:70px;color:#8b949e;font-size:13px;text-align:right;flex-shrink:0}
+.bar-percent{width:50px;text-align:right;font-weight:600;flex-shrink:0}
+.balance-row{display:flex;align-items:center;gap:12px;padding:8px 0}
+.balance-label{width:80px;font-weight:600;color:#f0f6fc}
+.balance-value{font-size:24px;font-weight:700;color:#7ee787}
+.balance-currency{color:#8b949e;font-size:14px;margin-left:4px}
+.refresh{color:#8b949e;font-size:13px;margin-top:16px}
+.error{color:#f85149}
+.empty{color:#8b949e;text-align:center;padding:32px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px}
+.stat-item{background:#0d1117;border-radius:6px;padding:12px;text-align:center}
+.stat-value{font-size:20px;font-weight:700;color:#f0f6fc}
+.stat-label{font-size:12px;color:#8b949e;margin-top:4px}
+.chart-container{position:relative;height:260px}
+</style>
+</head>
+<body>
+<div class=container>
+<h1>OpenCode Go 额度监控</h1>
+<div class=card><h2>DeepSeek 账户余额</h2><div id=balance-container><div class=empty>加载中...</div></div></div>
+<div class=card><h2>套餐额度使用情况</h2><div id=quota-container><div class=empty>加载中...</div></div><div class=refresh id=refresh-info></div></div>
+<div class=card><h2>今日 Token 消耗</h2><div id=today-container><div class=empty>加载中...</div></div></div>
+<div class=card><h2>Token 消耗趋势（最近7天）</h2><div class=chart-container><canvas id=token-chart></canvas></div></div>
+</div>
+<script>
+var chart=null;
+async function fa(){await Promise.all([fq(),fb(),fh()])}
+async function fb(){var r=await(await fetch("/api/balance")).json(),e=document.getElementById("balance-container");if(r.success){var d=r.data;e.innerHTML="<div class=balance-row><div class=balance-label>余额</div><div class=balance-value>"+d.total_balance.toFixed(2)+"</div><div class=balance-currency>"+d.currency+"</div></div>"}else e.innerHTML="<div class=error>查询失败: "+r.error+"</div>"}
+async function fq(){var r=await(await fetch("/api/quota")).json(),e=document.getElementById("quota-container");if(r.success){var d=r.data,h="";h+=bb("Rolling","rolling",d.rolling.usage_percent,d.rolling.reset_display);h+=bb("Weekly","weekly",d.weekly.usage_percent,d.weekly.reset_display);if(d.monthly)h+=bb("Monthly","monthly",d.monthly.usage_percent,d.monthly.reset_display);else h+="<div class=bar-row><div class=bar-label style=color:#58a6ff>Monthly</div><div style=color:#8b949e>无限额度</div></div>";e.innerHTML=h;document.getElementById("refresh-info").textContent="上次刷新: "+new Date(d.fetched_at).toLocaleString("zh-CN")}else e.innerHTML="<div class=error>查询失败: "+r.error+"</div>"}
+function bb(l,c,p,r){var x=c==="rolling"?"#3fb950":c==="weekly"?"#e3b341":"#58a6ff";return "<div class=bar-row><div class=bar-label style=color:"+x+">"+l+"</div><div class=bar-container "+c+"><div class=bar-fill style=width:"+p+"%></div></div><div class=bar-percent>"+p+"%</div><div class=bar-reset>"+r+"</div></div>"}
+async function fh(){var r=await(await fetch("/api/history")).json();if(r.success){rt(r.data);rc(r.data)}}
+function rt(d){if(!d||!d.length){document.getElementById("today-container").innerHTML="<div class=empty>暂无数据</div>";return}var l=d[d.length-1]||{};document.getElementById("today-container").innerHTML="<div class=stats-grid><div class=stat-item><div class=stat-value>"+fn(l.input_tokens||0)+"</div><div class=stat-label>输入</div></div><div class=stat-item><div class=stat-value>"+fn(l.output_tokens||0)+"</div><div class=stat-label>输出</div></div><div class=stat-item><div class=stat-value>"+fn(l.total_tokens||0)+"</div><div class=stat-label>总计</div></div><div class=stat-item><div class=stat-value>"+(l.request_count||0)+"</div><div class=stat-label>请求</div></div></div>"}
+function rc(d){if(!d||!d.length)return;var la=d.map(function(x){return x.date}),id=d.map(function(x){return x.input_tokens}),od=d.map(function(x){return x.output_tokens});if(chart)chart.destroy();chart=new Chart(document.getElementById("token-chart").getContext("2d"),{type:"bar",data:{labels:la,datasets:[{label:"输入",data:id,backgroundColor:"#3fb950",borderRadius:4},{label:"输出",data:od,backgroundColor:"#58a6ff",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#c9d1d9"}}},scales:{x:{ticks:{color:"#8b949e"},grid:{color:"#21262d"}},y:{ticks:{color:"#8b949e",callback:function(v){return fn(v)}},grid:{color:"#21262d"}}}}})}
+function fn(n){if(n>=1e6)return(n/1e6).toFixed(1)+"M";if(n>=1e3)return(n/1e3).toFixed(1)+"K";return String(n)}
+fa();setInterval(fa,60000)
+</script>
+</body>
+</html>

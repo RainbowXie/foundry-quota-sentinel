@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>ocgt-monitor 使用说明</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel=stylesheet>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter','Noto Sans SC',sans-serif;background:#fafafa;color:#18181b;padding:48px 24px;line-height:1.8;-webkit-font-smoothing:antialiased}
+.container{max-width:820px;margin:0 auto}
+h1{font-size:26px;font-weight:700;margin-bottom:4px}
+.subtitle{color:#52525b;font-size:15px;margin-bottom:32px}
+h2{font-size:18px;font-weight:600;margin:40px 0 16px;padding-bottom:10px;border-bottom:2px solid #18181b}
+h3{font-size:15px;font-weight:600;margin:24px 0 8px}
+p{margin-bottom:12px;font-size:14px;color:#52525b}
+strong{color:#18181b}
+code,kbd{font-family:'SF Mono','Fira Code',monospace;font-size:13px;background:#f4f4f5;padding:2px 8px;border-radius:5px;color:#18181b;border:1px solid #e5e7eb}
+pre{background:#1a1a2e;color:#e2e8f0;border-radius:8px;padding:16px 20px;overflow-x:auto;font-size:13px;line-height:1.7;font-family:'SF Mono','Fira Code',monospace}
+pre .cm{color:#94a3b8;font-style:italic}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 24px;margin-bottom:12px}
+.box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin-bottom:16px}
+.box .tag{display:inline-block;background:#2563eb;color:#fff;font-size:12px;font-weight:600;padding:2px 12px;border-radius:20px;margin-bottom:12px}
+.callout{padding:14px 18px;border-radius:8px;margin:16px 0;font-size:14px;line-height:1.7;border-left:3px solid}
+.callout.info{background:#eff6ff;border-color:#2563eb}
+.callout.warn{background:#fffbeb;border-color:#d97706}
+.callout.ok{background:#f0fdf4;border-color:#16a34a}
+.callout.err{background:#fef2f2;border-color:#dc2626}
+ol,ul{padding-left:20px;margin:8px 0}
+li{margin:6px 0;font-size:14px;color:#52525b;line-height:1.7}
+.term-box{background:#f4f4f5;border:1px dashed #d4d4d8;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#71717a;text-align:center;font-family:monospace;line-height:1.6}
+.footer{text-align:center;margin-top:56px;padding-top:24px;border-top:1px solid #e5e7eb;color:#a1a1aa;font-size:13px}
+</style>
+</head>
+<body>
+<div class=container>
+
+<h1>ocgt-monitor</h1>
+<p class=subtitle>OpenCode Go 套餐额度监控工具 — 一步一步教你用</p>
+
+<div class="callout info">
+<strong>这个工具是做什么的？</strong><br>
+你平时用 Claude Code 的时候，背后是通过 ocgt 代理连接 OpenCode Go 的服务。这个工具可以让你看到：<strong>套餐还剩多少额度</strong>、<strong>今天用了多少 Token</strong>、<strong>每个模型分别消耗了多少</strong>。
+</div>
+
+<h2>先搞懂几个词</h2>
+
+<div class=card>
+<p><strong>终端 / 命令行 / cmd</strong> — 就是那个黑底白字的窗口。Windows 里叫"命令提示符"。按 <kbd>Win</kbd> 键，输入 <code>cmd</code> 回车就能打开。我们的 <code>ocgt-monitor.exe</code> 是<strong>命令行程序</strong>，所以需要在终端里输入命令来运行它。</p>
+<p><strong>为什么有 exe 还要打开终端？</strong> 因为 ocgt-monitor 有 11 种不同功能（查额度、查余额、看历史、启动网页…），双击 exe 只能执行"帮助"。你需要打开终端，输入不同的"命令"来告诉它你想查哪一个。</p>
+<p><strong>Cookie</strong> — 你在网站登录后，浏览器存的一个"通行证"。我们需要把它复制出来，ocgt-monitor 才能代替你去查额度。</p>
+</div>
+
+<h2>准备工作</h2>
+<div class="callout info">你需要在电脑上先安装好 ocgt 并正常使用 Claude Code。ocgt-monitor 是读取 ocgt 的日志来展示 Token 消耗的，所以 ocgt 必须已经在运行。</div>
+
+<h2>第一步：打开终端</h2>
+<div class=box>
+<div class=tag>Step 1</div>
+<p>按键盘上的 <kbd>Win</kbd> 键 → 输入 <code>cmd</code> → 按回车。</p>
+<div class=term-box>
+Microsoft Windows [版本 10.0.xxxxx]<br>
+(c) Microsoft Corporation。保留所有权利。<br>
+C:\Users\你的用户名>_
+</div>
+<p>那个 <code>C:\Users\你的用户名></code> 就是"提示符"，等着你输入命令。</p>
+</div>
+
+<h2>第二步：进入程序所在文件夹</h2>
+<div class=box>
+<div class=tag>Step 2</div>
+<p>在终端里输入下面这行命令，然后按回车：</p>
+<pre>C:\Users\你的用户名> cd C:\Users\14050\Desktop\opencodego_tokens\ocgt-monitor</pre>
+<p>输完回车后，提示符会变成：</p>
+<pre>C:\Users\14050\Desktop\opencodego_tokens\ocgt-monitor></pre>
+<p>出现这个变化说明你已经进入这个文件夹了。之后所有命令都在这个提示符后面输入。</p>
+<div class="callout warn">如果你把 ocgt-monitor.exe 放在了别的位置，这里要改成你实际的路径。</div>
+</div>
+
+<h2>第三步：获取 Cookie 和 Workspace ID</h2>
+<div class=box>
+<div class=tag>Step 3</div>
+<ol>
+<li>打开 Chrome 浏览器，登录 <a href="https://opencode.ai">opencode.ai</a></li>
+<li>按下键盘上的 <kbd>F12</kbd> 键，右侧会弹出一个面板</li>
+<li>点击顶部 <strong>Application</strong>（应用）选项卡</li>
+<li>左侧找到 <strong>Cookies</strong> → 点击 <code>https://opencode.ai</code></li>
+</ol>
+<div class=term-box>
+┌─ F12 面板 ──────────────────────────<br>
+│ Elements │ Console │ <b>Application</b> │ Network │<br>
+│ ────────────────────────────────────<br>
+│ Storage:           │  Name    │ Value<br>
+│   Local Storage    │  session │ xxx...<br>
+│ ▶ Cookies          │  ...     │ ...<br>
+│    https://opencode.ai  ← 点这里<br>
+└─────────────────────────────────────
+</div>
+<ol start=5>
+<li>在 Name 列表里随便点一个，按 <kbd>Ctrl+A</kbd> 全选整个表格，再按 <kbd>Ctrl+C</kbd> 复制</li>
+<li>粘贴到记事本里存着（Cookie 字符串很长，不用担心）</li>
+</ol>
+<p><strong>获取 Workspace ID：</strong> 在浏览器地址栏找到 <code>/workspace/<b>wrk_xxxxxxxxxxxx</b>/usage</code> 这段，把 <code>wrk_</code> 开头的那串复制下来。</p>
+</div>
+
+<h2>第四步：运行配置向导</h2>
+<div class=box>
+<div class=tag>Step 4</div>
+<p>在终端里输入：</p>
+<pre>C:\Users\...\ocgt-monitor> ocgt-monitor config init</pre>
+<p>按回车后，它会依次问你问题。你按下面这样回答：</p>
+
+<p><strong>1. 看到"按回车继续"</strong> → 直接按一下回车</p>
+
+<p><strong>2. 问 Cookie</strong> → 在终端里<strong>点右键</strong>（等于粘贴），把刚才复制的 Cookie 贴进去，按回车</p>
+
+<p><strong>3. 问 Workspace ID</strong> → 输入 <code>wrk_xxxxxxxxxxxx</code>，按回车</p>
+
+<p><strong>4. 问 DeepSeek API Key</strong> → 直接按回车跳过（除非你有 DeepSeek 账户）</p>
+
+<p>看到 <strong>"配置已保存！"</strong> 就说明成功了。</p>
+
+<div class="callout ok">配置只需要做一次。以后直接查额度就行，不用重新配置。</div>
+</div>
+
+<h2>第五步：查套餐额度</h2>
+<div class=box>
+<div class=tag>Step 5</div>
+<p>在终端里输入：</p>
+<pre>C:\Users\...\ocgt-monitor> ocgt-monitor quota</pre>
+<p>如果一切正常，你会看到：</p>
+<pre>========================================
+  OpenCode Go 套餐额度
+----------------------------------------
+  Rolling: [████████████░░░░░░] 65%  reset in 2h
+  Weekly:  [████████████████░░] 82%  reset in 3d
+  Monthly: 无限额度
+========================================</pre>
+<p><strong>怎么看：</strong> Rolling=滚动额度(短期)，Weekly=本周额度，Monthly=本月额度。进度条越长说明用得越多。</p>
+<div class="callout warn">如果看到红色错误提示，说明 Cookie 可能过期了。回到第三步重新复制，再运行 <code>config init</code> 更新。</div>
+</div>
+
+<h2>更多常用命令</h2>
+<div class=card>
+<table style="width:100%;border-collapse:collapse;font-size:14px">
+<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:8px 12px"><code>ocgt-monitor balance</code></td><td style="padding:8px 12px">查 DeepSeek 余额（如果设置了 API Key）</td></tr>
+<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:8px 12px"><code>ocgt-monitor history</code></td><td style="padding:8px 12px">看最近 7 天每天用了多少 Token</td></tr>
+<tr style="border-bottom:1px solid #e5e7eb"><td style="padding:8px 12px"><code>ocgt-monitor watch</code></td><td style="padding:8px 12px">持续监控，每 60 秒自动刷新。按 <kbd>Ctrl+C</kbd> 退出。</td></tr>
+<tr><td style="padding:8px 12px"><code>ocgt-monitor serve</code></td><td style="padding:8px 12px">启动网页版仪表盘。然后浏览器打开 <code>http://127.0.0.1:8788</code></td></tr>
+</table>
+</div>
+
+<h2>每次都要先 cd 进文件夹吗？</h2>
+<div class=card>
+<p>是的。每次打开新终端，第一步都是：</p>
+<pre>C:\Users\你的用户名> cd C:\Users\14050\Desktop\opencodego_tokens\ocgt-monitor</pre>
+<p>然后才能运行 <code>ocgt-monitor quota</code> 等命令。</p>
+</div>
+
+<h2>发给我朋友用，怎么清空我的配置？</h2>
+<div class="callout err">
+<pre style="background:rgba(220,38,38,0.06);border-color:rgba(220,38,38,0.2)">ocgt-monitor config delete default</pre>
+运行这个命令后，你的 Cookie 等所有信息都会被清除。然后就可以放心把 <code>ocgt-monitor.exe</code> 发给你朋友了。
+</div>
+
+<h2>遇到问题？</h2>
+
+<div class=card><strong>Q: 输入 ocgt-monitor 提示"不是内部或外部命令"</strong><br>你没有先进入程序所在文件夹。先运行 <code>cd C:\Users\14050\Desktop\opencodego_tokens\ocgt-monitor</code>。</div>
+<div class=card><strong>Q: Cookie 粘贴后没反应？</strong><br>在终端里点<strong>右键</strong>就是粘贴。如果还不行，在终端标题栏点右键 → 编辑 → 粘贴。</div>
+<div class=card><strong>Q: 配置好了但查 quota 还是报错？</strong><br>Cookie 可能过期了。重新打开浏览器登录 opencode.ai，复制 Cookie，再运行 <code>config init</code> 更新。</div>
+<div class=card><strong>Q: history 显示"暂无数据"？</strong><br>ocgt 代理还没有产生日志。先正常使用 Claude Code 对话，过一会儿再查就有了。</div>
+<div class=card><strong>Q: 我只有一个 exe，怎么会有网页界面？</strong><br>运行 <code>ocgt-monitor serve</code> 后，浏览器输入 <code>http://127.0.0.1:8788</code> 就能访问网页界面。网页是<strong>内嵌在 exe 里面</strong>的，不需要额外下载东西。</div>
+<div class=card><strong>Q: 这个 Cookie 会过期吗？</strong><br>会。通常几天到几周不等。过期后重新登录 opencode.ai 复制新的就行。</div>
+
+<div class=footer>ocgt-monitor &mdash; Go 1.22 &bull; 零外部依赖 &bull; 2026-06-02</div>
+
+</div>
+</body>
+</html>
