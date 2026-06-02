@@ -233,7 +233,7 @@ func printUsage() {
 	fmt.Println("  balance               查询 DeepSeek 余额")
 	fmt.Println("  history               查看 Token 消耗历史")
 	fmt.Println("  watch                 持续监控")
-	fmt.Println("  serve                 启动 Web 面板 (--sidebar 桌面侧边栏模式)")
+	fmt.Println("  serve                 启动侧边栏模式 (浏览器访问 http://127.0.0.1:8788)")
 	fmt.Println()
 	fmt.Println("环境变量（优先级高于配置文件）:")
 	fmt.Println("  OPENCODE_GO_AUTH_COOKIE")

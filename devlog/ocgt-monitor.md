@@ -50,3 +50,8 @@
 - **根因:** `CalculateModelStats` 缺少 `s.Model = l.Model`，struct 中 Model 字段始终为空
 - **修复:** storage/reader.go 补上行赋值
 - **改进:** sidebar.html 全部字体放大 2-3px，大数字更醒目
+
+## 2026-06-02 18:35: Apple 美学 UI 重设计 + 移除网页端
+- **重写:** sidebar.html — 毛玻璃效果、大圆角、柔和阴影、进度条内嵌百分比
+- **删除:** index.html — 网页端因语言问题导致内容错误，移除
+- **修复:** help.html — 移除网页端引用
