@@ -76,6 +76,7 @@ func (s *Server) Start(addr string) error {
 	})
 
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "ok", "time": time.Now()}) })
+	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
 
 	sub, _ := fs.Sub(webAssets, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))

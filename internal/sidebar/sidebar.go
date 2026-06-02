@@ -12,6 +12,7 @@ import (
 
 var (
 	user32              = windows.NewLazySystemDLL("user32.dll")
+	kernel32            = windows.NewLazySystemDLL("kernel32.dll")
 	procGetCursorPos    = user32.NewProc("GetCursorPos")
 	procSetWindowPos    = user32.NewProc("SetWindowPos")
 	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
@@ -111,6 +112,15 @@ func New(port int) *Sidebar {
 }
 
 func (s *Sidebar) Run() {
+	// Hide the console window
+	if hideConsole := user32.NewProc("ShowWindow"); hideConsole != nil {
+		if getConsoleWin := kernel32.NewProc("GetConsoleWindow"); getConsoleWin != nil {
+			hwndConsole, _, _ := getConsoleWin.Call()
+			if hwndConsole != 0 {
+				hideConsole.Call(hwndConsole, 0) // SW_HIDE = 0
+			}
+		}
+	}
 	go s.edgeLoop()
 	s.wv.Run()
 	s.wv.Destroy()
