@@ -25,16 +25,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .sh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .st{font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.6px;text-transform:uppercase;flex-shrink:0}
 .st .ac{display:inline-block;width:3px;height:3px;border-radius:50%;background:#c084fc;margin-right:6px;vertical-align:middle}
-.fwrap{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+/* ── filter area (buttons + date range) ── */
+.filter-area{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
 .frow{display:flex;gap:3px;background:rgba(0,0,0,0.04);border-radius:7px;padding:2px}
 .fl{padding:3px 8px;font-size:10px;font-weight:600;border-radius:5px;cursor:pointer;color:#94a3b8;transition:all .2s;white-space:nowrap}
 .fl-on{background:rgba(255,255,255,0.9);color:#6366f1;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
 .fl:hover{color:#6366f1}
-.dr{display:none;gap:4px;align-items:center;padding:2px 0}
+/* ── date range picker ── */
+.dr{display:none;flex-wrap:wrap;gap:5px;align-items:center;padding:6px 6px 4px;background:rgba(255,255,255,0.5);border-radius:10px;border:1px solid rgba(99,102,241,0.08)}
 .dr.on{display:flex}
-.dr input{width:78px;font-size:10px;padding:3px 4px;border:1px solid rgba(0,0,0,0.1);border-radius:5px;background:rgba(255,255,255,0.8);color:#1a1a2e;font-family:inherit;font-weight:500}
-.dr input:focus{outline:none;border-color:#6366f1}
-.dr .go{padding:3px 8px;font-size:10px;font-weight:600;border-radius:5px;cursor:pointer;background:#6366f1;color:#fff;border:none}
+.dr-lb{font-size:9px;font-weight:600;color:#a78bfa;letter-spacing:.3px;text-transform:uppercase;margin-right:2px}
+.dr-in{flex:1;min-width:70px;font-size:10px;padding:5px 7px;border:1px solid rgba(99,102,241,0.15);border-radius:6px;background:rgba(255,255,255,0.9);color:#1a1a2e;font-family:inherit;font-weight:500;transition:all .2s}
+.dr-in:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,0.12)}
+.dr-in::placeholder{color:#c4b5fd;font-weight:400}
+.dr-sep{font-size:10px;color:#a78bfa;font-weight:600;flex-shrink:0}
+.dr .go{padding:5px 10px;font-size:10px;font-weight:700;border-radius:6px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;border:none;transition:all .2s;flex-shrink:0}
+.dr .go:hover{box-shadow:0 2px 8px rgba(99,102,241,0.35);transform:translateY(-1px)}
 .qc{background:rgba(255,255,255,0.7);backdrop-filter:blur(10px);border-radius:14px;padding:12px 14px 10px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.8);box-shadow:0 1px 4px rgba(0,0,0,0.02)}
 .qt{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .ql{font-size:12px;font-weight:600;color:#1a1a2e}
@@ -60,15 +66,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .bv{font-size:16px;font-weight:800;font-feature-settings:"tnum";background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .bc{font-size:11px;color:#94a3b8;font-weight:400}
 .bs{font-size:11px;color:#94a3b8;display:flex;gap:16px;justify-content:flex-end;margin-top:4px;font-weight:500}
+/* ── model list ── */
 .mc{background:rgba(255,255,255,0.7);backdrop-filter:blur(10px);border-radius:14px;padding:4px;border:1px solid rgba(255,255,255,0.8);box-shadow:0 1px 4px rgba(0,0,0,0.02)}
-.mi{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;margin:2px 0}
+.mi{display:flex;align-items:center;gap:6px;padding:8px 10px 8px 8px;border-radius:10px;margin:2px 0}
 .mi:nth-child(1){background:linear-gradient(90deg,rgba(99,102,241,0.1),transparent)}
 .mi:nth-child(2){background:linear-gradient(90deg,rgba(245,158,11,0.1),transparent)}
 .mi:nth-child(3){background:linear-gradient(90deg,rgba(34,197,94,0.1),transparent)}
 .mi:nth-child(4){background:linear-gradient(90deg,rgba(6,182,212,0.1),transparent)}
 .mi:nth-child(5){background:linear-gradient(90deg,rgba(168,85,247,0.08),transparent)}
 .mi:nth-child(6){background:linear-gradient(90deg,rgba(236,72,153,0.06),transparent)}
-.mdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
+/* ── breathing glow dot ── */
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 4px currentColor, 0 0 8px currentColor; opacity: .65; transform: scale(1) }
+  50% { box-shadow: 0 0 6px currentColor, 0 0 16px currentColor, 0 0 28px currentColor; opacity: 1; transform: scale(1.15) }
+}
+.mdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:breathe 2.4s ease-in-out infinite}
 .mn{flex:1;font-size:12px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mt{font-size:11px;font-weight:700;font-feature-settings:"tnum";color:#1a1a2e;flex-shrink:0}
 .emp{padding:24px 0;text-align:center;color:#94a3b8;font-size:13px;font-weight:500}
@@ -95,7 +107,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 </div>
 <div class="se hide" id=balanceSec><div class=sh><span class=st><span class=ac></span>账户余额</span></div><div id=balLoad><div class=bc2><div class=emp>--</div></div></div></div>
 <div class=se id=modelSec>
-<div class=sh><span class=st><span class=ac></span>模型消耗</span><div class=fwrap><div class=frow id=modelFilter><span class="fl fl-on" data-days=1>今日</span><span class=fl data-days=7>7日</span><span class=fl data-days=30>30日</span><span class=fl data-custom>自定</span></div><div class=dr id=dr><input type=date id=drFrom><input type=date id=drTo><button class=go id=drGo>▶</button></div></div></div>
+<div class=sh><span class=st><span class=ac></span>模型消耗</span></div>
+<div class=filter-area>
+<div class=frow id=modelFilter>
+<span class="fl fl-on" data-days=1>今日</span>
+<span class=fl data-days=7>7日</span>
+<span class=fl data-days=30>30日</span>
+<span class=fl data-custom>自定</span>
+</div>
+<div class=dr id=dr>
+<span class=dr-lb>范围</span>
+<input class=dr-in type=text id=drFrom placeholder="2026-01-01">
+<span class=dr-sep>→</span>
+<input class=dr-in type=text id=drTo placeholder="2026-06-03">
+<button class=go id=drGo>▶</button>
+</div>
+</div>
 <div class=emp id=modelLoad>加载中...</div>
 </div>
 </div>
@@ -111,8 +138,9 @@ t.classList.add('fl-on');document.getElementById('dr').classList.remove('on');
 if(t.hasAttribute('data-custom')){document.getElementById('dr').classList.add('on');return}
 mMode='preset';mDays=parseInt(t.getAttribute('data-days'));fm()})
 document.getElementById('drGo').addEventListener('click',function(){
-var f=document.getElementById('drFrom').value,t=document.getElementById('drTo').value;
-if(!f||!t)return;mMode='custom';mFrom=f;mTo=t;fm()})
+var f=document.getElementById('drFrom').value.trim(),t=document.getElementById('drTo').value.trim();
+if(!f||!t||!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(t))return;
+mMode='custom';mFrom=f;mTo=t;fm()})
 async function fa(){
 try{await Promise.all([fq(),fb(),fh(),fm().catch(function(){})]);
 document.getElementById('sd').className='sd';document.getElementById('ht').textContent=new Date().toLocaleTimeString()
