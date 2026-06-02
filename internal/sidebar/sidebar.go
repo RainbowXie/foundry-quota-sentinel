@@ -24,9 +24,11 @@ const (
 	animStepMs    = 6
 	pollMs        = 40
 	hideDelayMs   = 600
+	swpNoSize     = 0x0001
+	swpNoMove     = 0x0002
 	swpNoZOrder   = 0x0004
 	swpNoActivate = 0x0010
-	hwndTopMost   = ^uintptr(1-1) // -1 as HWND_TOPMOST
+	hwndTopMost   = ^uintptr(1-1)
 
 	wsCaption      = 0x00C00000
 	wsThickFrame   = 0x00040000
@@ -83,7 +85,6 @@ func New(port int) *Sidebar {
 
 	hwnd := uintptr(wv.Window())
 
-	// Remove window chrome
 	gwlStyle := intToPtr(-16)
 	getWindowLong := user32.NewProc("GetWindowLongW")
 	setWindowLong := user32.NewProc("SetWindowLongW")
@@ -93,13 +94,11 @@ func New(port int) *Sidebar {
 	style |= wsPopUp | wsClipChildren
 	setWindowLong.Call(hwnd, gwlStyle, style)
 
-	// Extended styles: tool window, topmost, no activate, layered
 	gwlExStyle := intToPtr(-20)
 	exStyle, _, _ := getWindowLong.Call(hwnd, gwlExStyle)
 	exStyle |= wsExToolWindow | wsExTopMost | wsExNoActivate
 	setWindowLong.Call(hwnd, gwlExStyle, exStyle)
 
-	// Position at right edge with HWND_TOPMOST to ensure top z-order
 	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), 0,
 		panelWidth, uintptr(screenH), swpNoActivate|0x0020)
 
@@ -135,7 +134,6 @@ func (s *Sidebar) slide(targetX int) {
 		if (dx > 0 && x > targetX) || (dx < 0 && x < targetX) {
 			x = targetX
 		}
-		// Always set HWND_TOPMOST to keep panel on top
 		procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(x), 0,
 			panelWidth, uintptr(s.screenH), swpNoActivate)
 		time.Sleep(animStepMs * time.Millisecond)
@@ -154,10 +152,9 @@ func (s *Sidebar) getWindowRect() (int, int, int, int) {
 	return int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
 }
 
-// reTopMost re-asserts topmost status periodically to prevent occlusion.
 func (s *Sidebar) reTopMost() {
 	procSetWindowPos.Call(s.hwnd, hwndTopMost, 0, 0, 0, 0,
-		swpNoActivate|swpNoZOrder|0x0001) // SWP_NOSIZE | SWP_NOMOVE
+		swpNoActivate|swpNoZOrder|swpNoSize|swpNoMove)
 }
 
 func (s *Sidebar) edgeLoop() {
@@ -169,12 +166,9 @@ func (s *Sidebar) edgeLoop() {
 
 	for range ticker.C {
 		mx, my := getCursorPos()
-
-		// Widen the trigger zone: detect from screen edge inward
 		inTrigger := mx >= s.screenW-triggerZonePx && mx <= s.screenW+panelWidth &&
 			my >= 0 && my <= s.screenH
 
-		// Wider panel zone to prevent accidental hide when user is near
 		inPanel := mx >= s.shownX-10 && mx <= s.screenW+panelWidth &&
 			my >= -20 && my <= s.screenH+20
 
@@ -195,9 +189,8 @@ func (s *Sidebar) edgeLoop() {
 			hideTimer = 0
 		}
 
-		// Periodically re-assert topmost (every ~2 seconds)
 		topMostTicker++
-		if topMostTicker >= 50 { // 50 * 40ms = 2s
+		if topMostTicker >= 50 {
 			topMostTicker = 0
 			if s.shown {
 				s.reTopMost()
