@@ -27,10 +27,15 @@ func NewServer(q *quota.OpenCodeGoQuerier) *Server {
 	return &Server{addr: ":8788", querier: q, deepseek: quota.NewDeepSeekQuerier()}
 }
 
-func logDir() string {
+func ocgtLogDir() string {
 	h, err := os.UserHomeDir()
 	if err != nil { h = os.Getenv("USERPROFILE") }
-	return filepath.Join(h, ".ocgt", "history")
+	// ocgt 默认日志目录是 ~/.ocgt/logs/，也兼容旧版 ~/.ocgt/history/
+	for _, dir := range []string{"logs", "history", "log"} {
+		p := filepath.Join(h, ".ocgt", dir)
+		if info, err := os.Stat(p); err == nil && info.IsDir() { return p }
+	}
+	return filepath.Join(h, ".ocgt", "logs")
 }
 
 func (s *Server) Start(addr string) error {
@@ -47,7 +52,7 @@ func (s *Server) Start(addr string) error {
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
 	})
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
-		logs, e := storage.ReadOCGTLogs(logDir())
+		logs, e := storage.ReadOCGTLogs(ocgtLogDir())
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
 		daily := storage.CalculateDailyStats(logs, 7)
 		type DayStat struct { Date string `json:"date"`; InputTokens int `json:"input_tokens"`; OutputTokens int `json:"output_tokens"`; TotalTokens int `json:"total_tokens"`; RequestCount int `json:"request_count"` }

@@ -40,7 +40,9 @@ li{margin:6px 0;font-size:14px;color:#52525b;line-height:1.7}
 
 <div class="callout info">
 <strong>这个工具是做什么的？</strong><br>
-你平时用 Claude Code 的时候，背后是通过 ocgt 代理连接 OpenCode Go 的服务。这个工具可以让你看到：<strong>套餐还剩多少额度</strong>、<strong>今天用了多少 Token</strong>、<strong>每个模型分别消耗了多少</strong>。
+你平时用 Claude Code 的时候，背后是通过 ocgt 代理连接 OpenCode Go 的服务。
+<strong>ocgt-monitor 大部分功能与 ocgt 无关</strong>，它直接调用 OpenCode Go 的接口查询额度。
+只有 <code>history</code>（查看历史消耗）需要读取 ocgt 产生的日志文件。
 </div>
 
 <h2>先搞懂几个词</h2>
@@ -52,7 +54,7 @@ li{margin:6px 0;font-size:14px;color:#52525b;line-height:1.7}
 </div>
 
 <h2>准备工作</h2>
-<div class="callout info">你需要在电脑上先安装好 ocgt 并正常使用 Claude Code。ocgt-monitor 是读取 ocgt 的日志来展示 Token 消耗的，所以 ocgt 必须已经在运行。</div>
+<div class="callout info"><strong>备注：</strong> <code>quota</code>（查额度）和 <code>balance</code>（查余额）<strong>完全不需要 ocgt</strong>，直接调用 OpenCode Go 接口。<br>只有 <code>history</code>（看历史消耗）需要 ocgt 产生的日志文件（在 <code>~/.ocgt/logs/</code> 目录）。</div>
 
 <h2>第一步：打开终端</h2>
 <div class=box>

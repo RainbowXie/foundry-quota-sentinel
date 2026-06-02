@@ -28,7 +28,7 @@ func currencySymbol(code string) string {
 }
 
 func homeDir() string { h, _ := os.UserHomeDir(); return h }
-func ocgtLogDir() string { return filepath.Join(homeDir(), ".ocgt", "history") }
+func ocgtLogDir() string { h := homeDir(); for _, d := range []string{"logs", "history", "log"} { p := filepath.Join(h, ".ocgt", d); if info, err := os.Stat(p); err == nil && info.IsDir() { return p } }; return filepath.Join(h, ".ocgt", "logs") }
 
 func makeQuotaQuerier() *quota.OpenCodeGoQuerier {
 	q := quota.NewOpenCodeGoQuerier()
