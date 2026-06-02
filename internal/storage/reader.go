@@ -80,7 +80,7 @@ func CalculateModelStats(logs []OCGTLogEntry, days int) map[string]TokenStatsByM
 	r := make(map[string]TokenStatsByModel)
 	for _, l := range logs {
 		if l.Time.Before(cutoff) || l.Error != "" || l.Model == "" { continue }
-		s := r[l.Model]; s.InputTokens += l.InputTokens; s.OutputTokens += l.OutputTokens
+		s := r[l.Model]; s.Model = l.Model; s.InputTokens += l.InputTokens; s.OutputTokens += l.OutputTokens
 		s.TotalTokens += l.TotalTokens; s.RequestCount++; r[l.Model] = s
 	}
 	return r

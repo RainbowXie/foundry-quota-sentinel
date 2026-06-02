@@ -45,3 +45,8 @@
   - 中文为主英文为辅：全部标注改为中文+英文标注
   - DeepSeek 未配置时隐藏余额区域
   - 模型区分：按提供商着色（deepseek蓝/mimo绿/glm黄等），名称智能缩写
+
+## 2026-06-02 18:25: 修复模型名称为空 + 字体放大
+- **根因:** `CalculateModelStats` 缺少 `s.Model = l.Model`，struct 中 Model 字段始终为空
+- **修复:** storage/reader.go 补上行赋值
+- **改进:** sidebar.html 全部字体放大 2-3px，大数字更醒目
