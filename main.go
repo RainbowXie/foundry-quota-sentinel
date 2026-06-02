@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -186,27 +185,23 @@ func cmdServe() {
 	q := makeQuotaQuerier()
 	srv := web.NewServer(q)
 
-	// Start HTTP server in background
+	// Start HTTP server in background (required by sidebar WebView2)
 	go func() {
-		fmt.Println("========================================")
-		fmt.Println("  OpenCode Go 额度监控面板")
-		fmt.Println("  -> http://127.0.0.1:8788")
-		fmt.Println("========================================")
 		if err := srv.Start(":8788"); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
 	}()
 
-	// Check for --sidebar flag
+	// Sidebar mode: desktop panel with auto-hide
 	if len(os.Args) > 2 && os.Args[2] == "--sidebar" {
-		fmt.Println("  启动桌面侧边栏模式...")
-		time.Sleep(500 * time.Millisecond) // wait for server
+		fmt.Println("启动侧边栏...")
+		time.Sleep(500 * time.Millisecond)
 		sb := sidebar.New(8788)
 		sb.Run()
 		return
 	}
 
-	// Normal mode: auto-open browser
-	_ = exec.Command("cmd", "/c", "start", "http://127.0.0.1:8788").Start()
-	select {} // keep running
+	// Headless mode: just start the API server (for CLI/curl access)
+	fmt.Println("API 服务已启动: http://127.0.0.1:8788")
+	select {}
 }
 
 func showConfigHint() {
@@ -233,7 +228,7 @@ func printUsage() {
 	fmt.Println("  balance               查询 DeepSeek 余额")
 	fmt.Println("  history               查看 Token 消耗历史")
 	fmt.Println("  watch                 持续监控")
-	fmt.Println("  serve                 启动侧边栏模式 (浏览器访问 http://127.0.0.1:8788)")
+	fmt.Println("  serve                 启动 API 服务 (--sidebar 桌面侧边栏模式)")
 	fmt.Println()
 	fmt.Println("环境变量（优先级高于配置文件）:")
 	fmt.Println("  OPENCODE_GO_AUTH_COOKIE")
