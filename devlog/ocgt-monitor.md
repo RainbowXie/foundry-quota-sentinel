@@ -24,3 +24,10 @@
   - index.html 改为全屏面板布局，顶部状态栏+今日统计卡片+额度+模型表+趋势图
   - server.go 新增 /api/models 端点返回各模型消耗
   - cmdServe 自动打开浏览器
+
+## 2026-06-02 17:20: 桌面侧边栏面板（WebView2 + 自动隐藏）
+- **新增:** `internal/sidebar/sidebar.go` — WebView2 窗口 + 鼠标边缘检测 + 滑出动画
+- **新增:** `internal/web/static/sidebar.html` — 侧边栏专属 UI（实时数据）
+- **新增:** `serve --sidebar` 启动参数
+- **依赖:** github.com/webview/webview_go, golang.org/x/sys/windows
+- **构建:** CGO_ENABLED=1, GCC via MSYS2 MinGW64

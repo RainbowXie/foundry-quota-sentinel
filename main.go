@@ -13,6 +13,7 @@ import (
 	"ocgt-monitor/internal/config"
 	"ocgt-monitor/internal/formatter"
 	"ocgt-monitor/internal/quota"
+	"ocgt-monitor/internal/sidebar"
 	"ocgt-monitor/internal/storage"
 	"ocgt-monitor/internal/web"
 )
@@ -184,14 +185,28 @@ func cmdWatch() {
 func cmdServe() {
 	q := makeQuotaQuerier()
 	srv := web.NewServer(q)
-	fmt.Println("========================================")
-	fmt.Println("  OpenCode Go 额度监控面板")
-	fmt.Println("  打开浏览器访问:")
-	fmt.Println("  -> http://127.0.0.1:8788")
-	fmt.Println("========================================")
-	// 自动打开浏览器
+
+	// Start HTTP server in background
+	go func() {
+		fmt.Println("========================================")
+		fmt.Println("  OpenCode Go 额度监控面板")
+		fmt.Println("  -> http://127.0.0.1:8788")
+		fmt.Println("========================================")
+		if err := srv.Start(":8788"); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
+	}()
+
+	// Check for --sidebar flag
+	if len(os.Args) > 2 && os.Args[2] == "--sidebar" {
+		fmt.Println("  启动桌面侧边栏模式...")
+		time.Sleep(500 * time.Millisecond) // wait for server
+		sb := sidebar.New(8788)
+		sb.Run()
+		return
+	}
+
+	// Normal mode: auto-open browser
 	_ = exec.Command("cmd", "/c", "start", "http://127.0.0.1:8788").Start()
-	if err := srv.Start(":8788"); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
+	select {} // keep running
 }
 
 func showConfigHint() {
@@ -218,7 +233,7 @@ func printUsage() {
 	fmt.Println("  balance               查询 DeepSeek 余额")
 	fmt.Println("  history               查看 Token 消耗历史")
 	fmt.Println("  watch                 持续监控")
-	fmt.Println("  serve                 启动 Web 面板")
+	fmt.Println("  serve                 启动 Web 面板 (--sidebar 桌面侧边栏模式)")
 	fmt.Println()
 	fmt.Println("环境变量（优先级高于配置文件）:")
 	fmt.Println("  OPENCODE_GO_AUTH_COOKIE")
