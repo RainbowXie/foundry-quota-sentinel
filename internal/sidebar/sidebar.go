@@ -18,6 +18,8 @@ var (
 	procGetCursorPos    = user32.NewProc("GetCursorPos")
 	procSetWindowPos    = user32.NewProc("SetWindowPos")
 	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
+	procCreateRoundRectRgn = user32.NewProc("CreateRoundRectRgn")
+	procSetWindowRgn    = user32.NewProc("SetWindowRgn")
 )
 
 const (
@@ -106,6 +108,9 @@ func New(port int) *Sidebar {
 
 	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), uintptr(state.PanelY),
 		panelWidth, panelHeight, swpNoActivate|0x0020)
+		// Round left corners; right corners hidden by extending region beyond window
+	rgn, _, _ := procCreateRoundRectRgn.Call(0, 0, panelWidth+100, panelHeight, 12, 12)
+	procSetWindowRgn.Call(hwnd, rgn, 1)
 
 	return &Sidebar{
 		wv: wv, hwnd: hwnd,
