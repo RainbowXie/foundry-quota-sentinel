@@ -6,6 +6,8 @@ import (
 	"time"
 	"unsafe"
 
+	"ocgt-monitor/internal/state"
+
 	"github.com/webview/webview_go"
 	"golang.org/x/sys/windows"
 )
@@ -20,8 +22,8 @@ var (
 
 const (
 	panelWidth    = 300
-	triggerZonePx = 10
-	animSteps     = 8
+	triggerZonePx = 15
+	animSteps     = 15
 	animStepMs    = 6
 	pollMs        = 40
 	hideDelayMs   = 600
@@ -175,6 +177,16 @@ func (s *Sidebar) edgeLoop() {
 	var topMostTicker int
 
 	for range ticker.C {
+		// When pinned, stay shown and suppress auto-hide
+		if state.Pinned {
+			if !s.shown {
+				s.shown = true
+				s.hidden = false
+				s.wv.Dispatch(func() { go s.slide(s.shownX) })
+			}
+			hideTimer = 0
+
+		}
 		mx, my := getCursorPos()
 		inTrigger := mx >= s.screenW-triggerZonePx && mx <= s.screenW+panelWidth &&
 			my >= 0 && my <= s.screenH

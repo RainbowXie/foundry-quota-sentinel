@@ -95,3 +95,13 @@ func CalculateModelStatsByRange(logs []OCGTLogEntry, from, to time.Time) map[str
 	}
 	return r
 }
+
+func OCGTLogDir() string {
+	h, err := os.UserHomeDir()
+	if err != nil { h = os.Getenv("USERPROFILE") }
+	for _, dir := range []string{"logs", "history", "log"} {
+		p := filepath.Join(h, ".ocgt", dir)
+		if info, err := os.Stat(p); err == nil && info.IsDir() { return p }
+	}
+	return filepath.Join(h, ".ocgt", "logs")
+}

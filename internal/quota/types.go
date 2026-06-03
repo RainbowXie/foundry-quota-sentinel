@@ -23,21 +23,3 @@ type BalanceData struct {
 	ToppedUpBalance float64 `json:"topped_up_balance"`
 	FetchedAt       time.Time `json:"fetched_at"`
 }
-
-type QuotaResult struct {
-	Success      bool         `json:"success"`
-	ProviderName string       `json:"provider_name"`
-	Quota        *QuotaData   `json:"quota,omitempty"`
-	Balance      *BalanceData `json:"balance,omitempty"`
-	Error        string       `json:"error,omitempty"`
-}
-
-type TokenStats struct {
-	Date         string  `json:"date"`
-	Model        string  `json:"model"`
-	InputTokens  int     `json:"input_tokens"`
-	OutputTokens int     `json:"output_tokens"`
-	TotalTokens  int     `json:"total_tokens"`
-	Cost         float64 `json:"cost"`
-	RequestCount int     `json:"request_count"`
-}

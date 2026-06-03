@@ -21,6 +21,7 @@ var currencySymbols = map[string]string{"CNY": "¥", "USD": "$", "EUR": "€", "
 var cfg *config.Config
 var inputReader = bufio.NewScanner(os.Stdin)
 
+var version = "0.4.0"
 func init() { cfg = config.Load() }
 
 func currencySymbol(code string) string {
@@ -29,7 +30,7 @@ func currencySymbol(code string) string {
 }
 
 func homeDir() string { h, _ := os.UserHomeDir(); return h }
-func ocgtLogDir() string { h := homeDir(); for _, d := range []string{"logs", "history", "log"} { p := filepath.Join(h, ".ocgt", d); if info, err := os.Stat(p); err == nil && info.IsDir() { return p } }; return filepath.Join(h, ".ocgt", "logs") }
+func ocgtPort() string { if p := os.Getenv("OCGT_PORT"); p != "" { return p }; return "8788" }
 
 func makeQuotaQuerier() *quota.OpenCodeGoQuerier {
 	q := quota.NewOpenCodeGoQuerier()
@@ -76,6 +77,7 @@ func main() {
 	case "watch": cmdWatch()
 	case "config": cmdConfigMain()
 	case "serve": cmdServe()
+case "version", "-v", "--version": fmt.Println("ocgt-monitor v" + version)
 	case "help", "-h", "--help": printUsage()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
@@ -118,7 +120,7 @@ func cmdBalance() {
 }
 
 func cmdHistory() {
-	logs, err := storage.ReadOCGTLogs(ocgtLogDir())
+	logs, err := storage.ReadOCGTLogs(storage.OCGTLogDir())
 	if err != nil { fmt.Fprintf(os.Stderr, "读取历史日志失败: %v\n", err); fmt.Fprintln(os.Stderr, "请确认 ocgt 已运行并有请求记录"); os.Exit(1) }
 	daily := storage.CalculateDailyStats(logs, 7)
 	fmt.Println()
@@ -169,7 +171,7 @@ func cmdWatch() {
 			sym := currencySymbol(b.Currency)
 			fmt.Printf("\n【DeepSeek 余额】%s%.2f (%s)\n", sym, b.TotalBalance, b.Currency)
 		} else { fmt.Printf("\n【DeepSeek 余额】查询失败: %v\n", err) }
-		if logs, err := storage.ReadOCGTLogs(ocgtLogDir()); err == nil {
+		if logs, err := storage.ReadOCGTLogs(storage.OCGTLogDir()); err == nil {
 			daily := storage.CalculateDailyStats(logs, 1)
 			today := time.Now().Format("2006-01-02")
 			if stat, ok := daily[today]; ok {
@@ -187,7 +189,7 @@ func cmdServe() {
 
 	// Start HTTP server in background (required by sidebar WebView2)
 	go func() {
-		if err := srv.Start(":8788"); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
+		if err := srv.Start(":" + ocgtPort()); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
 	}()
 
 	// Sidebar mode: desktop panel with auto-hide
@@ -263,7 +265,7 @@ func cmdConfigShow() {
 	if len(cfg.Profiles) == 0 { fmt.Println("    暂无配置，请运行 ocgt-monitor config init") } else { fmt.Printf("    当前账户: %s\n", cfg.ActiveProfile); fmt.Printf("    账户总数: %d\n", len(cfg.Profiles)) }
 	fmt.Println(); fmt.Println("  [ocgt 集成]")
 	if _, err := os.Stat(filepath.Join(homeDir(), ".ocgt", "config.json")); err == nil { fmt.Println("    ocgt 配置: 已找到") } else { fmt.Println("    ocgt 配置: 未找到（仅 history 命令需要）") }
-	if entries, err := os.ReadDir(ocgtLogDir()); err == nil { c := 0; for _, e := range entries { if !e.IsDir() { c++ } }; fmt.Printf("    日志文件: %d 个\n", c) } else { fmt.Println("    日志目录: 未找到（启动 ocgt 后自动生成）") }
+	if entries, err := os.ReadDir(storage.OCGTLogDir()); err == nil { c := 0; for _, e := range entries { if !e.IsDir() { c++ } }; fmt.Printf("    日志文件: %d 个\n", c) } else { fmt.Println("    日志目录: 未找到（启动 ocgt 后自动生成）") }
 	fmt.Println("========================================")
 }
 

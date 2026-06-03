@@ -1,4 +1,24 @@
-## 2026-06-02 14:30: 允许删除最后一个 Profile
+## 2026-06-03 11:44: 全面优化：代码清理+暗色模式+固定按钮+动画增强
+- **代码清理:**
+  - `internal/state/state.go` 新增，管理固定状态
+  - `storage/reader.go` 新增 `OCGTLogDir()`，移除 `main.go` 和 `web/server.go` 的重复函数
+  - `quota/opencode.go` 移除本地 `fmtDurationCompact`，改用 `formatter.FormatDurationCompact()`
+  - `quota/types.go` 移除未使用的 `QuotaResult` 和 `TokenStats`
+  - `web/server.go` 已清理，新增 `/api/pin` `/api/pin-state` 端点
+  - `go.mod` 更新到 1.26.0
+- **新增功能:**
+  - `version` 命令（`ocgt-monitor version` / `--version`）
+  - `OCGT_PORT` 环境变量支持自定义端口
+  - 固定按钮（📌/📍），点击后侧边栏保持显示不自动收回
+- **侧边栏界面:**
+  - 暗色模式：全部 CSS 颜色提取为变量，`prefers-color-scheme: dark` 自动切换
+  - 刷新闪动动画（`@keyframes freshen`）：每次数据更新时区域闪烁提示
+  - 按钮统一改为 `transparent` 背景，hover 时才显示背景色
+  - 固定按钮 `#pinBtn` + 加载时从 `/api/pin-state` 同步状态
+- **侧边栏交互:**
+  - 触发区 10px→15px，更容易唤出
+  - 滑出动画 8 帧→15 帧，更平滑
+  - 固定状态下完全禁用自动隐藏逻辑
 - **文件:** `internal/config/config.go`
 - **原因:** 用户需要能完全清空配置，以便将工具转发给他人使用
 - **决策:** 移除"不能删除唯一 Profile"的限制，删除最后一个后配置清空

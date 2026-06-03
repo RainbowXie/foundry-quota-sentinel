@@ -7,11 +7,11 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
 	"ocgt-monitor/internal/quota"
+	"ocgt-monitor/internal/state"
 	"ocgt-monitor/internal/storage"
 )
 
@@ -26,16 +26,6 @@ type Server struct {
 
 func NewServer(q *quota.OpenCodeGoQuerier) *Server {
 	return &Server{addr: ":8788", querier: q, deepseek: quota.NewDeepSeekQuerier()}
-}
-
-func ocgtLogDir() string {
-	h, err := os.UserHomeDir()
-	if err != nil { h = os.Getenv("USERPROFILE") }
-	for _, dir := range []string{"logs", "history", "log"} {
-		p := filepath.Join(h, ".ocgt", dir)
-		if info, err := os.Stat(p); err == nil && info.IsDir() { return p }
-	}
-	return filepath.Join(h, ".ocgt", "logs")
 }
 
 func (s *Server) Start(addr string) error {
@@ -55,7 +45,7 @@ func (s *Server) Start(addr string) error {
 	})
 
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
-		logs, e := storage.ReadOCGTLogs(ocgtLogDir())
+		logs, e := storage.ReadOCGTLogs(storage.OCGTLogDir())
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
 		daily := storage.CalculateDailyStats(logs, 7)
 		type DayStat struct { Date string `json:"date"`; InputTokens int `json:"input_tokens"`; OutputTokens int `json:"output_tokens"`; TotalTokens int `json:"total_tokens"`; RequestCount int `json:"request_count"` }
@@ -66,7 +56,7 @@ func (s *Server) Start(addr string) error {
 	})
 
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
-		logs, e := storage.ReadOCGTLogs(ocgtLogDir())
+		logs, e := storage.ReadOCGTLogs(storage.OCGTLogDir())
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
 		r.ParseForm()
 		var models map[string]storage.TokenStatsByModel
@@ -98,7 +88,9 @@ func (s *Server) Start(addr string) error {
 	})
 
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "ok", "time": time.Now()}) })
-	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
+		mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
+		mux.HandleFunc("/api/pin", func(w http.ResponseWriter, r *http.Request) { state.Pinned = !state.Pinned; writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
+		mux.HandleFunc("/api/pin-state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
 
 	sub, _ := fs.Sub(webAssets, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))

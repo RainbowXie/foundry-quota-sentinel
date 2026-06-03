@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+
+	"ocgt-monitor/internal/formatter"
 )
 
 const (
@@ -83,12 +85,5 @@ func parseQuotaResponse(text string) (*QuotaData, error) {
 func parseUsage(m []string) QuotaUsage {
 	reset, _ := strconv.Atoi(m[2])
 	percent, _ := strconv.Atoi(m[3])
-	return QuotaUsage{Status: m[1], UsagePercent: percent, ResetInSec: reset, ResetDisplay: fmtDurationCompact(reset)}
-}
-
-func fmtDurationCompact(s int) string {
-	if s < 60 { return fmt.Sprintf("%ds", s) }
-	if s < 3600 { return fmt.Sprintf("%dm", s/60) }
-	if s < 86400 { return fmt.Sprintf("%dh", s/3600) }
-	return fmt.Sprintf("%dd", s/86400)
+	return QuotaUsage{Status: m[1], UsagePercent: percent, ResetInSec: reset, ResetDisplay: formatter.FormatDurationCompact(reset)}
 }
