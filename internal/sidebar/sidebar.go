@@ -21,10 +21,12 @@ var (
 )
 
 const (
-	panelWidth    = 270
+	panelWidth    = 250
+	panelHeight   = 370
+	panelY        = 40
 	triggerZonePx = 15
-	animSteps     = 15
-	animStepMs    = 6
+	animSteps     = 12
+	animStepMs    = 8
 	pollMs        = 40
 	hideDelayMs   = 600
 	swpNoSize     = 0x0001
@@ -66,24 +68,23 @@ type Sidebar struct {
 	wv        webview.WebView
 	hwnd      uintptr
 	screenW   int
-	screenH   int
 	hiddenX   int
 	shownX    int
-	hidden    bool
 	shown     bool
+	hidden    bool
 	animating bool
 }
 
 func New(port int) *Sidebar {
 	runtime.LockOSThread()
 
-	screenW, screenH := getScreenSize()
+	screenW, _ := getScreenSize()
 	hiddenX := screenW - triggerZonePx + 4
 	shownX := screenW - panelWidth
 
 	wv := webview.New(false)
 	wv.SetTitle("")
-	wv.SetSize(panelWidth, screenH, webview.HintFixed)
+	wv.SetSize(panelWidth, panelHeight, webview.HintFixed)
 	wv.Navigate(fmt.Sprintf("http://127.0.0.1:%d/sidebar.html", port))
 
 	hwnd := uintptr(wv.Window())
@@ -102,24 +103,23 @@ func New(port int) *Sidebar {
 	exStyle |= wsExToolWindow | wsExTopMost | wsExNoActivate
 	setWindowLong.Call(hwnd, gwlExStyle, exStyle)
 
-	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), 0,
-		panelWidth, uintptr(screenH), swpNoActivate|0x0020)
+	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), panelY,
+		panelWidth, panelHeight, swpNoActivate|0x0020)
 
 	return &Sidebar{
 		wv: wv, hwnd: hwnd,
-		screenW: screenW, screenH: screenH,
+		screenW: screenW,
 		hiddenX: hiddenX, shownX: shownX,
-		hidden: true, shown: false,
+		hidden: true,
 	}
 }
 
 func (s *Sidebar) Run() {
-	// Hide the console window
 	if hideConsole := user32.NewProc("ShowWindow"); hideConsole != nil {
 		if getConsoleWin := kernel32.NewProc("GetConsoleWindow"); getConsoleWin != nil {
 			hwndConsole, _, _ := getConsoleWin.Call()
 			if hwndConsole != 0 {
-				hideConsole.Call(hwndConsole, 0) // SW_HIDE = 0
+				hideConsole.Call(hwndConsole, 0)
 			}
 		}
 	}
@@ -135,26 +135,18 @@ func (s *Sidebar) slide(targetX int) {
 	x, _, _, _ := s.getWindowRect()
 	dx := (targetX - x) / animSteps
 	if dx == 0 {
-		if targetX > x {
-			dx = 1
-		} else {
-			dx = -1
-		}
+		if targetX > x { dx = 1 } else { dx = -1 }
 	}
 	for i := 0; i < animSteps; i++ {
 		x += dx
-		if (dx > 0 && x > targetX) || (dx < 0 && x < targetX) {
-			x = targetX
-		}
-		procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(x), 0,
-			panelWidth, uintptr(s.screenH), swpNoActivate)
+		if (dx > 0 && x > targetX) || (dx < 0 && x < targetX) { x = targetX }
+		procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(x), panelY,
+			panelWidth, panelHeight, swpNoActivate)
 		time.Sleep(animStepMs * time.Millisecond)
-		if x == targetX {
-			break
-		}
+		if x == targetX { break }
 	}
-	procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(targetX), 0,
-		panelWidth, uintptr(s.screenH), swpNoActivate)
+	procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(targetX), panelY,
+		panelWidth, panelHeight, swpNoActivate)
 }
 
 func (s *Sidebar) getWindowRect() (int, int, int, int) {
@@ -177,7 +169,6 @@ func (s *Sidebar) edgeLoop() {
 	var topMostTicker int
 
 	for range ticker.C {
-		// When pinned, stay shown and suppress auto-hide
 		if state.Pinned {
 			if !s.shown {
 				s.shown = true
@@ -185,14 +176,14 @@ func (s *Sidebar) edgeLoop() {
 				s.wv.Dispatch(func() { go s.slide(s.shownX) })
 			}
 			hideTimer = 0
-
 		}
 		mx, my := getCursorPos()
+
 		inTrigger := mx >= s.screenW-triggerZonePx && mx <= s.screenW+panelWidth &&
-			my >= 0 && my <= s.screenH
+			my >= panelY-40 && my <= panelY+panelHeight+60
 
 		inPanel := mx >= s.shownX-10 && mx <= s.screenW+panelWidth &&
-			my >= -20 && my <= s.screenH+20
+			my >= panelY-20 && my <= panelY+panelHeight+20
 
 		if !s.shown && inTrigger && !s.animating {
 			s.shown = true
@@ -214,9 +205,7 @@ func (s *Sidebar) edgeLoop() {
 		topMostTicker++
 		if topMostTicker >= 50 {
 			topMostTicker = 0
-			if s.shown {
-				s.reTopMost()
-			}
+			if s.shown { s.reTopMost() }
 		}
 	}
 }
