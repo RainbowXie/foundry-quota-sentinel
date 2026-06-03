@@ -15,7 +15,7 @@
   --filter-bg:transparent;
   --mc-bg:rgba(255,255,255,0.75); --mc-bd:1px solid rgba(255,255,255,0.9);
   --input-bg:rgba(255,255,255,0.85); --input-bd:rgba(99,102,241,0.2);
-  --accent:#6366f1; --accent2:#a855f7; --accent3:#ec4899;
+  --accent:#6366f1; --accent-rgb:99,102,241; --accent2:#a855f7;
   --green:#22c55e; --green-dim:rgba(34,197,94,0.3);
   --red:#ef4444;
   --bs-sec:rgba(0,0,0,0.03);
@@ -23,9 +23,9 @@
   --mdot-bg:#22c55e; --mdot-sh:rgba(34,197,94,0.3);
   --mi-bg:transparent; 
   
-  --st-col:#a1a1b5; --st-bar:#6366f1;
+  --st-col:#a1a1b5;
   --ql-col:#1a1a2e;
-  --sep-col:rgba(0,0,0,0.04);
+ 
 }
 
 /* ── Theme: 暗色 · 深色专业 ── */
@@ -38,7 +38,7 @@
   --filter-bg:rgba(255,255,255,0.03);
   --mc-bg:transparent; --mc-bd:none;
   --input-bg:rgba(255,255,255,0.03); --input-bd:rgba(0,255,136,0.15);
-  --accent:#00ff88; --accent2:#00b8ff; --accent3:#6366f1;
+  --accent:#00ff88; --accent-rgb:0,255,136; --accent2:#00b8ff;
   --green:#00ff88; --green-dim:rgba(0,255,136,0.15);
   --red:#ff3366;
   --bs-sec:rgba(0,255,136,0.03);
@@ -46,9 +46,9 @@
   --mdot-bg:#00ff88; --mdot-sh:rgba(0,255,136,0.4);
   --mi-bg:rgba(255,255,255,0.02); 
   --mt-bg:transparent;
-  --st-col:#4a5568; --st-bar:#00ff88;
+  --st-col:#4a5568;
   --ql-col:#4a5568;
-  --sep-col:rgba(255,255,255,0.04);
+ 
 }
 
 /* ── Shared styles ── */
@@ -66,7 +66,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .sd.er{background:var(--red);box-shadow:0 0 0 3px rgba(255,51,102,0.2)}
 .ht{font-size:9px;color:var(--text-sec);font-weight:600;font-feature-settings:"tnum";transition:color .3s}
 .hb{width:20px;height:20px;border-radius:5px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-sec);transition:all .2s}
-.hb:hover{background:rgba(var(--accent),0.1);color:var(--accent)}
+.hb:hover{background:rgba(var(--accent-rgb),0.1);color:var(--accent)}
 .hb.on{text-shadow:0 0 6px var(--accent)}
 .qb{width:20px;height:20px;border-radius:5px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-sec);transition:all .2s}
 .qb:hover{background:rgba(239,68,68,0.1);color:var(--red)}
@@ -118,11 +118,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .dr{display:none;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:6px}
 .dr.on{display:flex}
 .dr-in{flex:1;min-width:60px;font-size:9px;padding:4px 6px;border:1px solid var(--input-bd);border-radius:5px;background:var(--input-bg);color:var(--text);font-family:inherit;font-weight:500;transition:all .2s}
-.dr-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,255,136,0.1)}
+.dr-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.15)}
 .dr-in::placeholder{color:var(--text-sec);font-weight:400}
 .dr-sep{font-size:9px;color:var(--text-sec);font-weight:600;flex-shrink:0}
 .dr .go{padding:4px 8px;font-size:9px;font-weight:700;border-radius:5px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;transition:all .2s;flex-shrink:0}
-.dr .go:hover{box-shadow:0 2px 8px rgba(0,255,136,0.25);transform:translateY(-1px)}
+.dr .go:hover{box-shadow:0 2px 8px rgba(var(--accent-rgb),0.3);transform:translateY(-1px)}
 
 /* ── Model list ── */
 .mc{display:flex;flex-direction:column;gap:3px;background:var(--mc-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;padding:var(--mc-pad,6px);border:var(--mc-bd);box-shadow:var(--card-sh);transition:background .3s,border .3s,box-shadow .3s}

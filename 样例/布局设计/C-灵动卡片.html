@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>风格C · 灵动卡片</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto Sans SC',sans-serif;background:linear-gradient(180deg,#f5f0ff 0%,#f0eef8 50%,#fef5f2 100%);width:270px;overflow:hidden;user-select:none;color:#1a1a2e;-webkit-font-smoothing:antialiased}
+.p{display:flex;flex-direction:column;height:100vh}
+/* ── Header ── */
+.h{padding:14px 14px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.hl{display:flex;align-items:center;gap:10px}
+.ic{width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;box-shadow:0 4px 12px rgba(99,102,241,0.25)}
+.hl h1{font-size:14px;font-weight:700;letter-spacing:-.3px;color:#1a1a2e}
+.hr{display:flex;align-items:center;gap:6px}
+.sd{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,0.15)}
+.sd.er{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,0.15)}
+.ht{font-size:11px;color:#a1a1b5;font-weight:500;font-feature-settings:"tnum"}
+.hb{width:26px;height:26px;border-radius:8px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#a1a1b5;transition:all .2s}
+.hb:hover{background:rgba(99,102,241,0.08);color:#6366f1}
+.qb{width:26px;height:26px;border-radius:8px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:#a1a1b5;transition:all .2s}
+.qb:hover{background:rgba(239,68,68,0.08);color:#ef4444}
+/* ── Body ── */
+.c{flex:1;overflow-y:auto;padding:0 14px 14px;scrollbar-width:thin}
+.c::-webkit-scrollbar{width:2px}
+.c::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.06);border-radius:10px}
+/* ── Quota ── */
+.qn{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;background:rgba(255,255,255,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:18px;padding:14px 16px;border:1px solid rgba(255,255,255,0.9);box-shadow:0 4px 20px rgba(0,0,0,0.04)}
+.qh{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.qt{font-size:11px;font-weight:600;color:#1a1a2e}
+.qq{display:flex;align-items:center;gap:8px}
+.qv{font-size:11px;font-weight:700;font-feature-settings:"tnum"}
+.qv.g1{color:#a855f7}.qv.g2{color:#ef4444}.qv.g3{color:#3b82f6}
+.qtm{font-size:9px;color:#a1a1b5;font-weight:500;font-feature-settings:"tnum"}
+.qbw{height:6px;border-radius:3px;background:rgba(0,0,0,0.03);overflow:hidden}
+.qf{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.22,1,.36,1)}
+.qf.g1{background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899)}
+.qf.g2{background:linear-gradient(90deg,#f59e0b,#ef4444,#ec4899)}
+.qf.g3{background:linear-gradient(90deg,#06b6d4,#3b82f6,#6366f1)}
+/* ── Today Stats ── */
+.tg{display:flex;gap:6px;margin-bottom:10px}
+.ti{flex:1;background:rgba(255,255,255,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;padding:10px 6px;text-align:center;border:1px solid rgba(255,255,255,0.9);box-shadow:0 2px 12px rgba(0,0,0,0.03)}
+.tn{font-size:13px;font-weight:800;font-feature-settings:"tnum";line-height:1.2;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis}
+.tn.g1{color:#6366f1}.tn.g2{color:#ef4444}.tn.g3{color:#22c55e}.tn.g4{color:#a855f7}
+.tl{font-size:8px;color:#a1a1b5;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+/* ── Balance ── */
+.bc{background:rgba(255,255,255,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;padding:10px 14px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.9);box-shadow:0 2px 12px rgba(0,0,0,0.03);display:flex;align-items:center;justify-content:space-between}
+.bl{font-size:11px;color:#a1a1b5;font-weight:500}
+.bv{font-size:15px;font-weight:800;font-feature-settings:"tnum";background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+/* ── Filters ── */
+.fw{display:flex;gap:3px;margin-bottom:8px}
+.fl{padding:4px 10px;font-size:10px;font-weight:600;border-radius:20px;cursor:pointer;color:#a1a1b5;transition:all .2s;white-space:nowrap}
+.fl-on{background:#fff;color:#6366f1;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.fl:hover{color:#6366f1}
+/* ── Model List ── */
+.mc{display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,0.75);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:18px;padding:6px;border:1px solid rgba(255,255,255,0.9);box-shadow:0 4px 20px rgba(0,0,0,0.04)}
+.mi{display:flex;align-items:center;gap:4px;padding:7px 8px;border-radius:14px;transition:all .2s}
+.mi:hover{background:rgba(var(--cr,148,163,184),0.06)}
+.md{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#22c55e,#34d399);box-shadow:0 0 8px rgba(34,197,94,0.3)}
+.mn{flex:1;font-size:11px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.mt{font-size:10px;font-weight:700;font-feature-settings:"tnum";color:rgba(var(--cr,148,163,184),0.7);flex-shrink:0;background:rgba(var(--cr,148,163,184),0.06);padding:1px 6px;border-radius:4px}
+.emp{padding:12px 0;text-align:center;color:#a1a1b5;font-size:11px;font-weight:500;margin-top:4px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class=p>
+<div class=h>
+<div class=hl><div class=ic>OG</div><h1>ocgt-monitor</h1></div>
+<div class=hr>
+<span class=sd></span><span class=ht>12:30</span>
+<button class=hb>📌</button><button class=qb>✕</button>
+</div>
+</div>
+<div class=c>
+
+<div class=qn>
+<div class=qh><span class=qt>Rolling</span><span class=qq><span class="qv g1">65%</span><span class=qtm>2h</span></span></div>
+<div class=qbw><div class="qf g1" style=width:65%></div></div>
+<div class=qh><span class=qt>Weekly</span><span class=qq><span class="qv g2">82%</span><span class=qtm>3d</span></span></div>
+<div class=qbw><div class="qf g2" style=width:82%></div></div>
+<div class=qh style=margin-bottom:0><span class=qt>Monthly</span><span class=qq><span class="qv g3">无限额度</span></span></div>
+</div>
+
+<div class=tg>
+<div class=ti><div class="tn g1">104,523,891</div><div class=tl>输入</div></div>
+<div class=ti><div class="tn g2">478,234</div><div class=tl>输出</div></div>
+<div class=ti><div class="tn g3">105,002,125</div><div class=tl>总计</div></div>
+<div class=ti><div class="tn g4">855</div><div class=tl>请求</div></div>
+</div>
+
+<div class=bc><span class=bl>账户余额</span><span class=bv>$42.50 CNY</span></div>
+
+<div class=fw>
+<span class="fl fl-on">今日</span>
+<span class=fl>7日</span>
+<span class=fl>30日</span>
+<span class=fl>自定</span>
+</div>
+<div class=mc>
+<div class=mi style="--cr:99,102,241"><span class=md></span><span class=mn>deepseek-chat</span><span class=mt>305M</span></div>
+<div class=mi style="--cr:245,158,11"><span class=md></span><span class=mn>glm-4-plus</span><span class=mt>45.6M</span></div>
+<div class=mi style="--cr:34,197,94"><span class=md></span><span class=mn>mimo-pro</span><span class=mt>22.3M</span></div>
+<div class=mi style="--cr:6,182,212"><span class=md></span><span class=mn>qwen3.6-plus</span><span class=mt>12.3M</span></div>
+<div class=mi style="--cr:168,85,247"><span class=md></span><span class=mn>kimi-vision</span><span class=mt>5.6M</span></div>
+</div>
+
+<div class=emp>5s 自动刷新 · 上次更新 12:30</div>
+</div>
+</div>
+</body>
+</html>

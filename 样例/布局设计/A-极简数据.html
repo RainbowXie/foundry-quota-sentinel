@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>风格A · 极简数据</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Noto Sans SC',sans-serif;background:#f8f7fc;width:280px;overflow:hidden;user-select:none;color:#1a1a2e;-webkit-font-smoothing:antialiased}
+.p{display:flex;flex-direction:column;height:100vh}
+/* ── Header ── */
+.h{padding:12px 12px 8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.04)}
+.hl{display:flex;align-items:center;gap:8px}
+.ic{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700}
+.hl h1{font-size:12px;font-weight:700;letter-spacing:-.2px;background:linear-gradient(135deg,#6366f1,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hr{display:flex;align-items:center;gap:4px}
+.sd{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,0.2)}
+.sd.er{background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,0.2)}
+.ht{font-size:10px;color:#94a3b8;font-weight:500;font-feature-settings:"tnum"}
+.hb{width:20px;height:20px;border-radius:5px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8;transition:all .2s}
+.hb:hover{background:rgba(99,102,241,0.1);color:#6366f1}
+.qb{width:20px;height:20px;border-radius:5px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8;transition:all .2s}
+.qb:hover{background:rgba(239,68,68,0.1);color:#ef4444}
+/* ── Body ── */
+.c{flex:1;overflow-y:auto;padding:8px 12px 12px;scrollbar-width:thin}
+.c::-webkit-scrollbar{width:2px}
+.c::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.06);border-radius:10px}
+/* ── Section Title ── */
+.st{font-size:9px;font-weight:700;color:#94a3b8;letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.st::before{content:"";display:inline-block;width:2px;height:10px;border-radius:2px;background:linear-gradient(180deg,#6366f1,#a855f7)}
+/* ── Quota ── */
+.qc{display:flex;gap:4px;margin-bottom:8px}
+.qi{flex:1;background:rgba(255,255,255,0.6);border-radius:8px;padding:6px 8px;border:1px solid rgba(255,255,255,0.8)}
+.ql{font-size:8px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.qv{font-size:14px;font-weight:800;letter-spacing:-.3px;font-feature-settings:"tnum";line-height:1.1}
+.qv.g1{color:#a855f7}.qv.g2{color:#ef4444}.qv.g3{color:#3b82f6}
+.qr2{font-size:8px;color:#94a3b8;font-weight:500;font-feature-settings:"tnum"}
+.qbw{height:3px;border-radius:2px;background:rgba(0,0,0,0.04);margin-top:4px;overflow:hidden}
+.qf{height:100%;border-radius:2px}
+.qf.g1{background:linear-gradient(90deg,#6366f1,#a855f7)}
+.qf.g2{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.qf.g3{background:linear-gradient(90deg,#06b6d4,#3b82f6)}
+/* ── Today Stats ── */
+.tg{display:flex;gap:4px;margin-bottom:8px}
+.ti{flex:1;background:rgba(255,255,255,0.6);border-radius:8px;padding:5px 6px;text-align:center;border:1px solid rgba(255,255,255,0.8)}
+.tn{font-size:12px;font-weight:800;font-feature-settings:"tnum";line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.tn.g1{color:#6366f1}.tn.g2{color:#ef4444}.tn.g3{color:#22c55e}.tn.g4{color:#a855f7}
+.tl{font-size:8px;color:#94a3b8;font-weight:500}
+/* ── Balance ── */
+.bc{background:rgba(255,255,255,0.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:8px;padding:8px 10px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.8);display:flex;align-items:center;justify-content:space-between}
+.bb{font-size:12px;color:#94a3b8;font-weight:500}
+.bv{font-size:14px;font-weight:800;font-feature-settings:"tnum";background:linear-gradient(135deg,#22c55e,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+/* ── Filters ── */
+.fw{display:flex;gap:2px;background:rgba(0,0,0,0.03);border-radius:6px;padding:2px;margin-bottom:6px}
+.fl{padding:2px 7px;font-size:9px;font-weight:600;border-radius:4px;cursor:pointer;color:#94a3b8;transition:all .2s;white-space:nowrap}
+.fl-on{background:rgba(255,255,255,0.85);color:#6366f1;box-shadow:0 1px 2px rgba(0,0,0,0.06)}
+.fl:hover{color:#6366f1}
+/* ── Model List ── */
+.mc{display:flex;flex-direction:column;gap:3px}
+.mi{display:flex;align-items:center;gap:3px;padding:5px 6px;border-radius:6px;border:1px solid rgba(var(--cr,148,163,184),0.2);background:rgba(var(--cr,148,163,184),0.04);transition:all .2s}
+.mi:hover{background:rgba(var(--cr,148,163,184),0.1)}
+.md{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:#22c55e;box-shadow:0 0 4px rgba(34,197,94,0.4)}
+.mn{flex:1;font-size:10px;font-weight:600;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.mt{font-size:10px;font-weight:700;font-feature-settings:"tnum";color:rgba(var(--cr,148,163,184),0.8);flex-shrink:0}
+.emp{padding:16px 0;text-align:center;color:#94a3b8;font-size:12px;font-weight:500}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class=p>
+<div class=h>
+<div class=hl><div class=ic>OG</div><h1>ocgt-monitor</h1></div>
+<div class=hr>
+<span class=sd></span><span class=ht>12:30</span>
+<button class=hb>📌</button><button class=qb>✕</button>
+</div>
+</div>
+<div class=c>
+
+<div class=st>套餐额度</div>
+<div class=qc>
+<div class=qi><div class=ql>Rolling</div><div class="qv g1">65%</div><div class=qr2>2h</div><div class=qbw><div class="qf g1" style=width:65%></div></div></div>
+<div class=qi><div class=ql>Weekly</div><div class="qv g2">82%</div><div class=qr2>3d</div><div class=qbw><div class="qf g2" style=width:82%></div></div></div>
+<div class=qi><div class=ql>Monthly</div><div class="qv g3">无限</div></div>
+</div>
+
+<div class=st>今日消耗</div>
+<div class=tg>
+<div class=ti><div class="tn g1">104,523,891</div><div class=tl>输入</div></div>
+<div class=ti><div class="tn g2">478,234</div><div class=tl>输出</div></div>
+<div class=ti><div class="tn g3">105,002,125</div><div class=tl>总计</div></div>
+<div class=ti><div class="tn g4">855</div><div class=tl>请求</div></div>
+</div>
+
+<div class=bc><span class=bb>账户余额</span><span class=bv>$42.50 CNY</span></div>
+
+<div class=st>模型消耗</div>
+<div class=fw>
+<span class="fl fl-on">今日</span>
+<span class=fl>7日</span>
+<span class=fl>30日</span>
+<span class=fl>自定</span>
+</div>
+<div class=mc>
+<div class=mi style="--cr:99,102,241"><span class=md></span><span class=mn>deepseek-chat</span><span class=mt>305,432,100</span></div>
+<div class=mi style="--cr:245,158,11"><span class=md></span><span class=mn>glm-4-plus</span><span class=mt>45,678,900</span></div>
+<div class=mi style="--cr:34,197,94"><span class=md></span><span class=mn>mimo-pro</span><span class=mt>22,345,678</span></div>
+<div class=mi style="--cr:6,182,212"><span class=md></span><span class=mn>qwen3.6-plus</span><span class=mt>12,345,678</span></div>
+<div class=mi style="--cr:168,85,247"><span class=md></span><span class=mn>kimi-vision</span><span class=mt>5,678,901</span></div>
+</div>
+
+<div class=emp style=margin-top:6px>5s 自动刷新 · 上次更新 12:30</div>
+</div>
+</div>
+</body>
+</html>
