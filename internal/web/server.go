@@ -88,9 +88,18 @@ func (s *Server) Start(addr string) error {
 	})
 
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "ok", "time": time.Now()}) })
-		mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
-		mux.HandleFunc("/api/pin", func(w http.ResponseWriter, r *http.Request) { state.Pinned = !state.Pinned; writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
-		mux.HandleFunc("/api/pin-state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
+	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
+	mux.HandleFunc("/api/pin", func(w http.ResponseWriter, r *http.Request) { state.Pinned = !state.Pinned; writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
+	mux.HandleFunc("/api/pin-state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
+	mux.HandleFunc("/api/position", func(w http.ResponseWriter, r *http.Request) {
+		if yStr := r.URL.Query().Get("y"); yStr != "" {
+			var y int
+			if _, err := fmt.Sscanf(yStr, "%d", &y); err == nil && y >= 0 && y < 5000 {
+				state.PanelY = y
+			}
+		}
+		writeJSON(w, 200, map[string]any{"y": state.PanelY})
+	})
 
 	sub, _ := fs.Sub(webAssets, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))

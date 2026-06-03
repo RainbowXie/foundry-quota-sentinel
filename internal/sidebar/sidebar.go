@@ -23,7 +23,7 @@ var (
 const (
 	panelWidth    = 250
 	panelHeight   = 370
-	panelY        = 40
+	// panelY is dynamic via state.PanelY
 	triggerZonePx = 15
 	animSteps     = 12
 	animStepMs    = 8
@@ -103,7 +103,7 @@ func New(port int) *Sidebar {
 	exStyle |= wsExToolWindow | wsExTopMost | wsExNoActivate
 	setWindowLong.Call(hwnd, gwlExStyle, exStyle)
 
-	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), panelY,
+	procSetWindowPos.Call(hwnd, hwndTopMost, uintptr(hiddenX), uintptr(state.PanelY),
 		panelWidth, panelHeight, swpNoActivate|0x0020)
 
 	return &Sidebar{
@@ -140,12 +140,12 @@ func (s *Sidebar) slide(targetX int) {
 	for i := 0; i < animSteps; i++ {
 		x += dx
 		if (dx > 0 && x > targetX) || (dx < 0 && x < targetX) { x = targetX }
-		procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(x), panelY,
+		procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(x), uintptr(state.PanelY),
 			panelWidth, panelHeight, swpNoActivate)
 		time.Sleep(animStepMs * time.Millisecond)
 		if x == targetX { break }
 	}
-	procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(targetX), panelY,
+	procSetWindowPos.Call(s.hwnd, hwndTopMost, uintptr(targetX), uintptr(state.PanelY),
 		panelWidth, panelHeight, swpNoActivate)
 }
 
@@ -180,10 +180,10 @@ func (s *Sidebar) edgeLoop() {
 		mx, my := getCursorPos()
 
 		inTrigger := mx >= s.screenW-triggerZonePx && mx <= s.screenW+panelWidth &&
-			my >= panelY-40 && my <= panelY+panelHeight+60
+			my >= state.PanelY-40 && my <= state.PanelY+panelHeight+60
 
 		inPanel := mx >= s.shownX-10 && mx <= s.screenW+panelWidth &&
-			my >= panelY-20 && my <= panelY+panelHeight+20
+			my >= state.PanelY-20 && my <= state.PanelY+panelHeight+20
 
 		if !s.shown && inTrigger && !s.animating {
 			s.shown = true
