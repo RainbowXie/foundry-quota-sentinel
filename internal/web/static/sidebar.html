@@ -5,8 +5,8 @@
 <meta name=viewport content="width=device-width,initial-scale=1.0">
 <title>ocgt-monitor</title>
 <style>
-[data-theme=light]{--bg:linear-gradient(180deg,#f5f0ff,#f0eef8,#fef5f2 100%);--text:#1a1a2e;--text-sec:#a1a1b5;--text-ter:#7c3aed;--card:rgba(255,255,255,0.45);--card-bd:rgba(255,255,255,0.85);--card-sh:0 8px 32px rgba(0,0,0,0.06);--hdr-bg:transparent;--hdr-bd:rgba(0,0,0,0.04);--input-bg:rgba(255,255,255,0.85);--input-bd:rgba(99,102,241,0.2);--accent:#6366f1;--accent-rgb:99,102,241;--accent2:#a855f7;--green:#22c55e;--green-dim:rgba(34,197,94,0.3);--red:#ef4444;--amber:#f59e0b;--bs-sec:rgba(0,0,0,0.03);--fl-on-bg:#fff;--fl-on-sh:0 1px 4px rgba(0,0,0,0.06);--mdot-bg:#22c55e;--mdot-sh:rgba(34,197,94,0.3);--st-col:#a1a1b5;--ql-col:#1a1a2e;--glow:0 0 0 1px rgba(255,255,255,0.5) inset}
-[data-theme=dark]{--bg:#0d0d1a;--text:#c8d6e5;--text-sec:#4a5568;--text-ter:#00b8ff;--card:rgba(255,255,255,0.04);--card-bd:rgba(255,255,255,0.06);--card-sh:0 8px 32px rgba(0,0,0,0.4);--hdr-bg:rgba(255,255,255,0.02);--hdr-bd:rgba(255,255,255,0.04);--input-bg:rgba(255,255,255,0.03);--input-bd:rgba(0,255,136,0.15);--accent:#00ff88;--accent-rgb:0,255,136;--accent2:#00b8ff;--green:#00ff88;--green-dim:rgba(0,255,136,0.15);--red:#ff3366;--amber:#ff8800;--bs-sec:rgba(0,255,136,0.03);--fl-on-bg:rgba(0,255,136,0.06);--fl-on-sh:none;--mdot-bg:#00ff88;--mdot-sh:rgba(0,255,136,0.4);--st-col:#4a5568;--ql-col:#4a5568;--glow:0 0 0 1px rgba(255,255,255,0.03) inset}
+[data-theme=light]{--bg:linear-gradient(180deg,#f5f0ff,#f0eef8,#fef5f2 100%);--text:#1a1a2e;--text-sec:#a1a1b5;--text-ter:#7c3aed;--card:rgba(255,255,255,0.45);--card-bd:rgba(255,255,255,0.85);--card-sh:0 8px 32px rgba(0,0,0,0.06);--hdr-bg:transparent;--hdr-bd:rgba(0,0,0,0.04);--input-bg:rgba(255,255,255,0.85);--input-bd:rgba(99,102,241,0.2);--accent:#6366f1;--accent-rgb:99,102,241;--accent2:#a855f7;--green:#22c55e;--green-dim:rgba(34,197,94,0.3);--red:#ef4444;--amber:#f59e0b;--bs-sec:rgba(0,0,0,0.03);--fl-on-bg:#fff;--fl-on-sh:0 1px 4px rgba(0,0,0,0.06);--mdot-bg:#22c55e;--mdot-sh:rgba(34,197,94,0.3);--st-col:#a1a1b5;--ql-col:#1a1a2e;--glow:0 0 0 1px rgba(255,255,255,0.5) inset;--ch-bg:rgba(0,0,0,0.04);--ch-g1:#6366f1;--ch-g2:#22c55e}
+[data-theme=dark]{--bg:#0d0d1a;--text:#c8d6e5;--text-sec:#4a5568;--text-ter:#00b8ff;--card:rgba(255,255,255,0.04);--card-bd:rgba(255,255,255,0.06);--card-sh:0 8px 32px rgba(0,0,0,0.4);--hdr-bg:rgba(255,255,255,0.02);--hdr-bd:rgba(255,255,255,0.04);--input-bg:rgba(255,255,255,0.03);--input-bd:rgba(0,255,136,0.15);--accent:#00ff88;--accent-rgb:0,255,136;--accent2:#00b8ff;--green:#00ff88;--green-dim:rgba(0,255,136,0.15);--red:#ff3366;--amber:#ff8800;--bs-sec:rgba(0,255,136,0.03);--fl-on-bg:rgba(0,255,136,0.06);--fl-on-sh:none;--mdot-bg:#00ff88;--mdot-sh:rgba(0,255,136,0.4);--st-col:#4a5568;--ql-col:#4a5568;--glow:0 0 0 1px rgba(255,255,255,0.03) inset;--ch-bg:rgba(255,255,255,0.04);--ch-g1:#00ff88;--ch-g2:#00b8ff}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto Sans SC',sans-serif;background:var(--bg);width:250px;overflow:hidden;user-select:none;color:var(--text);-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
 .p{display:flex;flex-direction:column;height:100vh}
@@ -39,7 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 /* section title */
 .st{font-size:7px;font-weight:700;color:var(--st-col);letter-spacing:.5px;text-transform:uppercase;margin-bottom:3px;display:flex;align-items:center;gap:4px}
 .st::before{content:"";display:inline-block;width:2px;height:7px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--accent2))}
-/* quota - glass enhanced */
+/* quota */
 .qn{margin-bottom:5px;background:var(--card);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:10px;padding:6px 8px;border:var(--card-bd);box-shadow:var(--card-sh),var(--glow)}
 .qr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1px}
 .ql{font-size:8px;font-weight:600;color:var(--ql-col)}
@@ -55,29 +55,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .qf.g3{background:linear-gradient(90deg,#06b6d4,#3b82f6,#6366f1)}
 .qf.warn{background:linear-gradient(90deg,var(--amber),#ef4444)}
 .qf.danger{background:var(--red)}
-/* today - glass enhanced */
+/* today */
 .tg{display:flex;gap:3px;margin-bottom:5px}
 .ti{flex:1;background:var(--card);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:8px;padding:4px 2px;text-align:center;border:var(--card-bd);box-shadow:var(--card-sh),var(--glow)}
 .tn{font-size:10px;font-weight:800;font-feature-settings:"tnum";line-height:1.1}
 .tn.g1{color:#6366f1}.tn.g2{color:#ef4444}.tn.g3{color:#22c55e}.tn.g4{color:#a855f7}
 .tl{font-size:6px;color:var(--text-sec);font-weight:600;letter-spacing:.3px;text-transform:uppercase}
-/* balance - glass enhanced */
+/* balance */
 .bc{background:var(--card);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:8px;padding:4px 8px;margin-bottom:5px;border:var(--card-bd);box-shadow:var(--card-sh),var(--glow);display:flex;align-items:center;justify-content:space-between}
 .bl{font-size:9px;color:var(--text-sec);font-weight:500}
 .bv{font-size:11px;font-weight:800;font-feature-settings:"tnum";background:linear-gradient(135deg,var(--green),#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-/* filters */
+/* model list (in overview tab) */
 .fw{display:flex;gap:2px;margin-bottom:4px;background:var(--hdr-bg);border-radius:4px;padding:1px}
 .fl{padding:1px 5px;font-size:8px;font-weight:600;border-radius:3px;cursor:pointer;color:var(--text-sec);transition:all .2s;white-space:nowrap}
 .fl-on{background:var(--fl-on-bg);color:var(--accent);box-shadow:var(--fl-on-sh)}
 .fl:hover{color:var(--accent)}
-/* date range */
 .dr{display:none;flex-wrap:wrap;gap:3px;align-items:center;margin-bottom:4px}
 .dr.on{display:flex}
 .dr-in{flex:1;min-width:50px;font-size:8px;padding:2px 4px;border:1px solid var(--input-bd);border-radius:3px;background:var(--input-bg);color:var(--text);font-family:inherit;font-weight:500}
 .dr-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.15)}
 .dr-sep{font-size:8px;color:var(--text-sec);font-weight:600}
 .dr .go{padding:2px 6px;font-size:8px;font-weight:700;border-radius:3px;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;transition:all .2s}
-/* model list */
 .ml{display:flex;flex-direction:column;gap:2px}
 .mi{display:flex;align-items:center;gap:2px;padding:3px 5px;border-radius:5px;background:rgba(var(--cr,148,163,184),0.04);transition:all .2s}
 .mi:hover{background:rgba(var(--cr,148,163,184),0.1)}
@@ -85,6 +83,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .md{width:4px;height:4px;border-radius:50%;flex-shrink:0;background:var(--mdot-bg);box-shadow:0 0 4px var(--mdot-sh);animation:breathe 2.4s ease-in-out infinite}
 .mn{flex:1;font-size:9px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
 .mt{font-size:8px;font-weight:700;font-feature-settings:"tnum";color:rgba(var(--cr,148,163,184),0.5);flex-shrink:0}
+/* ── dashboard charts ── */
+.dc{background:var(--card);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:10px;padding:6px 8px;border:var(--card-bd);box-shadow:var(--card-sh),var(--glow);margin-bottom:5px}
+.dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.dt{font-size:8px;font-weight:600;color:var(--ql-col)}
+.ds{font-size:7px;color:var(--text-sec);font-weight:500;font-feature-settings:"tnum"}
+/* bar chart */
+.bc-c{display:flex;align-items:flex-end;height:72px;gap:2px;padding:2px 2px 0}
+.bc-b{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.bc-v{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height .6s cubic-bezier(.22,1,.36,1)}
+.bc-l{font-size:6px;color:var(--text-sec);font-weight:500;margin-top:2px;font-feature-settings:"tnum"}
+/* donut */
+.dn{display:flex;align-items:center;gap:10px}
+.dn-c{width:68px;height:68px;border-radius:50%;flex-shrink:0;background:var(--ch-bg)}
+.dn-l{flex:1;display:flex;flex-direction:column;gap:2px}
+.dn-i{display:flex;align-items:center;gap:4px;font-size:7px;color:var(--text-sec);font-weight:500}
+.dn-d{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dn-n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dn-p{font-weight:700;font-feature-settings:"tnum"}
 /* animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .fu{animation:fadeUp .35s ease-out}
@@ -105,6 +121,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 </div>
 </div>
 <div class=ct>
+<!-- Tab: 概览 (配额+今日+余额+模型列表) -->
 <div class="tc act" id=tOv>
 <div class=st>套餐额度</div>
 <div class=qn id=quotaLoad><div class=emp>加载中...</div></div>
@@ -116,9 +133,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 <div class=ti><div class="tn g4" id=tdReq>--</div><div class=tl>请求</div></div>
 </div>
 <div class="hide" id=balanceSec><div class=st style=margin-top:3px>账户余额</div><div class=bc id=balLoad><span class=bl>加载中...</span></div></div>
-</div>
-<div class=tc id=tMd>
-<div class=st>模型消耗</div>
+<div class=st style=margin-top:3px>模型消耗</div>
 <div class=fw id=modelFilter>
 <span class="fl fl-on" data-days=1>今日</span><span class=fl data-days=7>7日</span><span class=fl data-days=30>30日</span><span class=fl data-custom>自定</span>
 </div>
@@ -128,20 +143,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 </div>
 <div class=ml id=modelLoad><div class=emp>加载中...</div></div>
 </div>
+<!-- Tab: 趋势 (图表仪表盘) -->
+<div class=tc id=tMd>
+<div class=st>每日趋势</div>
+<div class=dc id=chartLoad><div class=emp>加载中...</div></div>
+<div class=st style=margin-top:3px>模型分布</div>
+<div class=dc id=donutLoad><div class=emp>加载中...</div></div>
+</div>
 </div>
 <div class=tb>
 <span class="tl act" data-tab=ov>概览</span>
-<span class=tl data-tab=md>模型</span>
+<span class=tl data-tab=md>趋势</span>
 </div>
 </div>
 <script>
-var mMode='preset',mDays=1,mFrom='',mTo='';
+var mMode='preset',mDays=1,mFrom='',mTo='',hData=[];
 function n(n){if(n==null)return'0';return n.toLocaleString()}
 /* ── drag ── */
 var dragY=0,dragStart=0,dragPanelY=0;
 document.getElementById('dragHdr').addEventListener('mousedown',function(e){
 if(e.button!==0)return;dragStart=e.screenY;dragY=dragPanelY;
-var fn=function(m){var d=m.screenY-dragStart;var y=Math.max(0,Math.min(3000,dragY+d));fetch('/api/position?y='+y);dragPanelY=y};
+var fn=function(m){var d=m.screenY-dragStart,y=Math.max(0,Math.min(3000,dragY+d));fetch('/api/position?y='+y);dragPanelY=y};
 var up=function(){document.removeEventListener('mousemove',fn);document.removeEventListener('mouseup',up)};
 document.addEventListener('mousemove',fn);document.addEventListener('mouseup',up)});
 /* ── animate number ── */
@@ -153,30 +175,54 @@ var t=e.target;if(!t.classList.contains('tl')||t.classList.contains('act'))retur
 document.querySelectorAll('.tl').forEach(function(b){b.classList.remove('act')});t.classList.add('act');
 var name=t.getAttribute('data-tab');
 document.querySelectorAll('.tc').forEach(function(c){c.classList.remove('act');c.style.opacity='0';c.style.visibility='hidden'});
-var next=document.getElementById('t'+name.charAt(0).toUpperCase()+name.slice(1));
-setTimeout(function(){next.classList.add('act');next.style.opacity='1';next.style.visibility='visible'},180)});
-/* ── theme ── */
+setTimeout(function(){var id='t'+name.charAt(0).toUpperCase()+name.slice(1);document.getElementById(id).classList.add('act');document.getElementById(id).style.opacity='1';document.getElementById(id).style.visibility='visible'},180)});
+/* ── theme / pin / quit ── */
 (function(){var t=localStorage.getItem('ocgt-theme')||'light';document.documentElement.setAttribute('data-theme',t);document.getElementById('themeBtn').textContent=t==='dark'?'☀️':'🌙';})();
 document.getElementById('themeBtn').addEventListener('click',function(){var h=document.documentElement,c=h.getAttribute('data-theme'),n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('ocgt-theme',n);this.textContent=n==='dark'?'☀️':'🌙';});
-/* ── pin ── */
 document.getElementById('pinBtn').addEventListener('click',function(){fetch('/api/pin').then(function(r){return r.json()}).then(function(d){this.classList.toggle('on',d.pinned);this.textContent=d.pinned?'📍':'📌';}.bind(this));});
 fetch('/api/pin-state').then(function(r){return r.json()}).then(function(d){document.getElementById('pinBtn').classList.toggle('on',d.pinned);document.getElementById('pinBtn').textContent=d.pinned?'📍':'📌';});
 document.getElementById('quitBtn').addEventListener('click',function(){fetch('/api/quit').then(function(){setTimeout(function(){window.close()},200)})});
+/* ── model filter ── */
 document.getElementById('modelFilter').addEventListener('click',function(e){var t=e.target;if(!t.classList.contains('fl'))return;document.querySelectorAll('.fl').forEach(function(f){f.classList.remove('fl-on')});t.classList.add('fl-on');document.getElementById('dr').classList.remove('on');if(t.hasAttribute('data-custom')){document.getElementById('dr').classList.add('on');return}mMode='preset';mDays=parseInt(t.getAttribute('data-days'));fm()});
 document.getElementById('drGo').addEventListener('click',function(){var f=document.getElementById('drFrom').value.trim(),t=document.getElementById('drTo').value.trim();if(!f||!t||!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(t))return;mMode='custom';mFrom=f;mTo=t;fm()});
+/* ── quota helpers ── */
 function bc(p){if(p>95)return'danger';if(p>80)return'warn';return''}
 function qc(p){if(p>95)return'qf qf-danger';if(p>80)return'qf qf-warn';return'qf'}
+/* ── fetch: quota ── */
 async function fq(){var r=await(await fetch('/api/quota')).json(),e=document.getElementById('quotaLoad');if(!r.success){e.innerHTML='<div class=er>'+r.error+'</div>';return}
 var d=r.data;
 function qr(l,cls,pct,reset){var w=bc(pct),cw=w?' qp '+w:' qp '+cls;return'<div class=qr><span class=ql>'+l+'</span><span class=qv><span class="'+cw+'">'+pct+'%</span><span class=qtm>'+reset+'</span></span></div><div class=qbw><div class="'+qc(pct)+'" style=width:'+pct+'%></div></div>'}
 e.innerHTML=qr('Rolling','g1',d.rolling.usage_percent,d.rolling.reset_display)+qr('Weekly','g2',d.weekly.usage_percent,d.weekly.reset_display)+(d.monthly?qr('Monthly','g3',d.monthly.usage_percent,d.monthly.reset_display):'<div class=qr><span class=ql>Monthly</span><span class=qv><span class="qp g3">∞ 无限</span></span></div>');ff(e);}
+/* ── fetch: balance ── */
 async function fb(){var r=await(await fetch('/api/balance')).json();if(!r.success){document.getElementById('balanceSec').classList.add('hide');return}document.getElementById('balanceSec').classList.remove('hide');var d=r.data,e=document.getElementById('balLoad');e.innerHTML='<span class=bl>可用余额</span><span class=bv>'+d.total_balance.toFixed(2)+' <span style=font-size:8px;color:var(--text-sec)>'+d.currency+'</span></span>';ff(e);}
-async function fh(){var r=await(await fetch('/api/history')).json();if(!r.success||!r.data||!r.data.length)return;var t=r.data[r.data.length-1];an(document.getElementById('tdIn'),t.input_tokens||0);an(document.getElementById('tdOut'),t.output_tokens||0);an(document.getElementById('tdTot'),t.total_tokens||0);an(document.getElementById('tdReq'),t.request_count||0);ff(document.getElementById('todayGrid'));}
-async function fm(){var url='/api/models?';if(mMode==='custom'&&mFrom&&mTo){url+='from='+mFrom+'&to='+mTo}else{url+='days='+mDays}
-var r=await(await fetch(url)).json(),e=document.getElementById('modelLoad');if(!r.success||!r.data||!r.data.length){e.innerHTML='<div class=emp>暂无数据</div>';return}
+/* ── fetch: history (today + store for charts) ── */
+async function fh(){var r=await(await fetch('/api/history')).json();if(!r.success||!r.data||!r.data.length)return;hData=r.data;var t=hData[hData.length-1];an(document.getElementById('tdIn'),t.input_tokens||0);an(document.getElementById('tdOut'),t.output_tokens||0);an(document.getElementById('tdTot'),t.total_tokens||0);an(document.getElementById('tdReq'),t.request_count||0);ff(document.getElementById('todayGrid'));}
+/* ── fetch: models ── */
+async function fm(){var u='/api/models?';if(mMode==='custom'&&mFrom&&mTo){u+='from='+mFrom+'&to='+mTo}else{u+='days='+mDays}
+var r=await(await fetch(u)).json(),e=document.getElementById('modelLoad');if(!r.success||!r.data||!r.data.length){e.innerHTML='<div class=emp>暂无数据</div>';return}
 var cl={'deepseek':'#6366f1','mimo':'#22c55e','glm':'#f59e0b','qwen':'#06b6d4','kimi':'#a855f7','minimax':'#ec4899'};function cc(m){for(var k in cl)if(m.includes(k))return cl[k];return'#94a3b8'}function hr(h){return parseInt(h.slice(1,3),16)+','+parseInt(h.slice(3,5),16)+','+parseInt(h.slice(5,7),16)}
 var h='';r.data.forEach(function(m){var c=cc(m.model);h+='<div class=mi style="--cr:'+hr(c)+'"><span class=md></span><span class=mn>'+m.model+'</span><span class=mt>'+n(m.total_tokens||0)+'</span></div>'});e.innerHTML=h;ff(e);}
-async function fa(){try{await Promise.all([fq(),fb(),fh(),fm().catch(function(){})]);document.getElementById('sd').className='sd';document.getElementById('ht').textContent=new Date().toLocaleTimeString()}catch(e){document.getElementById('sd').className='sd er'}}
+/* ── dashboard: bar chart ── */
+function renderBarChart(data){var e=document.getElementById('chartLoad');if(!data||!data.length){e.innerHTML='<div class=emp>暂无数据</div>';return}
+var max=Math.max.apply(Math,data.map(function(d){return d.total_tokens}));if(!max)max=1;
+var cols={'0':'#a855f7','1':'#6366f1','2':'#3b82f6','3':'#06b6d4','4':'#22c55e','5':'#f59e0b','6':'#ef4444'};
+var h='';data.forEach(function(d,i){var p=Math.max(2,(d.total_tokens/max)*100);h+='<div class=bc-b><div class=bc-v style="height:'+p+'%;background:'+(cols[i]||'#94a3b8')+'"></div><div class=bc-l>'+(d.date?d.date.slice(5):'')+'</div></div>'});
+e.innerHTML='<div class=dc-c><div class=bc-c>'+h+'</div></div>';ff(e);}
+/* ── dashboard: donut ── */
+function renderDonut(){var e=document.getElementById('donutLoad');
+var u='/api/models?days=30';fetch(u).then(function(r){return r.json()}).then(function(r){if(!r.success||!r.data||!r.data.length){e.innerHTML='<div class=emp>暂无数据</div>';return}
+var items=r.data.sort(function(a,b){return b.total_tokens-a.total_tokens});var total=items.reduce(function(s,m){return s+m.total_tokens},0);if(!total)total=1;
+var cl={'deepseek':'#6366f1','mimo':'#22c55e','glm':'#f59e0b','qwen':'#06b6d4','kimi':'#a855f7','minimax':'#ec4899'};
+function cc(m){for(var k in cl)if(m.includes(k))return cl[k];return'#94a3b8'}
+var segs=[],ang=0,top5=items.slice(0,5);var othersTotal=0;if(items.length>5){for(var i=5;i<items.length;i++)othersTotal+=items[i].total_tokens}
+top5.forEach(function(m){var pct=m.total_tokens/total;var end=ang+pct*360;var c=cc(m.model);if(pct>0.005){segs.push(c+' '+ang+'deg '+end+'deg')}ang=end});
+if(othersTotal>0){var end=360;segs.push('#94a3b8 '+ang+'deg '+end+'deg')}
+var html='<div class=dn><div class=dn-c style="background:conic-gradient('+segs.join(',')+')"></div><div class=dn-l>';
+top5.forEach(function(m){var p=Math.round((m.total_tokens/total)*100);html+='<div class=dn-i><span class=dn-d style=background:'+cc(m.model)+'></span><span class=dn-n>'+m.model+'</span><span class=dn-p>'+p+'%</span></div>'});
+if(othersTotal>0){var op=Math.round((othersTotal/total)*100);html+='<div class=dn-i><span class=dn-d style=background:#94a3b8></span><span class=dn-n>其他</span><span class=dn-p>'+op+'%</span></div>'}
+html+='</div></div>';e.innerHTML=html;ff(e);});}
+/* ── main loop ── */
+async function fa(){try{await Promise.all([fq(),fb(),fh(),fm().catch(function(){})]);renderBarChart(hData);renderDonut();document.getElementById('sd').className='sd';document.getElementById('ht').textContent=new Date().toLocaleTimeString()}catch(e){document.getElementById('sd').className='sd er'}}
 fa();setInterval(fa,5000)
 </script>
 </body>
