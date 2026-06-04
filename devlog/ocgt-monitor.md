@@ -296,3 +296,9 @@
 - **筛选:** 新增"30日"按钮 + "自定"日期区间选择器
 - **API:** /api/models?from=YYYY-MM-DD&to=YYYY-MM-DD 支持
 - **新增:** CalculateModelStatsByRange 函数
+
+## 2026-06-04: 修复今日消耗与模型消耗(今日)数据不一致
+- **文件:** `internal/web/server.go`
+- **根因:** "/api/models?days=1" 使用滚动24小时窗口 (`time.Now().AddDate(0,0,-1)`) 过滤，而"今日消耗"卡片按自然日 (00:00~23:59) 统计。两套时间窗口导致数据不一致——模型消耗会包含昨日部分时段数据
+- **决策:** 在 /api/models 端点两个代码路径中，当 days==1 时改用 CalculateModelStatsByRange 限定今日自然日范围，与今日消耗卡片的统计口径对齐
+- **影响范围:** 侧边栏模型消耗列表的"今日"筛选结果，7日/30日不受影响

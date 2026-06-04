@@ -71,14 +71,26 @@ func (s *Server) Start(addr string) error {
 				if d := r.Form.Get("days"); d != "" {
 					if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 { days = 7 }
 				}
-				models = storage.CalculateModelStats(logs, days)
+				if days == 1 {
+					now := time.Now()
+					start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+					models = storage.CalculateModelStatsByRange(logs, start, start.Add(24*time.Hour-time.Second))
+				} else {
+					models = storage.CalculateModelStats(logs, days)
+				}
 			}
 		} else {
 			days := 7
 			if d := r.Form.Get("days"); d != "" {
 				if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 { days = 7 }
 			}
-			models = storage.CalculateModelStats(logs, days)
+			if days == 1 {
+				now := time.Now()
+				start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+				models = storage.CalculateModelStatsByRange(logs, start, start.Add(24*time.Hour-time.Second))
+			} else {
+				models = storage.CalculateModelStats(logs, days)
+			}
 		}
 		type MStat struct { Model string `json:"model"`; InputTokens int `json:"input_tokens"`; OutputTokens int `json:"output_tokens"`; TotalTokens int `json:"total_tokens"`; RequestCount int `json:"request_count"` }
 		var list []MStat
