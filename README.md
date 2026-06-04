@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go" alt="go">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows" alt="windows">
   <img src="https://img.shields.io/badge/build-CGO-FF2D78?style=flat-square" alt="cgo">
+  <img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="license">
 </p>
 
 <br>
@@ -70,6 +71,8 @@
 > **PowerShell 用户：** 运行命令时需加 `.\` 前缀，如 `.\ocgt-monitor config init`
 
 ## 使用模式
+
+[在线文档](https://xxtt-01.github.io/ocgt-monitor/) — 详细使用说明
 
 ### 桌面侧边栏
 半透明面板固定在屏幕右侧边缘，鼠标移上滑出，移开自动隐藏。支持拖拽定位、固定、主题切换。

@@ -325,3 +325,9 @@
 - **内容:** 同步更新启动方式说明（双击即用）
 - **README:** 重构为现代化布局，加入侧边栏截图、功能一览表、精简快速开始
 - **影响范围:** 文档和帮助页面
+
+## 2026-06-04: 部署 GitHub Pages + 添加 MIT License
+- **文件:** `LICENSE`, `README.md`
+- **Pages:** https://xxtt-01.github.io/ocgt-monitor/ 上线，help.html 以在线文档形式可访问
+- **License:** 添加 MIT License，保护开源权益
+- **README:** 补充 License 徽章和在线文档链接
