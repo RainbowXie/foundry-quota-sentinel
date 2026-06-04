@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang=zh-CN>
+<head>
+<meta charset=UTF-8>
+<meta name=viewport content="width=device-width,initial-scale=1.0">
+<title>ocgt-monitor &mdash; 使用手册</title>
+<link rel=preconnect href=https://fonts.googleapis.com>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel=stylesheet>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel=stylesheet>
+<style>
+/* ── 明亮多巴胺：纯白底 + 霓虹四色点缀 + 高饱和卡片 ── */
+:root{--bg:#F5F6FF;--card:#FFF;--card-hover:#FAFBFF;--text:#1A1A2E;--text-sec:#5A5A7A;--text-ter:#9090A8;--accent:#00D47E;--accent2:#FF2D78;--accent3:#4466FF;--accent4:#FFB800;--accent-dim:rgba(0,212,126,0.07);--border:#E8E8F0;--border-glow:rgba(0,212,126,0.2);--code-bg:#F0F1F8;--code-text:#1A1A2E;--green:#00D47E;--red:#FF2D78;--amber:#FFB800;--font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--font-mono:'JetBrains Mono','SF Mono','Fira Code',monospace;--radius:10px;--max-w:960px}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);font-size:15px;line-height:1.85;-webkit-font-smoothing:antialiased;display:flex;justify-content:center}
+/* ── layout ── */
+.page{display:flex;width:100%;max-width:var(--max-w);min-height:100vh;position:relative}
+/* ── TOC sidebar ── */
+.toc{position:sticky;top:0;width:200px;height:100vh;padding:40px 0 40px 20px;flex-shrink:0;overflow-y:auto;scrollbar-width:thin;display:none}
+.toc-inner{border-left:3px solid;border-image:linear-gradient(180deg,var(--accent),var(--accent2),var(--accent3),var(--accent4))1;padding-left:16px}
+.toc h3{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;font-family:var(--font-sans);background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.toc a{display:block;font-size:12px;color:var(--text-sec);text-decoration:none;padding:5px 0;transition:all .2s;border-left:2px solid transparent;padding-left:12px;margin-left:-15px}
+.toc a:hover{color:var(--accent3)}
+.toc a.act{border-left-color:var(--accent);color:var(--accent);font-weight:600}
+.toc .sub{font-size:11px;padding-left:20px;color:var(--text-ter)}
+@media(min-width:900px){.toc{display:block}}
+/* ── content ── */
+.content{flex:1;min-width:0;padding:48px 24px 80px;max-width:760px}
+@media(min-width:900px){.content{padding:48px 40px 80px 48px}}
+/* ── header ── */
+h1{font-size:32px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;line-height:1.25;background:linear-gradient(135deg,var(--accent) 0,var(--accent2) 50%,var(--accent3) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+h1 .en{display:block;font-size:12px;font-weight:400;letter-spacing:0;margin-top:2px;-webkit-text-fill-color:var(--text-ter);background:none;color:var(--text-ter)}
+.sub{color:var(--text-sec);font-size:14px;margin-bottom:32px;line-height:1.7}
+.sub .en{color:var(--text-ter);font-size:12px}
+/* ── section headings ── */
+h2{font-size:22px;font-weight:700;margin:48px 0 16px;padding-bottom:12px;border-bottom:2px solid var(--border);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;color:var(--text)}
+h2 .en{font-size:11px;font-weight:400;color:var(--text-ter);letter-spacing:0}
+h2 .nr{font-size:13px;color:var(--accent3);font-weight:700;margin-right:4px}
+h3{font-size:17px;font-weight:600;margin:28px 0 10px;color:var(--text)}
+h3 .en{font-size:11px;font-weight:400;color:var(--text-ter)}
+/* ── body ── */
+p{font-size:14px;color:var(--text-sec);margin-bottom:12px;line-height:1.85}
+a{color:var(--accent3);text-decoration:none;border-bottom:1px solid transparent;transition:all .2s}
+a:hover{border-bottom-color:var(--accent3)}
+/* ── code ── */
+code,kbd{font-family:var(--font-mono);font-size:13px;background:var(--accent-dim);padding:2px 7px;border-radius:6px;color:var(--accent);border:1px solid var(--border-glow);font-weight:500}
+pre{background:var(--code-bg);color:var(--code-text);border-radius:var(--radius);padding:16px 20px;overflow-x:auto;font-size:13px;line-height:1.7;font-family:var(--font-mono);margin:14px 0;position:relative;border:1px solid var(--border)}
+pre .c{color:#9090B0;font-style:italic}
+pre .cmd{color:var(--accent3);font-weight:500}
+pre .str{color:var(--accent)}
+pre .num{color:var(--accent2)}
+/* copy button */
+.cb{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text-ter);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s;opacity:0}
+pre:hover .cb{opacity:1}.cb:hover{background:var(--accent-dim);color:var(--accent);border-color:var(--border-glow)}
+.cb.done{color:var(--green);border-color:rgba(0,212,126,0.3);background:rgba(0,212,126,0.08)}
+/* ── decorative rule ── */
+hr{border:none;height:1px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3),var(--accent4),transparent);margin:40px 0;opacity:.5}
+/* ── cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.04);transition:all .2s}
+.card:hover{box-shadow:0 4px 16px rgba(0,0,0,0.06);border-color:var(--accent)}
+.card-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.card-grid{grid-template-columns:1fr}}
+.card-grid .card{border-top:3px solid}
+.card-grid .card:nth-child(4n+1){border-top-color:var(--accent)}
+.card-grid .card:nth-child(4n+2){border-top-color:var(--accent2)}
+.card-grid .card:nth-child(4n+3){border-top-color:var(--accent3)}
+.card-grid .card:nth-child(4n+4){border-top-color:var(--accent4)}
+/* ── callout ── */
+.cl{padding:14px 18px;border-radius:var(--radius);margin:14px 0;font-size:14px;display:flex;gap:10px;align-items:flex-start;line-height:1.8;border:1px solid var(--border);background:var(--card);border-left:4px solid}
+.cl.info{border-left-color:var(--accent3);background:rgba(68,102,255,0.04)}
+.cl.warn{border-left-color:var(--accent4);background:rgba(255,184,0,0.04)}
+.cl.ok{border-left-color:var(--accent);background:rgba(0,212,126,0.04)}
+.cl.err{border-left-color:var(--accent2);background:rgba(255,45,120,0.04)}
+.cl .ic{font-size:16px;flex-shrink:0;line-height:1.4;font-weight:700;width:22px;text-align:center}
+.cl.info .ic{color:var(--accent3)}.cl.warn .ic{color:var(--accent4)}.cl.ok .ic{color:var(--accent)}.cl.err .ic{color:var(--accent2)}
+.cl pre{margin:8px 0 0}
+/* ── table ── */
+table{width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;font-size:13px;background:var(--card);border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+th{background:var(--code-bg);color:var(--text-sec);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(68,102,255,0.03)}
+td.cmd{font-family:var(--font-mono);font-size:12px;white-space:nowrap;font-weight:500;color:var(--accent3)}
+td.tag{font-size:11px;font-weight:600;letter-spacing:.2px}
+td.tag.y{color:var(--green)}td.tag.n{color:var(--text-ter)}
+ul,ol{padding-left:20px;margin:8px 0 12px}
+li{margin:4px 0;font-size:14px;color:var(--text-sec)}
+/* ── steps ── */
+.step{display:flex;gap:14px;margin-bottom:12px;padding:16px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,0.04);transition:all .2s}
+.step:hover{box-shadow:0 4px 16px rgba(0,0,0,0.06);border-color:var(--accent)}
+.step-n{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent3));color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:var(--font-sans);box-shadow:0 2px 8px rgba(0,212,126,0.25)}
+.step-b{flex:1;min-width:0}.step-b h3{margin:0 0 4px;font-size:14px}.step-b p{margin:0 0 6px;font-size:13px}.step-b p:last-child{margin-bottom:0}
+/* ── collapsible ── */
+details{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin:12px 0;overflow:hidden;transition:border-color .2s}
+details:hover{border-color:var(--border-glow)}
+details summary{padding:14px 18px;cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;user-select:none;transition:background .2s;color:var(--text)}
+details summary:hover{background:rgba(68,102,255,0.04)}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'+';font-size:16px;font-weight:400;color:var(--accent3);transition:transform .2s;font-family:var(--font-sans);line-height:1}
+details[open] summary::before{content:'\2212';color:var(--accent)}
+details .dw{padding:4px 18px 16px}
+details table{margin:8px 0}
+/* ── badge ── */
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:3px 12px;border-radius:20px;letter-spacing:.3px;font-family:var(--font-sans)}
+.badge.bl{background:rgba(68,102,255,0.08);color:var(--accent3);border:1px solid rgba(68,102,255,0.15)}
+.badge.gn{background:rgba(0,212,126,0.08);color:var(--accent);border:1px solid rgba(0,212,126,0.15)}
+.badge.am{background:rgba(255,184,0,0.08);color:var(--accent4);border:1px solid rgba(255,184,0,0.15)}
+/* ── footer ── */
+.footer{text-align:center;margin-top:56px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-ter);font-size:12px;line-height:1.8}
+.footer .en{font-size:11px;color:var(--text-ter)}
+/* ── back to top ── */
+#btt{position:fixed;bottom:32px;right:32px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text-sec);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.06);transition:all .3s;opacity:0;pointer-events:none;z-index:100;font-family:var(--font-sans);line-height:1}
+#btt.vis{opacity:1;pointer-events:auto}
+#btt:hover{background:linear-gradient(135deg,var(--accent),var(--accent3));color:#fff;border-color:transparent;box-shadow:0 2px 12px rgba(0,212,126,0.3)}
+/* ── tabs ── */
+.htabs{display:flex;gap:0;margin:16px 0;border-bottom:1px solid var(--border)}
+.htab{padding:8px 18px;font-size:12px;font-weight:600;color:var(--text-ter);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none}
+.htab:hover{color:var(--text-sec)}.htab.act{color:var(--accent3);border-bottom-color:var(--accent3)}
+.htab-c{display:none}.htab-c.act{display:block}
+/* ── responsive ── */
+@media(max-width:600px){.content{padding:32px 16px 60px}h1{font-size:28px}pre{font-size:12px;padding:12px 14px}td,th{padding:8px 10px;font-size:12px}}
+</style>
+</head>
+<body>
+<div class=page>
+<nav class=toc id=toc><div class=toc-inner>
+<h3>目录</h3>
+<a href=#overview>工具简介</a>
+<a href=#quickstart>快速开始</a>
+<a href=#commands>命令参考</a>
+<a href=#sidebar>桌面侧边栏</a>
+<a class=sub href=#sidebar-features>交互行为</a>
+<a class=sub href=#sidebar-data>数据面板</a>
+<a class=sub href=#sidebar-tabs>分页切换</a>
+<a href=#config>配置管理</a>
+<a href=#web>网页面板</a>
+<a href=#arch>架构说明</a>
+<a href=#faq>常见问题</a>
+</div></nav>
+
+<div class=content id=top>
+
+<!-- ══════════ HEADER ══════════ -->
+<h1>ocgt-monitor<span class=en>OpenCode Go Token &amp; Quota Monitor &mdash; User Manual</span></h1>
+<p class=sub>OpenCode Go 套餐额度监控工具，支持命令行、网页面板、桌面侧边栏三种模式。<br><span class=en>Monitor your OpenCode Go plan quota, DeepSeek balance, and token usage across CLI, web dashboard, and desktop sidebar.</span></p>
+
+<div style=display:flex;gap:6px;margin:0 0 24px;flex-wrap:wrap>
+<span class="badge bl">v0.4.0</span>
+<span class="badge gn">CLI</span>
+<span class="badge gn">Web</span>
+<span class="badge gn">Sidebar</span>
+<span class="badge am">Windows</span>
+</div>
+
+<!-- ══════════ OVERVIEW ══════════ -->
+<h2 id=overview><span class=nr>01</span>工具简介 <span class=en>Overview</span></h2>
+<p>ocgt-monitor 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+
+<div class=card style="font-size:13px;color:var(--text-sec);line-height:2.2">
+<strong style=color:var(--text)>核心特性 <span class=en style="font-weight:400;font-size:12px;color:var(--text-ter)">Key Features</span></strong><br>
+&bull; 三种使用模式：CLI 终端 &middot; 网页面板 &middot; 桌面侧边栏<br>
+&bull; 多账户管理，配置文件独立存储<br>
+&bull; 双主题：亮色「灵动卡片」与暗色「深色专业」<br>
+&bull; 侧边栏可拖拽定位、固定、自动隐藏<br>
+&bull; 2 秒自动刷新，数据实时更新<br>
+&bull; 开箱即用，仅依赖 WebView2 Runtime（Win11 自带）
+</div>
+
+<!-- ══════════ QUICK START ══════════ -->
+<h2 id=quickstart><span class=nr>02</span>快速开始 <span class=en>Quick Start</span></h2>
+
+<div class=step>
+<div class=step-n>1</div>
+<div class=step-b>
+<h3>下载程序 <span class=en>Download the program</span></h3>
+<p>从发布页下载 <code>ocgt-monitor.exe</code>，放到任意文件夹。<span class=en>Download the latest release from GitHub.</span></p>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>2</div>
+<div class=step-b>
+<h3>配置凭证 <span class=en>Set up credentials</span></h3>
+<p>打开终端（CMD），运行配置向导：<span class=en>Open a terminal and run the setup wizard.</span></p>
+<pre>ocgt-monitor config init</pre>
+<p>按提示输入以下信息。DeepSeek Key 可不填（余额功能不可用）。<span class=en>Follow the prompts. DeepSeek key is optional.</span></p>
+<table>
+<tr><th>项目</th><th>获取方式</th></tr>
+<tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
+<tr><td>Workspace ID</td><td><code>wrk_xxx</code> 格式，从浏览器 URL 中获取</td></tr>
+<tr><td>DeepSeek API Key</td><td>（可选）platform.deepseek.com API Keys 页面</td></tr>
+</table>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>3</div>
+<div class=step-b>
+<h3>双击运行 <span class=en>Double-click to launch</span></h3>
+<p>直接双击 <code>ocgt-monitor.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>ocgt-monitor serve --sidebar</code> 或 <code>ocgt-monitor quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>4</div>
+<div class=step-b>
+<h3>检查额度 <span class=en>Check your quota</span></h3>
+<p>也可直接在终端查看套餐额度：<span class=en>Alternatively, check quota directly in terminal.</span></p>
+<pre>ocgt-monitor quota</pre>
+</div>
+</div>
+
+<div class="cl warn">
+<span class=ic>!</span><div><strong>PowerShell 用户注意：</strong> 命令前需要加 <code>.\</code> 前缀，例如 <code>.\ocgt-monitor config init</code>。<span class=en>PowerShell requires .\ prefix for local executables.</span></div>
+</div>
+
+<!-- ══════════ COMMANDS ══════════ -->
+<h2 id=commands><span class=nr>03</span>命令参考 <span class=en>Commands</span></h2>
+
+<table>
+<tr><th style=width:30%>命令</th><th style=width:45%>用途</th><th style=width:10%>ocgt</th></tr>
+<tr><td class=cmd>（双击运行）</td><td>直接启动桌面侧边栏，无需终端</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>quota</td><td>套餐额度 Rolling / Weekly / Monthly</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>balance</td><td>DeepSeek 账户余额</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>history</td><td>7 日 Token 消耗历史</td><td class="tag y">日志</td></tr>
+<tr><td class=cmd>serve</td><td>启动网页面板（浏览器访问）</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>serve --sidebar</td><td>从终端启动桌面侧边栏</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>config</td><td>查看当前配置</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>config init</td><td>配置向导</td><td class="tag n">—</td></tr>
+<tr><td class=cmd>config list</td><td>列出所有 Profile</td><td class="tag n">—</td></tr>
+</table>
+
+<details>
+<summary>配置管理命令详情 <span class=en>Profile Management Details</span></summary>
+<div class=dw>
+<table>
+<tr><th>命令</th><th>说明</th></tr>
+<tr><td class=cmd>config add &lt;name&gt;</td><td>添加新 Profile</td></tr>
+<tr><td class=cmd>config use &lt;name&gt;</td><td>切换到指定 Profile</td></tr>
+<tr><td class=cmd>config delete &lt;name&gt;</td><td>删除指定 Profile</td></tr>
+</table>
+<p>配置文件位置：<code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每个 Windows 用户独立存储。</p>
+</div>
+</details>
+
+<details>
+<summary>环境变量 <span class=en>Environment Variables</span></summary>
+<div class=dw>
+<p>环境变量优先级高于配置文件。</p>
+<pre><span class=c>:: 临时设置（当前终端）</span>
+<span class=cmd>set</span> <span class=str>OPENCODE_GO_AUTH_COOKIE</span>=session=xxx;.....
+<span class=cmd>set</span> <span class=str>OPENCODE_GO_WORKSPACE_ID</span>=wrk_xxxxxxxxxxxx
+<span class=cmd>set</span> <span class=str>DEEPSEEK_API_KEY</span>=sk-xxxxxxxxxxxxxxxx
+<span class=cmd>set</span> <span class=str>OCGT_PORT</span>=8788</pre>
+</div>
+</details>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<h2 id=sidebar><span class=nr>04</span>桌面侧边栏 <span class=en>Desktop Sidebar</span></h2>
+<p>桌面侧边栏是 ocgt-monitor 的推荐使用方式。360&times;370px 半透明面板，固定在屏幕右侧边缘，鼠标移上时滑出，移开后自动隐藏。<span class=en>A frameless glass panel on the right edge of your screen. Auto-hides to a thin strip, slides out on hover.</span></p>
+
+<p><strong>启动方式：</strong>双击 <code>ocgt-monitor.exe</code>，或在终端运行 <code>ocgt-monitor serve --sidebar</code>。</p>
+
+<h3 id=sidebar-features>交互行为 <span class=en>Interactions</span></h3>
+
+<table>
+<tr><th style=width:25%>操作</th><th>反应</th></tr>
+<tr><td>鼠标移到屏幕右侧 15px</td><td>面板从右侧滑出（96ms 动画）</td></tr>
+<tr><td>鼠标在面板区域内</td><td>保持显示</td></tr>
+<tr><td>鼠标离开面板</td><td>600ms 后自动收回</td></tr>
+<tr><td>拖拽标题区域</td><td>上下移动面板位置</td></tr>
+<tr><td>点击 &#x1F4CC; 固定按钮</td><td>面板保持显示，不自动隐藏。再次点击取消</td></tr>
+<tr><td>点击 &#x2715; 关闭按钮</td><td>退出程序</td></tr>
+<tr><td>点击 🌙/☀️ 主题按钮</td><td>切换亮色/暗色主题，自动保存</td></tr>
+</table>
+
+<h3 id=sidebar-data>数据面板说明 <span class=en>Data Panels</span></h3>
+
+<div class=card-grid>
+
+<div class=card>
+<strong style=font-size:13px>套餐额度</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">三条水平进度条：Rolling（滚动窗口）、Weekly（本周）、Monthly（本月，部分套餐无限制）。进度超过 80% 变橙色，超过 95% 变红色。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>今日消耗</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">四张卡片：输入 Tokens、输出 Tokens、总计、请求次数。数字变化时有平滑滚动动画。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>账户余额</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">显示可用余额、赠送金额、充值金额。未配置 DeepSeek Key 时隐藏。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>模型消耗</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">按使用量排序，每行显示模型全称和 Token 总数。可切换 1日/7日/30日或自定义日期范围。</p>
+</div>
+
+</div>
+
+<h3 id=sidebar-tabs>分页切换 <span class=en>Tabs</span></h3>
+<p>面板底部有两个 Tab，点击切换：</p>
+
+<table>
+<tr><th style=width:15%>Tab</th><th style=width:35%>概览</th><th>趋势</th></tr>
+<tr><td><strong>内容</strong></td><td>套餐额度 + 今日消耗 + 余额 + 模型列表</td><td>每日柱状图（7 日堆叠）+ 模型分布环形图（30 日 Top5）</td></tr>
+<tr><td><strong>刷新</strong></td><td colspan=2>全局 2 秒自动刷新，全部数据实时更新</td></tr>
+</table>
+
+<div class="cl info">
+<span class=ic>i</span><div><strong>构建要求：</strong> 侧边栏模式需要 CGO 支持（<code>CGO_ENABLED=1</code>），使用 <code>build.bat</code> 构建。运行时需要 <strong>WebView2 Runtime</strong>（Windows 11 自带，Win10 需安装）。</div>
+</div>
+
+<!-- ══════════ CONFIG ══════════ -->
+<h2 id=config><span class=nr>05</span>配置管理 <span class=en>Configuration</span></h2>
+<p>ocgt-monitor 使用多 Profile 配置文件，每个 Profile 包含一套完整的凭证信息。</p>
+
+<details open>
+<summary>分享给他人</summary>
+<div class=dw>
+<div class="cl info">
+<span class=ic>i</span><div>exe 本身不含任何配置，直接发送即可。配置存储在用户目录 <code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每台机器独立。
+接收方运行 <code>config init</code> 配置自己的凭证即可使用。</div>
+</div>
+</div>
+</details>
+
+<!-- ══════════ WEB DASHBOARD ══════════ -->
+<h2 id=web><span class=nr>06</span>网页面板 <span class=en>Web Dashboard</span></h2>
+<p>运行 <code>serve</code> 命令启动 HTTP 服务器，浏览器访问 <code>http://127.0.0.1:8788</code> 即可打开面板。</p>
+
+<pre>ocgt-monitor serve</pre>
+
+<p>也可通过 <code>OCGT_PORT</code> 环境变量自定义端口：</p>
+<pre><span class=cmd>set</span> <span class=str>OCGT_PORT</span>=<span class=num>9090</span>
+ocgt-monitor serve</pre>
+
+<p>网页面板与侧边栏共享同一套 API 后端，数据一致。</p>
+
+<!-- ══════════ ARCHITECTURE ══════════ -->
+<h2 id=arch><span class=nr>07</span>架构说明 <span class=en>Architecture</span></h2>
+
+<div class=card>
+<pre style="border:none;padding:0;margin:0;background:transparent;font-size:13px;line-height:2.2;color:var(--text-sec)">
+<span class=c style=color:var(--text-ter)>数据来源</span>
+OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
+DeepSeek API (/user/balance)   &rarr;  balance  // 账户余额
+ocgt JSONL 日志文件             &rarr;  history  // Token 消耗历史
+
+<span class=c style=color:var(--text-ter)>使用模式</span>
+CLI   &rarr;  <code style=font-size:12px>ocgt-monitor quota|balance|history</code>
+Web   &rarr;  <code style=font-size:12px>ocgt-monitor serve</code>        &rarr;  http://127.0.0.1:8788
+Panel &rarr;  <code style=font-size:12px>双击 exe</code> 或 <code style=font-size:12px>serve --sidebar</code>  &rarr;  WebView2</pre>
+</div>
+
+<details>
+<summary>项目结构</summary>
+<div class=dw>
+<pre style="font-size:12px;line-height:2">
+ocgt-monitor/
+  <strong>main.go</strong>                    CLI 入口（11 个命令）
+  <strong>build.bat</strong>                  构建脚本（CGO_ENABLED=1）
+  <strong>internal/</strong>
+    <strong>sidebar/sidebar.go</strong>       桌面侧边栏 WebView2 + 自动隐藏
+    <strong>web/</strong>
+      <strong>server.go</strong>              HTTP 服务（8 个 API 端点）
+      <strong>static/</strong>
+        <strong>sidebar.html</strong>          侧边栏 UI（双主题）
+        <strong>help.html</strong>             本使用手册
+    <strong>quota/</strong>                   OpenCode Go + DeepSeek 查询器
+    <strong>config/config.go</strong>        多 Profile 配置管理
+    <strong>state/state.go</strong>           全局状态（面板位置、固定状态）
+    <strong>formatter/format.go</strong>     格式化工具（进度条、数字缩写）
+    <strong>storage/reader.go</strong>        JSONL 日志读取 + 按天/模型统计</pre>
+</div>
+</details>
+
+<!-- ══════════ FAQ ══════════ -->
+<h2 id=faq><span class=nr>08</span>常见问题 <span class=en>FAQ</span></h2>
+
+<div class=card-grid>
+
+<div class=card>
+<strong style=font-size:13px>没配置凭证？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">运行 <code>config init</code> 配置。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>查 quota 报错？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Cookie 可能过期。重新登录 opencode.ai 复制 Cookie，运行 <code>config init</code> 更新。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>history 无数据？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">历史数据来自 ocgt 的 JSONL 日志文件，需要 ocgt 运行中才会产生日志。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>侧边栏没反应？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">需要 WebView2 Runtime。Windows 11 自带；Win10 请从微软官网安装。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>需要安装 Go？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">exe 可直接运行。只有需要重新编译时才需要 Go 1.22+。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>如何更新配置？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">重新运行 <code>config init</code>，旧值会自动作为默认值显示，直接回车保留。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>面板能调透明度？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">亮色/暗色主题已预设最佳透明度，可通过 CSS 变量自定义。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>侧边栏位置重置？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">拖拽到最上方或最下方松手即可归位。重启程序后位置自动恢复。</p>
+</div>
+
+</div>
+
+<!-- ══════════ FOOTER ══════════ -->
+<div class=footer>
+ocgt-monitor v0.4.0<br>
+<span class=en>Go &bull; WebView2 &bull; OpenCode Go &bull; DeepSeek &bull; 2026</span>
+</div>
+
+</div>
+</div>
+
+<button id=btt onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">↑</button>
+
+<script>
+/* TOC active section */
+var toc=document.getElementById('toc');if(toc){var links=toc.querySelectorAll('a');var secs=[];links.forEach(function(a){var id=a.getAttribute('href').slice(1);var el=document.getElementById(id);if(el)secs.push({el:el,link:a})});function up(){var t=window.scrollY+120;var act=null;secs.forEach(function(s){if(s.el.offsetTop<=t)act=s});secs.forEach(function(s){s.link.classList.toggle('act',s===act)})}window.addEventListener('scroll',up);up()}
+
+/* Copy button for code blocks */
+document.querySelectorAll('pre').forEach(function(p){if(p.closest('.cl')&&!p.querySelector('.cmd'))return;var b=document.createElement('button');b.className='cb';b.textContent='⎘';b.title='复制';p.appendChild(b);b.addEventListener('click',function(){var t=p.textContent.replace(/\n$/,'');navigator.clipboard.writeText(t).then(function(){b.textContent='✓';b.classList.add('done');setTimeout(function(){b.textContent='⎘';b.classList.remove('done')},2000)})})})
+
+/* Back to top */
+var btt=document.getElementById('btt');window.addEventListener('scroll',function(){btt.classList.toggle('vis',window.scrollY>400)});
+
+/* Smooth scroll for TOC links */
+document.querySelectorAll('.toc a').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var id=this.getAttribute('href').slice(1);var el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})})});
+</script>
+</body>
+</html>
