@@ -7,7 +7,7 @@
 *Desktop sidebar monitor for OpenCode Go quota, DeepSeek balance &amp; token usage.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.0-4466FF?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/version-0.6.0-4466FF?style=flat-square" alt="version">
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go" alt="go">
   <img src="https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square&logo=windows" alt="windows">
   <img src="https://img.shields.io/badge/build-CGO-FF2D78?style=flat-square" alt="cgo">
