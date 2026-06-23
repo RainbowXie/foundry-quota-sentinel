@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"sync"
 	"time"
 
 	"ocgt-monitor/internal/quota"
@@ -18,14 +19,20 @@ import (
 //go:embed static/*
 var webAssets embed.FS
 
+type Account struct {
+	Name        string
+	Cookie      string
+	WorkspaceID string
+}
+
 type Server struct {
 	addr     string
-	querier  *quota.OpenCodeGoQuerier
+	accounts []Account
 	deepseek *quota.DeepSeekQuerier
 }
 
-func NewServer(q *quota.OpenCodeGoQuerier) *Server {
-	return &Server{addr: ":8788", querier: q, deepseek: quota.NewDeepSeekQuerier()}
+func NewServer(accounts []Account) *Server {
+	return &Server{addr: ":8788", accounts: accounts, deepseek: quota.NewDeepSeekQuerier()}
 }
 
 func (s *Server) Start(addr string) error {
@@ -33,9 +40,42 @@ func (s *Server) Start(addr string) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/quota", func(w http.ResponseWriter, r *http.Request) {
-		d, e := s.querier.FetchQuota()
+		if len(s.accounts) == 0 {
+			writeJSON(w, 200, map[string]any{"success": false, "error": "no account configured"})
+			return
+		}
+		a := s.accounts[0]
+		q := &quota.OpenCodeGoQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
+		d, e := q.FetchQuota()
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
+	})
+
+	mux.HandleFunc("/api/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type result struct {
+			Name    string           `json:"name"`
+			Success bool             `json:"success"`
+			Quota   *quota.QuotaData `json:"quota,omitempty"`
+			Error   string           `json:"error,omitempty"`
+		}
+		results := make([]result, len(s.accounts))
+		var wg sync.WaitGroup
+		for i, a := range s.accounts {
+			wg.Add(1)
+			go func(i int, a Account) {
+				defer wg.Done()
+				q := &quota.OpenCodeGoQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
+				d, e := q.FetchQuota()
+				if e != nil {
+					results[i] = result{Name: a.Name, Success: false, Error: e.Error()}
+				} else {
+					results[i] = result{Name: a.Name, Success: true, Quota: d}
+				}
+			}(i, a)
+		}
+		wg.Wait()
+		sort.Slice(results, func(i, j int) bool { return results[i].Name < results[j].Name })
+		writeJSON(w, 200, map[string]any{"success": true, "data": results})
 	})
 
 	mux.HandleFunc("/api/balance", func(w http.ResponseWriter, r *http.Request) {

@@ -68,6 +68,23 @@ func readLineDefault(label, defaultVal string) string {
 	return defaultVal
 }
 
+func buildAccounts() []web.Account {
+	var accs []web.Account
+	for name, p := range cfg.Profiles {
+		if p.Cookie != "" && p.WorkspaceID != "" {
+			accs = append(accs, web.Account{Name: name, Cookie: p.Cookie, WorkspaceID: p.WorkspaceID})
+		}
+	}
+	if len(accs) == 0 {
+		c, wks := os.Getenv("OPENCODE_GO_AUTH_COOKIE"), os.Getenv("OPENCODE_GO_WORKSPACE_ID")
+		if c != "" && wks != "" {
+			accs = append(accs, web.Account{Name: "默认", Cookie: c, WorkspaceID: wks})
+		}
+	}
+	sort.Slice(accs, func(i, j int) bool { return accs[i].Name < accs[j].Name })
+	return accs
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		startSidebar()
@@ -90,8 +107,7 @@ case "version", "-v", "--version": fmt.Println("ocgt-monitor v" + version)
 }
 
 func startSidebar() {
-	q := makeQuotaQuerier()
-	srv := web.NewServer(q)
+	srv := web.NewServer(buildAccounts())
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
@@ -208,8 +224,7 @@ func cmdServe() {
 	}
 
 	// Headless mode: just start the API server (for CLI/curl access)
-	q := makeQuotaQuerier()
-	srv := web.NewServer(q)
+	srv := web.NewServer(buildAccounts())
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
 	}()
