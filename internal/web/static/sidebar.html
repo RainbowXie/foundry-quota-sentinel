@@ -56,6 +56,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 .tn{font-size:11px;font-weight:800;font-feature-settings:"tnum";line-height:1.3}
 .tn.g1{color:#6366f1}.tn.g2{color:#ef4444}.tn.g3{color:#22c55e}.tn.g4{color:#a855f7}
 .tl{font-size:8px;color:var(--text-sec);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.acard{background:var(--card);border:var(--card-bd);border-radius:10px;padding:8px 10px;margin-bottom:8px;box-shadow:var(--card-sh)}
+.acard-h{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.acard-dot{width:6px;height:6px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));flex-shrink:0}
+.acard-name{font-size:11px;font-weight:700;color:var(--text)}
+.qerr{font-size:11px;color:var(--red);padding:4px 0;text-align:center}
 /* balance */
 .bc{background:var(--card);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:10px;padding:6px 12px;margin-bottom:6px;border:var(--card-bd);box-shadow:var(--card-sh),var(--glow);display:flex;flex-direction:column;gap:2px}
 .bc-r{display:flex;align-items:center;justify-content:space-between}
@@ -127,12 +132,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 <div class=ct>
 <div class="tc act" id=tOv>
 <div class=st>套餐额度</div>
-<div class=qn id=quotaLoad>
-<div class=qr><span class=ql>Rolling</span><div class=qbw><div class="qf g1" id=qfR style=width:0%></div></div><span class="qp g1" id=qpR>--</span><span class=qtm id=qtR></span></div>
-<div class=qr><span class=ql>Weekly</span><div class=qbw><div class="qf g2" id=qfW style=width:0%></div></div><span class="qp g2" id=qpW>--</span><span class=qtm id=qtW></span></div>
-<div class=qr id=qrM><span class=ql>Monthly</span><div class=qbw id=qbwM><div class="qf g3" id=qfM style=width:0%></div></div><span class="qp g3" id=qpM>--</span><span class=qtm id=qtM></span></div>
-<div class="hide" id=quotaErr style="font-size:11px;color:var(--red);padding:4px 0;text-align:center"></div>
-</div>
+<div class=qn id=accountCards><div class=emp>加载中...</div></div>
 <div class=st>今日消耗</div>
 <div class=tg id=todayGrid>
 <div class=ti><div class="tn g1" id=tdIn>--</div><div class=tl>输入</div></div>
@@ -194,19 +194,23 @@ document.getElementById('modelFilter').addEventListener('click',function(e){var 
 document.getElementById('drGo').addEventListener('click',function(){var f=document.getElementById('drFrom').value.trim(),t=document.getElementById('drTo').value.trim();if(!f||!t||!/^\d{4}-\d{2}-\d{2}$/.test(f)||!/^\d{4}-\d{2}-\d{2}$/.test(t))return;mMode='custom';mFrom=f;mTo=t;fm()});
 /* quota */
 function bg(p){if(p>95)return'danger';if(p>80)return'warn';return''}
+function qesc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function qrow(label,u,cl){
+if(!u)return '<div class=qr><span class=ql>'+label+'</span><div class=qbw><div class="qf '+cl+'" style="width:0%"></div></div><span class="qp '+cl+'">∞</span><span class=qtm>无限</span></div>';
+var pct=u.usage_percent,w=bg(pct),bc=w||cl;
+return '<div class=qr><span class=ql>'+label+'</span><div class=qbw><div class="qf '+bc+'" style="width:'+pct+'%"></div></div><span class="qp '+bc+'">'+pct+'%</span><span class=qtm>'+(u.reset_display||'')+'</span></div>';
+}
+function acard(a){
+var body;
+if(!a.success){body='<div class=qerr>'+qesc(a.error||'查询失败')+'</div>';}
+else{var d=a.quota;body=qrow('Rolling',d.rolling,'g1')+qrow('Weekly',d.weekly,'g2')+qrow('Monthly',d.monthly,'g3');}
+return '<div class=acard><div class=acard-h><span class=acard-dot></span><span class=acard-name>'+qesc(a.name)+'</span></div>'+body+'</div>';
+}
 async function fq(){try{
-var r=await(await fetch('/api/quota')).json();if(!r.success)throw new Error(r.error);
-var d=r.data;
-function sq(id,pct,tid,rid,rt,cl){
-var b=document.getElementById(id);if(b){b.style.width=pct+'%';var w=bg(pct);b.className='qf';if(w)b.classList.add('qf',w);else b.classList.add('qf',cl)}
-var p=document.getElementById(tid);if(p){p.textContent=pct+'%';var c=bg(pct);p.className='qp';if(c)p.classList.add('qp',c);else p.classList.add('qp',cl)}
-var r=document.getElementById(rid);if(r)r.textContent=rt}
-sq('qfR',d.rolling.usage_percent,'qpR','qtR',d.rolling.reset_display,'g1');
-sq('qfW',d.weekly.usage_percent,'qpW','qtW',d.weekly.reset_display,'g2');
-if(d.monthly){var _m=document.getElementById('qbwM');if(_m)_m.style.display='block';sq('qfM',d.monthly.usage_percent,'qpM','qtM',d.monthly.reset_display,'g3')}
-else{var _m=document.getElementById('qbwM');if(_m)_m.style.display='none';var pm=document.getElementById('qpM');if(pm){pm.textContent='∞';pm.className='qp g3'}var tm=document.getElementById('qtM');if(tm)tm.textContent='无限'}
-var _e=document.getElementById('quotaErr');if(_e)_e.classList.add('hide')
-}catch(e){var _e=document.getElementById('quotaErr');if(_e){_e.textContent=e.message;_e.classList.remove('hide')}}}
+var r=await(await fetch('/api/accounts')).json();if(!r.success)throw new Error(r.error||'failed');
+var h='';if(!r.data||!r.data.length){h='<div class=emp>未配置账户</div>';}else{r.data.forEach(function(a){h+=acard(a)});}
+document.getElementById('accountCards').innerHTML=h;
+}catch(e){document.getElementById('accountCards').innerHTML='<div class=qerr>'+qesc(e.message)+'</div>';}}
 /* balance */
 async function fb(){try{var r=await(await fetch('/api/balance')).json();if(!r.success)throw new Error(r.error);
 document.getElementById('balanceSec').classList.remove('hide');var d=r.data,e=document.getElementById('balLoad');
