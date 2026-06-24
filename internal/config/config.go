@@ -13,9 +13,15 @@ type Profile struct {
 	DeepSeekAPIKey string `json:"deepseek_api_key,omitempty"`
 }
 
+type DeepSeekAccount struct {
+	Name  string `json:"name"`
+	Token string `json:"token"` // platform.deepseek.com 网页 Bearer token
+}
+
 type Config struct {
-	ActiveProfile string             `json:"active_profile"`
-	Profiles      map[string]Profile `json:"profiles"`
+	ActiveProfile    string             `json:"active_profile"`
+	Profiles         map[string]Profile `json:"profiles"`
+	DeepSeekAccounts []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
 }
 
 func configDir() (string, error) {
@@ -75,6 +81,28 @@ func (c *Config) ProfileNames() []string {
 	names := make([]string, 0, len(c.Profiles))
 	for k := range c.Profiles { names = append(names, k) }
 	return names
+}
+
+// UpsertDeepSeekAccount 按 Name 覆盖或追加一个 DeepSeek 账户。
+func (c *Config) UpsertDeepSeekAccount(a DeepSeekAccount) {
+	for i := range c.DeepSeekAccounts {
+		if c.DeepSeekAccounts[i].Name == a.Name {
+			c.DeepSeekAccounts[i] = a
+			return
+		}
+	}
+	c.DeepSeekAccounts = append(c.DeepSeekAccounts, a)
+}
+
+// DeleteDeepSeekAccount 按 Name 删除，不存在返回错误。
+func (c *Config) DeleteDeepSeekAccount(name string) error {
+	for i := range c.DeepSeekAccounts {
+		if c.DeepSeekAccounts[i].Name == name {
+			c.DeepSeekAccounts = append(c.DeepSeekAccounts[:i], c.DeepSeekAccounts[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("DeepSeek 账户 %q 不存在", name)
 }
 
 func HasEnvVars() (cookie bool, ws bool, dk bool) {
