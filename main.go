@@ -85,6 +85,17 @@ func buildAccounts() []web.Account {
 	return accs
 }
 
+func buildDeepSeekAccounts() []web.DeepSeekAccount {
+	out := make([]web.DeepSeekAccount, 0, len(cfg.DeepSeekAccounts))
+	for _, a := range cfg.DeepSeekAccounts {
+		if a.Token == "" {
+			continue
+		}
+		out = append(out, web.DeepSeekAccount{Name: a.Name, Token: a.Token})
+	}
+	return out
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		startSidebar()
@@ -108,6 +119,7 @@ case "version", "-v", "--version": fmt.Println("ocgt-monitor v" + version)
 
 func startSidebar() {
 	srv := web.NewServer(buildAccounts())
+	srv.SetDeepSeekAccounts(buildDeepSeekAccounts())
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
@@ -225,6 +237,7 @@ func cmdServe() {
 
 	// Headless mode: just start the API server (for CLI/curl access)
 	srv := web.NewServer(buildAccounts())
+	srv.SetDeepSeekAccounts(buildDeepSeekAccounts())
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
 	}()

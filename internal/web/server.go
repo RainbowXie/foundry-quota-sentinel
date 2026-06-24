@@ -25,15 +25,24 @@ type Account struct {
 	WorkspaceID string
 }
 
+type DeepSeekAccount struct {
+	Name  string
+	Token string
+}
+
 type Server struct {
-	addr     string
-	accounts []Account
-	deepseek *quota.DeepSeekQuerier
+	addr       string
+	accounts   []Account
+	dsAccounts []DeepSeekAccount
+	deepseek   *quota.DeepSeekQuerier
 }
 
 func NewServer(accounts []Account) *Server {
 	return &Server{addr: ":8788", accounts: accounts, deepseek: quota.NewDeepSeekQuerier()}
 }
+
+// SetDeepSeekAccounts 注入要在 /api/deepseek 并发查询的网页账户列表。
+func (s *Server) SetDeepSeekAccounts(accs []DeepSeekAccount) { s.dsAccounts = accs }
 
 func (s *Server) Start(addr string) error {
 	if addr != "" { s.addr = addr }
@@ -82,6 +91,47 @@ func (s *Server) Start(addr string) error {
 		d, e := s.deepseek.FetchBalance()
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
+	})
+
+	mux.HandleFunc("/api/deepseek", func(w http.ResponseWriter, r *http.Request) {
+		type card struct {
+			Name    string                   `json:"name"`
+			Success bool                     `json:"success"`
+			Summary *quota.DeepSeekSummary   `json:"summary,omitempty"`
+			Days    []quota.DeepSeekDayUsage `json:"days,omitempty"`
+			Error   string                   `json:"error,omitempty"`
+		}
+		accs := s.dsAccounts
+		cards := make([]card, len(accs))
+		now := time.Now()
+		var wg sync.WaitGroup
+		for i, a := range accs {
+			wg.Add(1)
+			go func(i int, a DeepSeekAccount) {
+				defer wg.Done()
+				c := card{Name: a.Name}
+				q := &quota.DeepSeekWebQuerier{Token: a.Token}
+				sum, err := q.FetchSummary()
+				if err != nil {
+					c.Error = err.Error()
+					cards[i] = c
+					return
+				}
+				days, err := q.FetchUsage(now.Year(), int(now.Month()))
+				if err != nil {
+					c.Error = err.Error()
+					cards[i] = c
+					return
+				}
+				c.Success = true
+				c.Summary = sum
+				c.Days = days
+				cards[i] = c
+			}(i, a)
+		}
+		wg.Wait()
+		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
+		writeJSON(w, 200, map[string]any{"success": true, "data": cards})
 	})
 
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
