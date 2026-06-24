@@ -9,8 +9,9 @@ import "fmt"
 // implementation. It pulls in no CGO/webview dependency.
 type Sidebar struct{ port int }
 
-// New returns a stub; no window is created.
-func New(port int) *Sidebar {
+// New returns a stub; no window is created. w/h ignored.
+func New(port, w, h int) *Sidebar {
+	_, _ = w, h
 	return &Sidebar{port: port}
 }
 

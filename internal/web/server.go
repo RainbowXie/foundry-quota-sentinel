@@ -38,6 +38,7 @@ type Server struct {
 	dsAccounts []DeepSeekAccount
 	dsFn       func() []DeepSeekAccount
 	deepseek   *quota.DeepSeekQuerier
+	onWinSize  func(w, h int)
 }
 
 func NewServer(accounts []Account) *Server {
@@ -53,6 +54,9 @@ func (s *Server) SetAccountsProvider(fn func() []Account) { s.accountsFn = fn }
 
 // SetDeepSeekProvider 设置动态 DeepSeek 账户来源，每次请求实时读取。
 func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn }
+
+// SetWinSizeHandler 设置窗口大小持久化回调（前端 resize 时上报）。
+func (s *Server) SetWinSizeHandler(fn func(w, h int)) { s.onWinSize = fn }
 
 func (s *Server) curAccounts() []Account {
 	if s.accountsFn != nil {
@@ -265,6 +269,16 @@ func (s *Server) Start(addr string) error {
 			}
 		}
 		writeJSON(w, 200, map[string]any{"y": state.PanelY})
+	})
+
+	mux.HandleFunc("/api/winsize", func(w http.ResponseWriter, r *http.Request) {
+		var ww, hh int
+		fmt.Sscanf(r.URL.Query().Get("w"), "%d", &ww)
+		fmt.Sscanf(r.URL.Query().Get("h"), "%d", &hh)
+		if ww > 0 && hh > 0 && s.onWinSize != nil {
+			s.onWinSize(ww, hh)
+		}
+		writeJSON(w, 200, map[string]any{"ok": true})
 	})
 
 	sub, _ := fs.Sub(webAssets, "static")

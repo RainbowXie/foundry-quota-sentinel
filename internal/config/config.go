@@ -22,6 +22,15 @@ type Config struct {
 	ActiveProfile    string             `json:"active_profile"`
 	Profiles         map[string]Profile `json:"profiles"`
 	DeepSeekAccounts []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
+	WindowW          int                `json:"window_w,omitempty"`
+	WindowH          int                `json:"window_h,omitempty"`
+}
+
+// SaveWindowSize 持久化窗口大小（重载 config 再写，避免覆盖其它字段）。
+func SaveWindowSize(w, h int) {
+	c := Load()
+	c.WindowW, c.WindowH = w, h
+	_ = c.Save()
 }
 
 func configDir() (string, error) {

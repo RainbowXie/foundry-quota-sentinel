@@ -79,7 +79,8 @@ type Sidebar struct {
 	lastY     int
 }
 
-func New(port int) *Sidebar {
+func New(port, w, h int) *Sidebar {
+	_, _ = w, h
 	runtime.LockOSThread()
 
 	screenW, _ := getScreenSize()

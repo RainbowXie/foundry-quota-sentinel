@@ -94,7 +94,7 @@
                     "UbuntuMono Nerd Font", -apple-system, BlinkMacSystemFont,
                     "SF Pro Display", "Inter", "Noto Sans SC", sans-serif;
                 background: var(--bg);
-                width: 360px;
+                width: 100%;
                 overflow: hidden;
                 user-select: none;
                 color: var(--text);
@@ -942,6 +942,17 @@
                 font-weight: 600;
                 cursor: pointer;
             }
+            #accountCards,
+            #dsCards {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+            #accountCards > *,
+            #dsCards > * {
+                margin-bottom: 0;
+            }
         </style>
     </head>
     <body>
@@ -1375,7 +1386,7 @@
                     }
                     var h = "";
                     arr.forEach(function (c, idx) {
-                        h += '<div class=bc style="margin-bottom:8px">';
+                        h += "<div class=bc>";
                         h +=
                             "<div class=bc-r><span class=ctype>DeepSeek</span><span class=cname>" +
                             qesc(c.name) +
@@ -1524,12 +1535,22 @@
             setInterval(fa, 2000);
             fd();
             setInterval(fd, 30000);
+            var winTimer;
             window.addEventListener("resize", function () {
                 for (var k in dsCharts) {
                     try {
                         dsCharts[k].resize();
                     } catch (e) {}
                 }
+                clearTimeout(winTimer);
+                winTimer = setTimeout(function () {
+                    fetch(
+                        "/api/winsize?w=" +
+                            window.outerWidth +
+                            "&h=" +
+                            window.outerHeight,
+                    );
+                }, 500);
             });
         </script>
     </body>

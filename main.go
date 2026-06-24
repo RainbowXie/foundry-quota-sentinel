@@ -123,6 +123,7 @@ func startSidebar() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
+	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
@@ -130,7 +131,7 @@ func startSidebar() {
 		}
 	}()
 	time.Sleep(500 * time.Millisecond)
-	sb := sidebar.New(8788)
+	sb := sidebar.New(8788, cfg.WindowW, cfg.WindowH)
 	sb.Run()
 }
 
