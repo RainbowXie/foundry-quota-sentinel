@@ -140,7 +140,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 <div class=ti><div class="tn g3" id=tdTot>--</div><div class=tl>总计</div></div>
 <div class=ti><div class="tn g4" id=tdReq>--</div><div class=tl>请求</div></div>
 </div>
-<div class="hide" id=balanceSec><div class=st>账户余额</div><div class=bc id=balLoad><div class=bc-r><span class=bl>加载中...</span></div></div></div>
+<div id=deepseekSec><div class=st>DeepSeek<span id=dsAdd style="float:right;cursor:pointer;font-weight:600;color:var(--text-sec)">＋登录</span></div><div id=dsCards><div class=emp>加载中...</div></div></div>
 <div class=st>模型消耗</div>
 <div class=fw id=modelFilter>
 <span class="fl fl-on" data-days=1>今日</span><span class=fl data-days=7>7日</span><span class=fl data-days=30>30日</span><span class=fl data-custom>自定</span>
@@ -211,13 +211,52 @@ var r=await(await fetch('/api/accounts')).json();if(!r.success)throw new Error(r
 var h='';if(!r.data||!r.data.length){h='<div class=emp>未配置账户</div>';}else{r.data.forEach(function(a){h+=acard(a)});}
 document.getElementById('accountCards').innerHTML=h;
 }catch(e){document.getElementById('accountCards').innerHTML='<div class=qerr>'+qesc(e.message)+'</div>';}}
-/* balance */
-async function fb(){try{var r=await(await fetch('/api/balance')).json();if(!r.success)throw new Error(r.error);
-document.getElementById('balanceSec').classList.remove('hide');var d=r.data,e=document.getElementById('balLoad');
-var h='<div class=bc-r><span class=bl>可用余额</span><span class=bv>'+d.total_balance.toFixed(2)+' <span style=font-size:10px;font-weight:500;color:var(--text-sec)>'+d.currency+'</span></span></div>';
-if(d.granted_balance>0||d.topped_up_balance>0){h+='<div class=bc-d>'+(d.granted_balance>0?'赠送 '+d.granted_balance.toFixed(2):'')+(d.topped_up_balance>0?' 充值 '+d.topped_up_balance.toFixed(2):'')+'</div>'}
-e.innerHTML=h}
-catch(e){document.getElementById('balanceSec').classList.add('hide')}}
+/* deepseek cards */
+function dsBar(days){
+if(!days||!days.length)return'<div class=emp>本月暂无用量</div>';
+var mx=Math.max.apply(Math,days.map(function(x){return x.total||0}));if(!mx)mx=1;
+var h='<div class=bc-c>';
+days.forEach(function(x){
+var tot=x.total||0,skH=Math.max(1,(tot/mx)*100);
+var hit=x.cache_hit||0,miss=x.cache_miss||0,out=x.output||0;
+var hP=tot?hit/tot*100:0,mP=tot?miss/tot*100:0,oP=tot?out/tot*100:0;
+h+='<div class=bc-b><div class=bc-sk style="height:'+skH+'%">';
+h+='<div style="height:'+oP+'%;background:var(--ch-out)"></div>';
+h+='<div style="height:'+mP+'%;background:#f59e0b"></div>';
+h+='<div style="height:'+hP+'%;background:var(--ch-in)"></div>';
+h+='</div><div class=bc-v>'+ab(tot)+'</div><div class=bc-l>'+(x.date?String(x.date).slice(5):'')+'</div></div>';
+});
+h+='</div><div class=bc-lg><span class=bc-li><span class=bc-sq style=background:var(--ch-in)></span>命中</span><span class=bc-li><span class=bc-sq style=background:#f59e0b></span>未命中</span><span class=bc-li><span class=bc-sq style=background:var(--ch-out)></span>输出</span></div>';
+return h;
+}
+async function fd(){
+try{
+var r=await(await fetch('/api/deepseek')).json();
+var box=document.getElementById('dsCards');
+if(!r.success){box.innerHTML='<div class=er>'+(r.error||'查询失败')+'</div>';return}
+var arr=r.data||[];
+if(!arr.length){box.innerHTML='<div class=emp>未配置 DeepSeek 账户，点右上「＋登录」添加</div>';return}
+var h='';
+arr.forEach(function(c){
+h+='<div class=bc style="margin-bottom:8px">';
+h+='<div class=bc-r><span class=bl>'+qesc(c.name)+'</span><span class=bv style=font-size:11px>'+(c.success?'':'<span style=color:var(--red)>离线</span>')+'</span></div>';
+if(!c.success){
+h+='<div class=bc-d style=color:var(--red)>'+qesc(c.error||'查询失败')+'</div>';
+h+='<div class=bc-d><span class=dsLogin data-name="'+qesc(c.name)+'" style="cursor:pointer;color:var(--text-sec)">重新登录</span></div>';
+}else{
+var s=c.summary||{};
+h+='<div class=bc-r><span class=bl>余额</span><span class=bv>'+(s.balance||0).toFixed(2)+' <span style=font-size:10px;color:var(--text-sec)>'+(s.currency||'')+'</span></span></div>';
+h+='<div class=bc-d>可用≈'+n(s.token_estimation||0)+' tokens · 本月用量 '+n(s.monthly_usage||0)+' · 赠送 '+n(s.current_token||0)+'</div>';
+h+=dsBar(c.days);
+}
+h+='</div>';
+});
+box.innerHTML=h;
+}catch(e){document.getElementById('dsCards').innerHTML='<div class=er>'+qesc(e.message)+'</div>'}
+}
+function dsDoLogin(name){fetch('/api/deepseek/login'+(name?'?name='+encodeURIComponent(name):'')).then(function(){setTimeout(fd,1500)})}
+document.getElementById('dsAdd').addEventListener('click',function(){var nm=prompt('账户名称：','DeepSeek');if(nm)dsDoLogin(nm.trim())});
+document.getElementById('dsCards').addEventListener('click',function(e){var t=e.target;if(t.classList.contains('dsLogin'))dsDoLogin(t.getAttribute('data-name'))});
 /* history */
 async function fh(){try{var r=await(await fetch('/api/history')).json();if(!r.success||!r.data||!r.data.length)return;
 hData=r.data;var t=hData[hData.length-1];an(document.getElementById('tdIn'),t.input_tokens||0);an(document.getElementById('tdOut'),t.output_tokens||0);an(document.getElementById('tdTot'),t.total_tokens||0);an(document.getElementById('tdReq'),t.request_count||0)}catch(e){}}
@@ -252,7 +291,7 @@ top5.forEach(function(m){var p=Math.round((m.total_tokens/total)*100);h+='<div c
 if(ot>0){h+='<div class=dn-i><span class=dn-d style=background:#94a3b8></span><span class=dn-n>其他</span><span class=dn-p>'+Math.round((ot/total)*100)+'%</span><span class=dn-v>'+ab(ot)+'</span></div>'}
 h+='</div></div>';e.innerHTML=h})}
 /* main loop 3s */
-async function fa(){var ok=true;try{await Promise.all([fq(),fb(),fh(),fm().catch(function(){})]);renderBar(hData);renderDonut()}catch(e){ok=false}
+async function fa(){var ok=true;try{await Promise.all([fq(),fd(),fh(),fm().catch(function(){})]);renderBar(hData);renderDonut()}catch(e){ok=false}
 var sd=document.getElementById('sd'),ht=document.getElementById('ht');sd.className=ok?'sd':'sd er';ht.textContent=new Date().toLocaleTimeString();ht.className=ok?'ht':'ht er';if(!ok)ht.textContent+=' ✕'}
 fa();setInterval(fa,2000)
 </script>
