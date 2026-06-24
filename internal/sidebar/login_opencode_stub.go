@@ -8,5 +8,5 @@ import "fmt"
 // 其它平台与无 GUI 构建回退到手动配置。
 func RunOpenCodeLogin(validate func(cookie, wsid string) bool) (string, string, error) {
 	_ = validate
-	return "", "", fmt.Errorf("OpenCode Go 弹窗登录目前仅支持 Linux(WebKitGTK)；其它平台请用 `ocgt-monitor config add <名称>` 手动配置")
+	return "", "", fmt.Errorf("OpenCode Go 弹窗登录目前仅支持 Linux(WebKitGTK)；其它平台请用 `foundry-quota-sentinel config add <名称>` 手动配置")
 }

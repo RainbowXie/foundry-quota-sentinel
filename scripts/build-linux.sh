@@ -5,11 +5,11 @@
 # ubuntu 24.04 只剩 4.1 会编不过，22.04 才有 4.0（CI 也用 22.04 + libwebkit2gtk-4.0-dev）。
 #
 # 用法：
-#   scripts/build-linux.sh                  # 默认输出 build/ocgt-monitor-linux-amd64
+#   scripts/build-linux.sh                  # 默认输出 build/foundry-quota-sentinel-linux-amd64
 #   OUTPUT=build/ocgt GO_VERSION=1.26.4 scripts/build-linux.sh
 #
 # 环境变量：
-#   OUTPUT      输出路径（相对仓库根），默认 build/ocgt-monitor-linux-amd64
+#   OUTPUT      输出路径（相对仓库根），默认 build/foundry-quota-sentinel-linux-amd64
 #   GO_VERSION  Go 版本，默认从 go.mod 的 `go` 行读取（取不到则 1.26.4）
 #   IMAGE       基础镜像，默认 ubuntu:22.04
 set -euo pipefail
@@ -17,7 +17,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-OUTPUT="${OUTPUT:-build/ocgt-monitor-linux-amd64}"
+OUTPUT="${OUTPUT:-build/foundry-quota-sentinel-linux-amd64}"
 IMAGE="${IMAGE:-ubuntu:22.04}"
 if [ -z "${GO_VERSION:-}" ]; then
   GO_VERSION="$(awk '/^go [0-9]/{print $2; exit}' go.mod 2>/dev/null)"

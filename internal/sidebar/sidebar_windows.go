@@ -8,7 +8,7 @@ import (
 	"time"
 	"unsafe"
 
-	"ocgt-monitor/internal/state"
+	"foundry-quota-sentinel/internal/state"
 
 	"github.com/webview/webview_go"
 	"golang.org/x/sys/windows"

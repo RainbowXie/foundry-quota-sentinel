@@ -8,9 +8,9 @@ set CGO_ENABLED=1
 set "PATH=C:\msys64\mingw64\bin;%PATH%"
 
 :: --- CLI version (double-click opens terminal) ---
-:: go build -ldflags="-s -w" -o ocgt-monitor.exe .
+:: go build -ldflags="-s -w" -o foundry-quota-sentinel.exe .
 
 :: --- GUI version (double-click starts sidebar, no terminal window) ---
-go build -ldflags="-s -w -H windowsgui" -o ocgt-monitor.exe .
+go build -ldflags="-s -w -H windowsgui" -o foundry-quota-sentinel.exe .
 
-echo Build complete: ocgt-monitor.exe (GUI mode)
+echo Build complete: foundry-quota-sentinel.exe (GUI mode)

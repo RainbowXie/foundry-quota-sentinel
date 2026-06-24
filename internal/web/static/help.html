@@ -3,7 +3,7 @@
 <head>
 <meta charset=UTF-8>
 <meta name=viewport content="width=device-width,initial-scale=1.0">
-<title>ocgt-monitor &mdash; 使用手册</title>
+<title>foundry-quota-sentinel &mdash; 使用手册</title>
 <link rel=preconnect href=https://fonts.googleapis.com>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel=stylesheet>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel=stylesheet>
@@ -140,7 +140,7 @@ details table{margin:8px 0}
 <div class=content id=top>
 
 <!-- ══════════ HEADER ══════════ -->
-<h1>ocgt-monitor<span class=en>OpenCode Go Token &amp; Quota Monitor &mdash; User Manual</span></h1>
+<h1>foundry-quota-sentinel<span class=en>OpenCode Go Token &amp; Quota Monitor &mdash; User Manual</span></h1>
 <p class=sub>OpenCode Go 套餐额度监控工具，支持命令行、网页面板、桌面侧边栏三种模式。<br><span class=en>Monitor your OpenCode Go plan quota, DeepSeek balance, and token usage across CLI, web dashboard, and desktop sidebar.</span></p>
 
 <div style=display:flex;gap:6px;margin:0 0 24px;flex-wrap:wrap>
@@ -153,7 +153,7 @@ details table{margin:8px 0}
 
 <!-- ══════════ OVERVIEW ══════════ -->
 <h2 id=overview><span class=nr>01</span>工具简介 <span class=en>Overview</span></h2>
-<p>ocgt-monitor 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+<p>foundry-quota-sentinel 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
 
 <div class=card style="font-size:13px;color:var(--text-sec);line-height:2.2">
 <strong style=color:var(--text)>核心特性 <span class=en style="font-weight:400;font-size:12px;color:var(--text-ter)">Key Features</span></strong><br>
@@ -172,7 +172,7 @@ details table{margin:8px 0}
 <div class=step-n>1</div>
 <div class=step-b>
 <h3>下载程序 <span class=en>Download the program</span></h3>
-<p>从发布页下载 <code>ocgt-monitor.exe</code>，放到任意文件夹。<span class=en>Download the latest release from GitHub.</span></p>
+<p>从发布页下载 <code>foundry-quota-sentinel.exe</code>，放到任意文件夹。<span class=en>Download the latest release from GitHub.</span></p>
 </div>
 </div>
 
@@ -181,7 +181,7 @@ details table{margin:8px 0}
 <div class=step-b>
 <h3>配置凭证 <span class=en>Set up credentials</span></h3>
 <p>打开终端（CMD），运行配置向导：<span class=en>Open a terminal and run the setup wizard.</span></p>
-<pre>ocgt-monitor config init</pre>
+<pre>foundry-quota-sentinel config init</pre>
 <p>按提示输入以下信息。DeepSeek Key 可不填（余额功能不可用）。<span class=en>Follow the prompts. DeepSeek key is optional.</span></p>
 <table>
 <tr><th>项目</th><th>获取方式</th></tr>
@@ -196,8 +196,8 @@ details table{margin:8px 0}
 <div class=step-n>3</div>
 <div class=step-b>
 <h3>双击运行 <span class=en>Double-click to launch</span></h3>
-<p>直接双击 <code>ocgt-monitor.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
-<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>ocgt-monitor serve --sidebar</code> 或 <code>ocgt-monitor quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>
+<p>直接双击 <code>foundry-quota-sentinel.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>foundry-quota-sentinel serve --sidebar</code> 或 <code>foundry-quota-sentinel quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>
 </div>
 </div>
 
@@ -206,12 +206,12 @@ details table{margin:8px 0}
 <div class=step-b>
 <h3>检查额度 <span class=en>Check your quota</span></h3>
 <p>也可直接在终端查看套餐额度：<span class=en>Alternatively, check quota directly in terminal.</span></p>
-<pre>ocgt-monitor quota</pre>
+<pre>foundry-quota-sentinel quota</pre>
 </div>
 </div>
 
 <div class="cl warn">
-<span class=ic>!</span><div><strong>PowerShell 用户注意：</strong> 命令前需要加 <code>.\</code> 前缀，例如 <code>.\ocgt-monitor config init</code>。<span class=en>PowerShell requires .\ prefix for local executables.</span></div>
+<span class=ic>!</span><div><strong>PowerShell 用户注意：</strong> 命令前需要加 <code>.\</code> 前缀，例如 <code>.\foundry-quota-sentinel config init</code>。<span class=en>PowerShell requires .\ prefix for local executables.</span></div>
 </div>
 
 <!-- ══════════ COMMANDS ══════════ -->
@@ -239,7 +239,7 @@ details table{margin:8px 0}
 <tr><td class=cmd>config use &lt;name&gt;</td><td>切换到指定 Profile</td></tr>
 <tr><td class=cmd>config delete &lt;name&gt;</td><td>删除指定 Profile</td></tr>
 </table>
-<p>配置文件位置：<code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每个 Windows 用户独立存储。</p>
+<p>配置文件位置：<code>C:\Users\&lt;用户名&gt;\.foundry-quota-sentinel\config.json</code>，每个 Windows 用户独立存储。</p>
 </div>
 </details>
 
@@ -251,15 +251,15 @@ details table{margin:8px 0}
 <span class=cmd>set</span> <span class=str>OPENCODE_GO_AUTH_COOKIE</span>=session=xxx;.....
 <span class=cmd>set</span> <span class=str>OPENCODE_GO_WORKSPACE_ID</span>=wrk_xxxxxxxxxxxx
 <span class=cmd>set</span> <span class=str>DEEPSEEK_API_KEY</span>=sk-xxxxxxxxxxxxxxxx
-<span class=cmd>set</span> <span class=str>OCGT_PORT</span>=8788</pre>
+<span class=cmd>set</span> <span class=str>FQS_PORT</span>=8788</pre>
 </div>
 </details>
 
 <!-- ══════════ SIDEBAR ══════════ -->
 <h2 id=sidebar><span class=nr>04</span>桌面侧边栏 <span class=en>Desktop Sidebar</span></h2>
-<p>桌面侧边栏是 ocgt-monitor 的推荐使用方式。360&times;370px 半透明面板，固定在屏幕右侧边缘，鼠标移上时滑出，移开后自动隐藏。<span class=en>A frameless glass panel on the right edge of your screen. Auto-hides to a thin strip, slides out on hover.</span></p>
+<p>桌面侧边栏是 foundry-quota-sentinel 的推荐使用方式。360&times;370px 半透明面板，固定在屏幕右侧边缘，鼠标移上时滑出，移开后自动隐藏。<span class=en>A frameless glass panel on the right edge of your screen. Auto-hides to a thin strip, slides out on hover.</span></p>
 
-<p><strong>启动方式：</strong>双击 <code>ocgt-monitor.exe</code>，或在终端运行 <code>ocgt-monitor serve --sidebar</code>。</p>
+<p><strong>启动方式：</strong>双击 <code>foundry-quota-sentinel.exe</code>，或在终端运行 <code>foundry-quota-sentinel serve --sidebar</code>。</p>
 
 <h3 id=sidebar-features>交互行为 <span class=en>Interactions</span></h3>
 
@@ -315,13 +315,13 @@ details table{margin:8px 0}
 
 <!-- ══════════ CONFIG ══════════ -->
 <h2 id=config><span class=nr>05</span>配置管理 <span class=en>Configuration</span></h2>
-<p>ocgt-monitor 使用多 Profile 配置文件，每个 Profile 包含一套完整的凭证信息。</p>
+<p>foundry-quota-sentinel 使用多 Profile 配置文件，每个 Profile 包含一套完整的凭证信息。</p>
 
 <details open>
 <summary>分享给他人</summary>
 <div class=dw>
 <div class="cl info">
-<span class=ic>i</span><div>exe 本身不含任何配置，直接发送即可。配置存储在用户目录 <code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每台机器独立。
+<span class=ic>i</span><div>exe 本身不含任何配置，直接发送即可。配置存储在用户目录 <code>C:\Users\&lt;用户名&gt;\.foundry-quota-sentinel\config.json</code>，每台机器独立。
 接收方运行 <code>config init</code> 配置自己的凭证即可使用。</div>
 </div>
 </div>
@@ -331,11 +331,11 @@ details table{margin:8px 0}
 <h2 id=web><span class=nr>06</span>网页面板 <span class=en>Web Dashboard</span></h2>
 <p>运行 <code>serve</code> 命令启动 HTTP 服务器，浏览器访问 <code>http://127.0.0.1:8788</code> 即可打开面板。</p>
 
-<pre>ocgt-monitor serve</pre>
+<pre>foundry-quota-sentinel serve</pre>
 
-<p>也可通过 <code>OCGT_PORT</code> 环境变量自定义端口：</p>
-<pre><span class=cmd>set</span> <span class=str>OCGT_PORT</span>=<span class=num>9090</span>
-ocgt-monitor serve</pre>
+<p>也可通过 <code>FQS_PORT</code> 环境变量自定义端口：</p>
+<pre><span class=cmd>set</span> <span class=str>FQS_PORT</span>=<span class=num>9090</span>
+foundry-quota-sentinel serve</pre>
 
 <p>网页面板与侧边栏共享同一套 API 后端，数据一致。</p>
 
@@ -350,8 +350,8 @@ DeepSeek API (/user/balance)   &rarr;  balance  // 账户余额
 ocgt JSONL 日志文件             &rarr;  history  // Token 消耗历史
 
 <span class=c style=color:var(--text-ter)>使用模式</span>
-CLI   &rarr;  <code style=font-size:12px>ocgt-monitor quota|balance|history</code>
-Web   &rarr;  <code style=font-size:12px>ocgt-monitor serve</code>        &rarr;  http://127.0.0.1:8788
+CLI   &rarr;  <code style=font-size:12px>foundry-quota-sentinel quota|balance|history</code>
+Web   &rarr;  <code style=font-size:12px>foundry-quota-sentinel serve</code>        &rarr;  http://127.0.0.1:8788
 Panel &rarr;  <code style=font-size:12px>双击 exe</code> 或 <code style=font-size:12px>serve --sidebar</code>  &rarr;  WebView2</pre>
 </div>
 
@@ -359,7 +359,7 @@ Panel &rarr;  <code style=font-size:12px>双击 exe</code> 或 <code style=font-
 <summary>项目结构</summary>
 <div class=dw>
 <pre style="font-size:12px;line-height:2">
-ocgt-monitor/
+foundry-quota-sentinel/
   <strong>main.go</strong>                    CLI 入口（11 个命令）
   <strong>build.bat</strong>                  构建脚本（CGO_ENABLED=1）
   <strong>internal/</strong>
@@ -426,7 +426,7 @@ ocgt-monitor/
 
 <!-- ══════════ FOOTER ══════════ -->
 <div class=footer>
-ocgt-monitor v0.4.0<br>
+foundry-quota-sentinel v0.4.0<br>
 <span class=en>Go &bull; WebView2 &bull; OpenCode Go &bull; DeepSeek &bull; 2026</span>
 </div>
 

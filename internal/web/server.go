@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"ocgt-monitor/internal/quota"
-	"ocgt-monitor/internal/state"
-	"ocgt-monitor/internal/storage"
+	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/internal/state"
+	"foundry-quota-sentinel/internal/storage"
 )
 
 //go:embed static/*

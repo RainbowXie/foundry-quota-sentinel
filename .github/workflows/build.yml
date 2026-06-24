@@ -16,13 +16,13 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact: ocgt-monitor.exe
+            artifact: foundry-quota-sentinel.exe
             ldflags: "-s -w -H windowsgui"
           - os: macos-latest
-            artifact: ocgt-monitor-macos
+            artifact: foundry-quota-sentinel-macos
             ldflags: "-s -w"
           - os: ubuntu-22.04
-            artifact: ocgt-monitor-linux
+            artifact: foundry-quota-sentinel-linux
             ldflags: "-s -w"
     steps:
       - uses: actions/checkout@v4

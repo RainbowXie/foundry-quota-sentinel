@@ -23,7 +23,7 @@ const winMinHeight = 640
 // New creates the window pointing at the local panel server on the given port.
 func New(port int) *Sidebar {
 	wv := webview.New(false)
-	wv.SetTitle("ocgt-monitor")
+	wv.SetTitle("foundry-quota-sentinel")
 	// The panel HTML (static/sidebar.html) is a fixed 360px-wide column laid
 	// out to the full window height. HintMin keeps panelWidth as the floor so
 	// the content is never horizontally clipped, while still letting the user

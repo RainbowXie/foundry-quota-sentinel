@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"ocgt-monitor/internal/formatter"
+	"foundry-quota-sentinel/internal/formatter"
 )
 
 const (

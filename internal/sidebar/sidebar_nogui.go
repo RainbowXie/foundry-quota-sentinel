@@ -16,5 +16,5 @@ func New(port int) *Sidebar {
 
 // Run prints guidance instead of opening a window.
 func (s *Sidebar) Run() {
-	fmt.Printf("此版本未编译图形界面。请运行 `ocgt-monitor serve`，再用浏览器打开 http://127.0.0.1:%d\n", s.port)
+	fmt.Printf("此版本未编译图形界面。请运行 `foundry-quota-sentinel serve`，再用浏览器打开 http://127.0.0.1:%d\n", s.port)
 }

@@ -1,6 +1,6 @@
 <div align="center">
 
-# ocgt-monitor
+# foundry-quota-sentinel
 
 **OpenCode Go &amp; DeepSeek 多账户额度监控**
 
@@ -16,7 +16,7 @@
 
 <br>
 
-<img src="screenshots/sidebar.png" width="340" alt="ocgt-monitor 侧边栏截图">
+<img src="screenshots/sidebar.png" width="340" alt="foundry-quota-sentinel 侧边栏截图">
 
 <br><br>
 
@@ -55,7 +55,7 @@
   </tr>
   <tr>
     <td width="30" align="center" valign="top"><strong>2</strong></td>
-    <td><strong>添加账户</strong><br><span style="color:#5A5A7A;font-size:13px">启动后点面板底部「添加账户」卡 → 选 OpenCode 或 DeepSeek → 弹窗登录即自动保存凭证。<br>也可命令行：<code>ocgt-monitor login-deepseek &lt;名称&gt;</code> / <code>login-opencode &lt;名称&gt;</code>。</span></td>
+    <td><strong>添加账户</strong><br><span style="color:#5A5A7A;font-size:13px">启动后点面板底部「添加账户」卡 → 选 OpenCode 或 DeepSeek → 弹窗登录即自动保存凭证。<br>也可命令行：<code>foundry-quota-sentinel login-deepseek &lt;名称&gt;</code> / <code>login-opencode &lt;名称&gt;</code>。</span></td>
   </tr>
   <tr>
     <td width="30" align="center" valign="top"><strong>3</strong></td>
@@ -64,7 +64,7 @@
   </table>
 </div>
 
-> **PowerShell 用户：** 运行命令时需加 `.\` 前缀，如 `.\ocgt-monitor login-deepseek 我的号`
+> **PowerShell 用户：** 运行命令时需加 `.\` 前缀，如 `.\foundry-quota-sentinel login-deepseek 我的号`
 
 ## 平台支持
 
@@ -85,7 +85,7 @@
 
 ```bash
 # macOS / Linux 原生 GUI
-go build -ldflags="-s -w" -o ocgt-monitor .
+go build -ldflags="-s -w" -o foundry-quota-sentinel .
 
 # Windows GUI（见 build.bat）
 build.bat
@@ -94,7 +94,7 @@ build.bat
 ./scripts/build-linux.sh
 
 # 无原生 GUI 窗口、无 CGO 依赖（仍含 CLI 与 serve 网页面板，服务器/排错用）
-CGO_ENABLED=0 go build -tags nogui -o ocgt-monitor .
+CGO_ENABLED=0 go build -tags nogui -o foundry-quota-sentinel .
 ```
 
 发行版二进制由 GitHub Actions 在三平台原生构建，推送 `v*` tag 时自动发布到 Releases。
@@ -106,14 +106,14 @@ CGO_ENABLED=0 go build -tags nogui -o ocgt-monitor .
 
 ```bash
 # 双击二进制直接启动，或在终端运行：
-ocgt-monitor serve --sidebar
+foundry-quota-sentinel serve --sidebar
 ```
 
 ### 网页面板
 浏览器访问 `http://127.0.0.1:8788`，查看同款面板。
 
 ```bash
-ocgt-monitor serve
+foundry-quota-sentinel serve
 ```
 
 ### 命令行
@@ -131,7 +131,7 @@ ocgt-monitor serve
 
 ## 配置
 
-配置存储在 `~/.ocgt-monitor/config.json`（Windows 为 `%USERPROFILE%\.ocgt-monitor\config.json`），每个用户独立。OpenCode 账户存于 `profiles`，DeepSeek 账户存于 `deepseek_accounts`。
+配置存储在 `~/.foundry-quota-sentinel/config.json`（Windows 为 `%USERPROFILE%\.foundry-quota-sentinel\config.json`），每个用户独立。OpenCode 账户存于 `profiles`，DeepSeek 账户存于 `deepseek_accounts`。
 
 环境变量优先级高于配置文件（仅影响 CLI 的活动账户查询）：
 
@@ -144,7 +144,7 @@ export DEEPSEEK_API_KEY='sk-xxxxxxxxxxxxxxxx'
 ## 项目结构
 
 ```
-ocgt-monitor/
+foundry-quota-sentinel/
   main.go                          CLI 入口与命令
   scripts/build-linux.sh           Docker 构建 Linux GUI 二进制
   internal/

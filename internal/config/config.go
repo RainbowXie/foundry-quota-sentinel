@@ -27,7 +27,7 @@ type Config struct {
 func configDir() (string, error) {
 	h, err := os.UserHomeDir()
 	if err != nil { return "", fmt.Errorf("cannot find home dir: %w", err) }
-	return filepath.Join(h, ".ocgt-monitor"), nil
+	return filepath.Join(h, ".foundry-quota-sentinel"), nil
 }
 
 func configPath() (string, error) {
@@ -36,7 +36,20 @@ func configPath() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
+// migrateLegacyConfig 把旧目录 ~/.ocgt-monitor 迁移到新目录 ~/.foundry-quota-sentinel
+// （仅当新目录尚不存在、旧目录存在时整体改名），平滑升级老用户配置。
+func migrateLegacyConfig() {
+	h, err := os.UserHomeDir()
+	if err != nil { return }
+	newDir := filepath.Join(h, ".foundry-quota-sentinel")
+	oldDir := filepath.Join(h, ".ocgt-monitor")
+	if _, err := os.Stat(newDir); err == nil { return }      // 新目录已存在，不迁移
+	if _, err := os.Stat(oldDir); err != nil { return }      // 旧目录不存在，无需迁移
+	_ = os.Rename(oldDir, newDir)
+}
+
 func Load() *Config {
+	migrateLegacyConfig()
 	path, err := configPath()
 	if err != nil { return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}} }
 	data, err := os.ReadFile(path)

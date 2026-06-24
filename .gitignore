@@ -1,9 +1,9 @@
 # Binary
 *.exe
 *.exe~
-ocgt-monitor
-ocgt-monitor-macos
-ocgt-monitor-linux
+foundry-quota-sentinel
+foundry-quota-sentinel-macos
+foundry-quota-sentinel-linux
 
 # IDE
 .vscode/

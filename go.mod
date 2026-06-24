@@ -1,4 +1,4 @@
-module ocgt-monitor
+module foundry-quota-sentinel
 
 go 1.26.0
 

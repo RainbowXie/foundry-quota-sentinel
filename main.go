@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"ocgt-monitor/internal/config"
-	"ocgt-monitor/internal/formatter"
-	"ocgt-monitor/internal/quota"
-	"ocgt-monitor/internal/sidebar"
-	"ocgt-monitor/internal/storage"
-	"ocgt-monitor/internal/web"
+	"foundry-quota-sentinel/internal/config"
+	"foundry-quota-sentinel/internal/formatter"
+	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/internal/sidebar"
+	"foundry-quota-sentinel/internal/storage"
+	"foundry-quota-sentinel/internal/web"
 )
 
 var currencySymbols = map[string]string{"CNY": "¥", "USD": "$", "EUR": "€", "JPY": "¥", "GBP": "£"}
@@ -30,7 +30,7 @@ func currencySymbol(code string) string {
 }
 
 func homeDir() string { h, _ := os.UserHomeDir(); return h }
-func ocgtPort() string { if p := os.Getenv("OCGT_PORT"); p != "" { return p }; return "8788" }
+func ocgtPort() string { if p := os.Getenv("FQS_PORT"); p != "" { return p }; return "8788" }
 
 func makeQuotaQuerier() *quota.OpenCodeGoQuerier {
 	q := quota.NewOpenCodeGoQuerier()
@@ -110,7 +110,7 @@ func main() {
 	case "serve": cmdServe()
 	case "login-deepseek": cmdLoginDeepSeek()
 	case "login-opencode": cmdLoginOpenCode()
-case "version", "-v", "--version": fmt.Println("ocgt-monitor v" + version)
+case "version", "-v", "--version": fmt.Println("foundry-quota-sentinel v" + version)
 	case "help", "-h", "--help": printUsage()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
@@ -308,11 +308,11 @@ func showConfigHint() {
 	if p, ok := cfg.GetActiveProfile(); ok && p.Cookie != "" && p.WorkspaceID != "" { fmt.Println("配置文件已有凭证，但查询失败，请检查值是否有效。"); return }
 	fmt.Println("还没有配置凭证！请任选一种方式：")
 	fmt.Println("  方式一：设置环境变量"); fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的cookie"); fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区ID")
-	fmt.Println("  方式二：交互式配置（推荐）"); fmt.Println("    ocgt-monitor config init")
+	fmt.Println("  方式二：交互式配置（推荐）"); fmt.Println("    foundry-quota-sentinel config init")
 }
 
 func printUsage() {
-	fmt.Println("ocgt-monitor — OpenCode Go 额度 & Token 监控工具")
+	fmt.Println("foundry-quota-sentinel — OpenCode Go 额度 & Token 监控工具")
 	fmt.Println()
 	fmt.Println("双击 exe 直接启动桌面侧边栏（无需命令）")
 	fmt.Println()
@@ -361,7 +361,7 @@ func cmdConfigShow() {
 	if hasW { fmt.Println("    OPENCODE_GO_WORKSPACE_ID   已设置") } else { fmt.Println("    OPENCODE_GO_WORKSPACE_ID   未设置") }
 	if hasD { fmt.Println("    DEEPSEEK_API_KEY          已设置") } else { fmt.Println("    DEEPSEEK_API_KEY          未设置") }
 	fmt.Println(); fmt.Println("  [配置文件]")
-	if len(cfg.Profiles) == 0 { fmt.Println("    暂无配置，请运行 ocgt-monitor config init") } else { fmt.Printf("    当前账户: %s\n", cfg.ActiveProfile); fmt.Printf("    账户总数: %d\n", len(cfg.Profiles)) }
+	if len(cfg.Profiles) == 0 { fmt.Println("    暂无配置，请运行 foundry-quota-sentinel config init") } else { fmt.Printf("    当前账户: %s\n", cfg.ActiveProfile); fmt.Printf("    账户总数: %d\n", len(cfg.Profiles)) }
 	fmt.Println(); fmt.Println("  [ocgt 集成]")
 	if _, err := os.Stat(filepath.Join(homeDir(), ".ocgt", "config.json")); err == nil { fmt.Println("    ocgt 配置: 已找到") } else { fmt.Println("    ocgt 配置: 未找到（仅 history 命令需要）") }
 	if entries, err := os.ReadDir(storage.OCGTLogDir()); err == nil { c := 0; for _, e := range entries { if !e.IsDir() { c++ } }; fmt.Printf("    日志文件: %d 个\n", c) } else { fmt.Println("    日志目录: 未找到（启动 ocgt 后自动生成）") }
@@ -369,7 +369,7 @@ func cmdConfigShow() {
 }
 
 func cmdConfigList() {
-	if len(cfg.Profiles) == 0 { fmt.Println("暂无配置。请运行 ocgt-monitor config init 添加。"); return }
+	if len(cfg.Profiles) == 0 { fmt.Println("暂无配置。请运行 foundry-quota-sentinel config init 添加。"); return }
 	names := cfg.ProfileNames(); sort.Strings(names)
 	fmt.Println(); fmt.Println("========================================"); fmt.Println("  账户列表"); fmt.Println("----------------------------------------")
 	for _, name := range names {
@@ -380,7 +380,7 @@ func cmdConfigList() {
 		d := ""; if p.DeepSeekAPIKey != "" { d = "已设置" } else { d = "未设置" }
 		fmt.Printf("  %s %-16s Cookie:%-6s  Workspace:%-6s  DeepSeek:%-6s\n", mark, name, c, w, d)
 	}
-	fmt.Println("----------------------------------------"); fmt.Printf("  当前: %s   总数: %d\n", cfg.ActiveProfile, len(cfg.Profiles)); fmt.Println("  切换: ocgt-monitor config use <名称>"); fmt.Println("========================================")
+	fmt.Println("----------------------------------------"); fmt.Printf("  当前: %s   总数: %d\n", cfg.ActiveProfile, len(cfg.Profiles)); fmt.Println("  切换: foundry-quota-sentinel config use <名称>"); fmt.Println("========================================")
 }
 
 func cmdConfigInit() {
@@ -396,7 +396,7 @@ func cmdConfigInit() {
 	p.DeepSeekAPIKey = readLineDefault("DeepSeek API Key", p.DeepSeekAPIKey)
 	cfg.AddProfile(name, p); cfg.ActiveProfile = name
 	if err := cfg.Save(); err != nil { fmt.Fprintf(os.Stderr, "\n保存失败: %v\n", err); os.Exit(1) }
-	fmt.Println(); fmt.Println("========================================"); fmt.Printf("  配置已保存！当前账户: %s\n", name); fmt.Println("  试试运行: ocgt-monitor quota"); fmt.Println("========================================")
+	fmt.Println(); fmt.Println("========================================"); fmt.Printf("  配置已保存！当前账户: %s\n", name); fmt.Println("  试试运行: foundry-quota-sentinel quota"); fmt.Println("========================================")
 }
 
 func cmdConfigAdd() {
@@ -420,7 +420,7 @@ func cmdConfigAdd() {
 }
 
 func cmdConfigUse() {
-	if len(os.Args) < 4 { fmt.Println("请指定账户名称。用法: ocgt-monitor config use <名称>"); fmt.Println("现有账户:"); for _, n := range cfg.ProfileNames() { fmt.Printf("  - %s\n", n) }; return }
+	if len(os.Args) < 4 { fmt.Println("请指定账户名称。用法: foundry-quota-sentinel config use <名称>"); fmt.Println("现有账户:"); for _, n := range cfg.ProfileNames() { fmt.Printf("  - %s\n", n) }; return }
 	name := os.Args[3]
 	if _, ok := cfg.Profiles[name]; !ok { fmt.Printf("账户 %q 不存在。可用账户:\n", name); for _, n := range cfg.ProfileNames() { fmt.Printf("  - %s\n", n) }; return }
 	cfg.ActiveProfile = name
@@ -429,7 +429,7 @@ func cmdConfigUse() {
 }
 
 func cmdConfigDelete() {
-	if len(os.Args) < 4 { fmt.Println("请指定要删除的账户名称。用法: ocgt-monitor config delete <名称>"); fmt.Println("现有账户:"); for _, n := range cfg.ProfileNames() { fmt.Printf("  - %s\n", n) }; return }
+	if len(os.Args) < 4 { fmt.Println("请指定要删除的账户名称。用法: foundry-quota-sentinel config delete <名称>"); fmt.Println("现有账户:"); for _, n := range cfg.ProfileNames() { fmt.Printf("  - %s\n", n) }; return }
 	name := os.Args[3]
 	if name == cfg.ActiveProfile {
 		fmt.Printf("注意: 账户 %q 是当前使用中的账户。\n", name); fmt.Print("确认删除？(y/N): "); inputReader.Scan()
