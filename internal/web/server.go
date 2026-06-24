@@ -34,7 +34,9 @@ type DeepSeekAccount struct {
 type Server struct {
 	addr       string
 	accounts   []Account
+	accountsFn func() []Account
 	dsAccounts []DeepSeekAccount
+	dsFn       func() []DeepSeekAccount
 	deepseek   *quota.DeepSeekQuerier
 }
 
@@ -42,19 +44,41 @@ func NewServer(accounts []Account) *Server {
 	return &Server{addr: ":8788", accounts: accounts, deepseek: quota.NewDeepSeekQuerier()}
 }
 
-// SetDeepSeekAccounts 注入要在 /api/deepseek 并发查询的网页账户列表。
+// SetDeepSeekAccounts 注入静态 DeepSeek 账户列表。
 func (s *Server) SetDeepSeekAccounts(accs []DeepSeekAccount) { s.dsAccounts = accs }
+
+// SetAccountsProvider 设置动态账户来源，每次请求实时读取（反映 config 变更，
+// 例如 GUI 弹窗登录新增账户后无需重启即可出现）。
+func (s *Server) SetAccountsProvider(fn func() []Account) { s.accountsFn = fn }
+
+// SetDeepSeekProvider 设置动态 DeepSeek 账户来源，每次请求实时读取。
+func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn }
+
+func (s *Server) curAccounts() []Account {
+	if s.accountsFn != nil {
+		return s.accountsFn()
+	}
+	return s.accounts
+}
+
+func (s *Server) curDeepSeek() []DeepSeekAccount {
+	if s.dsFn != nil {
+		return s.dsFn()
+	}
+	return s.dsAccounts
+}
 
 func (s *Server) Start(addr string) error {
 	if addr != "" { s.addr = addr }
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/quota", func(w http.ResponseWriter, r *http.Request) {
-		if len(s.accounts) == 0 {
+		accs := s.curAccounts()
+		if len(accs) == 0 {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "no account configured"})
 			return
 		}
-		a := s.accounts[0]
+		a := accs[0]
 		q := &quota.OpenCodeGoQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
 		d, e := q.FetchQuota()
 		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
@@ -68,9 +92,10 @@ func (s *Server) Start(addr string) error {
 			Quota   *quota.QuotaData `json:"quota,omitempty"`
 			Error   string           `json:"error,omitempty"`
 		}
-		results := make([]result, len(s.accounts))
+		accs := s.curAccounts()
+		results := make([]result, len(accs))
 		var wg sync.WaitGroup
-		for i, a := range s.accounts {
+		for i, a := range accs {
 			wg.Add(1)
 			go func(i int, a Account) {
 				defer wg.Done()
@@ -102,7 +127,7 @@ func (s *Server) Start(addr string) error {
 			Days    []quota.DeepSeekDayUsage `json:"days,omitempty"`
 			Error   string                   `json:"error,omitempty"`
 		}
-		accs := s.dsAccounts
+		accs := s.curDeepSeek()
 		cards := make([]card, len(accs))
 		now := time.Now()
 		var wg sync.WaitGroup
@@ -143,6 +168,25 @@ func (s *Server) Start(addr string) error {
 			return
 		}
 		args := []string{"login-deepseek"}
+		if name != "" {
+			args = append(args, name)
+		}
+		cmd := exec.Command(exe, args...)
+		if err := cmd.Start(); err != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"success": true})
+	})
+
+	mux.HandleFunc("/api/opencode/login", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		exe, err := os.Executable()
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		args := []string{"login-opencode"}
 		if name != "" {
 			args = append(args, name)
 		}

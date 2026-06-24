@@ -131,7 +131,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 </div>
 <div class=ct>
 <div class="tc act" id=tOv>
-<div class=st>套餐额度</div>
+<div class=st>套餐额度<span id=ocAdd style="float:right;cursor:pointer;font-weight:600;color:var(--text-sec)">＋登录</span></div>
 <div class=qn id=accountCards><div class=emp>加载中...</div></div>
 <div class=st>今日消耗</div>
 <div class=tg id=todayGrid>
@@ -256,6 +256,7 @@ box.innerHTML=h;
 }
 function dsDoLogin(name){fetch('/api/deepseek/login'+(name?'?name='+encodeURIComponent(name):'')).then(function(){setTimeout(fd,1500)})}
 document.getElementById('dsAdd').addEventListener('click',function(){var nm=prompt('账户名称：','DeepSeek');if(nm)dsDoLogin(nm.trim())});
+document.getElementById('ocAdd').addEventListener('click',function(){var nm=prompt('OpenCode 账户名称：','OpenCode');if(nm)fetch('/api/opencode/login?name='+encodeURIComponent(nm.trim()))});
 document.getElementById('dsCards').addEventListener('click',function(e){var t=e.target;if(t.classList.contains('dsLogin'))dsDoLogin(t.getAttribute('data-name'))});
 /* history */
 async function fh(){try{var r=await(await fetch('/api/history')).json();if(!r.success||!r.data||!r.data.length)return;
