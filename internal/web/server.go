@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"sort"
 	"sync"
 	"time"
@@ -132,6 +133,25 @@ func (s *Server) Start(addr string) error {
 		wg.Wait()
 		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
 		writeJSON(w, 200, map[string]any{"success": true, "data": cards})
+	})
+
+	mux.HandleFunc("/api/deepseek/login", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		exe, err := os.Executable()
+		if err != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		args := []string{"login-deepseek"}
+		if name != "" {
+			args = append(args, name)
+		}
+		cmd := exec.Command(exe, args...)
+		if err := cmd.Start(); err != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"success": true})
 	})
 
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {

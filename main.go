@@ -108,6 +108,7 @@ func main() {
 	case "watch": cmdWatch()
 	case "config": cmdConfigMain()
 	case "serve": cmdServe()
+	case "login-deepseek": cmdLoginDeepSeek()
 case "version", "-v", "--version": fmt.Println("ocgt-monitor v" + version)
 	case "help", "-h", "--help": printUsage()
 	default:
@@ -245,6 +246,30 @@ func cmdServe() {
 	select {}
 }
 
+func cmdLoginDeepSeek() {
+	name := "DeepSeek"
+	if len(os.Args) > 2 && strings.TrimSpace(os.Args[2]) != "" {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	fmt.Println("正在打开登录窗口，请在窗口内完成 DeepSeek 登录…")
+	token, err := sidebar.RunDeepSeekLogin()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
+		os.Exit(1)
+	}
+	q := &quota.DeepSeekWebQuerier{Token: token}
+	if _, err := q.FetchSummary(); err != nil {
+		fmt.Fprintf(os.Stderr, "凭证校验失败: %v\n", err)
+		os.Exit(1)
+	}
+	cfg.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token})
+	if err := cfg.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("OK DeepSeek 账户 %q 已保存\n", name)
+}
+
 func showConfigHint() {
 	fmt.Println("\n---")
 	hasCookie, hasWS, _ := config.HasEnvVars()
@@ -272,6 +297,7 @@ func printUsage() {
 	fmt.Println("  history               查看 Token 消耗历史")
 	fmt.Println("  watch                 持续监控")
 	fmt.Println("  serve                 启动 API 服务 (--sidebar 桌面侧边栏模式)")
+	fmt.Println("  login-deepseek <名称> 弹窗登录 DeepSeek 并保存网页凭证")
 	fmt.Println()
 	fmt.Println("环境变量（优先级高于配置文件）:")
 	fmt.Println("  OPENCODE_GO_AUTH_COOKIE")
