@@ -131,59 +131,67 @@ func (q *DeepSeekWebQuerier) FetchSummary() (*DeepSeekSummary, error) {
 	return s, nil
 }
 
-// sumByType 递归遍历任意 JSON 子树，把所有 {"type": <名>, <某数值键>: <数>} 形态的
-// 用量项按 type 求和。对 value 键名与是否按模型嵌套都不敏感。
-func sumByType(v any, acc map[string]int64) {
-	switch t := v.(type) {
-	case map[string]any:
-		if typ, ok := t["type"].(string); ok {
-			for k, val := range t {
-				if k == "type" {
-					continue
-				}
-				if n, ok := parseNum(val); ok {
-					acc[typ] += n
-					break
-				}
-			}
-		}
-		for _, val := range t {
-			sumByType(val, acc)
-		}
-	case []any:
-		for _, e := range t {
-			sumByType(e, acc)
-		}
-	}
-}
-
-// FetchUsage 调 usage/amount?month=M&year=Y，按天跨模型聚合。
-func (q *DeepSeekWebQuerier) FetchUsage(year, month int) ([]DeepSeekDayUsage, error) {
+// FetchUsage 调 usage/amount?month=M&year=Y，按模型分别返回当月按天用量
+// （官网每个模型一张图）。仅保留当月有非零用量的模型，按接口 total[] 的模型顺序。
+func (q *DeepSeekWebQuerier) FetchUsage(year, month int) ([]DeepSeekModelUsage, error) {
 	url := fmt.Sprintf("%s/usage/amount?month=%d&year=%d", deepseekWebBaseURL, month, year)
 	raw, err := q.getBizData(url)
 	if err != nil {
 		return nil, err
 	}
 	var bd struct {
-		Days []map[string]any `json:"days"`
+		Total []struct {
+			Model string `json:"model"`
+		} `json:"total"`
+		Days []struct {
+			Date string `json:"date"`
+			Data []struct {
+				Model string `json:"model"`
+				Usage []struct {
+					Type   string `json:"type"`
+					Amount string `json:"amount"`
+				} `json:"usage"`
+			} `json:"data"`
+		} `json:"days"`
 	}
 	if err := json.Unmarshal(raw, &bd); err != nil {
 		return nil, fmt.Errorf("decode usage: %w", err)
 	}
-	out := make([]DeepSeekDayUsage, 0, len(bd.Days))
+
+	order := make([]string, 0, len(bd.Total))
+	for _, t := range bd.Total {
+		order = append(order, t.Model)
+	}
+	perModel := map[string][]DeepSeekDayUsage{}
+	nonzero := map[string]bool{}
 	for _, day := range bd.Days {
-		acc := map[string]int64{}
-		sumByType(day, acc)
-		du := DeepSeekDayUsage{
-			CacheHit:  acc["PROMPT_CACHE_HIT_TOKEN"],
-			CacheMiss: acc["PROMPT_CACHE_MISS_TOKEN"],
-			Output:    acc["RESPONSE_TOKEN"],
+		for _, md := range day.Data {
+			du := DeepSeekDayUsage{Date: day.Date}
+			for _, u := range md.Usage {
+				n, _ := parseNum(u.Amount)
+				switch u.Type {
+				case "PROMPT_CACHE_HIT_TOKEN":
+					du.CacheHit = n
+				case "PROMPT_CACHE_MISS_TOKEN":
+					du.CacheMiss = n
+				case "RESPONSE_TOKEN":
+					du.Output = n
+				}
+			}
+			du.Total = du.CacheHit + du.CacheMiss + du.Output
+			if du.Total > 0 {
+				nonzero[md.Model] = true
+			}
+			perModel[md.Model] = append(perModel[md.Model], du)
 		}
-		if d, ok := day["date"].(string); ok {
-			du.Date = d
+	}
+
+	out := make([]DeepSeekModelUsage, 0, len(order))
+	for _, m := range order {
+		if !nonzero[m] {
+			continue
 		}
-		du.Total = du.CacheHit + du.CacheMiss + du.Output
-		out = append(out, du)
+		out = append(out, DeepSeekModelUsage{Model: m, Days: perModel[m]})
 	}
 	return out, nil
 }

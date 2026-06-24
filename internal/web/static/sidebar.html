@@ -163,6 +163,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter','Noto
 <span class=tl data-tab=md>趋势</span>
 </div>
 </div>
+<script src="echarts.min.js"></script>
 <script>
 var mMode='preset',mDays=1,mFrom='',mTo='',hData=[];
 function n(n){if(n==null)return'0';return n.toLocaleString()}
@@ -212,22 +213,30 @@ var h='';if(!r.data||!r.data.length){h='<div class=emp>未配置账户</div>';}e
 document.getElementById('accountCards').innerHTML=h;
 }catch(e){document.getElementById('accountCards').innerHTML='<div class=qerr>'+qesc(e.message)+'</div>';}}
 /* deepseek cards */
-function dsBar(days){
-if(!days||!days.length)return'<div class=emp>本月暂无用量</div>';
-var mx=Math.max.apply(Math,days.map(function(x){return x.total||0}));if(!mx)mx=1;
-var h='<div class=bc-c>';
-days.forEach(function(x){
-var tot=x.total||0,skH=Math.max(1,(tot/mx)*100);
-var hit=x.cache_hit||0,miss=x.cache_miss||0,out=x.output||0;
-var hP=tot?hit/tot*100:0,mP=tot?miss/tot*100:0,oP=tot?out/tot*100:0;
-h+='<div class=bc-b><div class=bc-sk style="height:'+skH+'%">';
-h+='<div style="height:'+oP+'%;background:var(--ch-out)"></div>';
-h+='<div style="height:'+mP+'%;background:#f59e0b"></div>';
-h+='<div style="height:'+hP+'%;background:var(--ch-in)"></div>';
-h+='</div><div class=bc-v>'+ab(tot)+'</div><div class=bc-l>'+(x.date?String(x.date).slice(5):'')+'</div></div>';
-});
-h+='</div><div class=bc-lg><span class=bc-li><span class=bc-sq style=background:var(--ch-in)></span>命中</span><span class=bc-li><span class=bc-sq style=background:#f59e0b></span>未命中</span><span class=bc-li><span class=bc-sq style=background:var(--ch-out)></span>输出</span></div>';
-return h;
+/* deepseek echarts 堆叠柱（官网同款：三档蓝 + 圆角顶 + 日期在下柱往上 + tooltip） */
+var dsCharts={};
+function dsFmtDate(d){var m=/(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?(parseInt(m[2])+'-'+parseInt(m[3])):d}
+function dsAxisFmt(v){return v>=1e9?(v/1e9)+'B':v>=1e6?(v/1e6)+'M':v>=1e3?(v/1e3)+'K':String(v)}
+function dsFullDate(d){var m=/(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?(parseInt(m[1])+'-'+parseInt(m[2])+'-'+parseInt(m[3])):d}
+function dsChartOption(days){
+var cats=days.map(function(x){return x.date});
+return {animation:false,
+grid:{left:6,right:8,top:8,bottom:2,containLabel:true},
+tooltip:{trigger:'axis',axisPointer:{type:'shadow'},confine:true,textStyle:{fontSize:11},
+formatter:function(ps){var tot=0;ps.forEach(function(p){tot+=(p.value||0)});var h='<div style="margin-bottom:4px;font-weight:600">'+dsFullDate(ps[0].axisValue)+'　'+tot.toLocaleString()+' tokens</div>';ps.slice().reverse().forEach(function(p){h+='<div style="display:flex;justify-content:space-between;gap:18px"><span>'+p.marker+p.seriesName+'</span><span style="font-weight:600">'+(p.value||0).toLocaleString()+'</span></div>'});return h}},
+xAxis:{type:'category',data:cats,axisTick:{show:false},axisLine:{lineStyle:{color:'#D2D8E5'}},axisLabel:{color:'rgb(2,14,54)',fontSize:9,formatter:dsFmtDate}},
+yAxis:{type:'value',splitLine:{lineStyle:{color:'#D2D8E5'}},axisLabel:{color:'rgb(2,14,54)',fontSize:9,formatter:dsAxisFmt}},
+series:[
+{name:'输出',type:'bar',stack:'t',data:days.map(function(x){return x.output||0}),itemStyle:{color:'#0C70F3'}},
+{name:'未命中',type:'bar',stack:'t',data:days.map(function(x){return x.cache_miss||0}),itemStyle:{color:'#60B3FE'}},
+{name:'命中缓存',type:'bar',stack:'t',data:days.map(function(x){return x.cache_hit||0}),itemStyle:{color:'#A0DCFD',borderRadius:[2,2,0,0]}}
+]};
+}
+function dsRenderCharts(arr){
+for(var k in dsCharts){try{dsCharts[k].dispose()}catch(e){}}
+dsCharts={};
+if(!window.echarts)return;
+arr.forEach(function(c,idx){if(!c.success)return;(c.models||[]).forEach(function(m,midx){var id='dsc'+idx+'_'+midx;var el=document.getElementById(id);if(!el)return;var ch=echarts.init(el);ch.setOption(dsChartOption(m.days||[]));dsCharts[id]=ch})});
 }
 async function fd(){
 try{
@@ -237,7 +246,7 @@ if(!r.success){box.innerHTML='<div class=er>'+(r.error||'查询失败')+'</div>'
 var arr=r.data||[];
 if(!arr.length){box.innerHTML='<div class=emp>未配置 DeepSeek 账户，点右上「＋登录」添加</div>';return}
 var h='';
-arr.forEach(function(c){
+arr.forEach(function(c,idx){
 h+='<div class=bc style="margin-bottom:8px">';
 h+='<div class=bc-r><span class=bl>'+qesc(c.name)+'</span><span class=bv style=font-size:11px>'+(c.success?'':'<span style=color:var(--red)>离线</span>')+'</span></div>';
 if(!c.success){
@@ -246,12 +255,18 @@ h+='<div class=bc-d><span class=dsLogin data-name="'+qesc(c.name)+'" style="curs
 }else{
 var s=c.summary||{};
 h+='<div class=bc-r><span class=bl>余额</span><span class=bv>'+(s.balance||0).toFixed(2)+' <span style=font-size:10px;color:var(--text-sec)>'+(s.currency||'')+'</span></span></div>';
-h+='<div class=bc-d>可用≈'+n(s.token_estimation||0)+' tokens · 本月用量 '+n(s.monthly_usage||0)+' · 赠送 '+n(s.current_token||0)+'</div>';
-h+=dsBar(c.days);
+var ms=c.models||[];
+if(!ms.length){h+='<div class=emp>本月暂无用量</div>';}
+ms.forEach(function(m,midx){
+var mt=(m.days||[]).reduce(function(s,d){return s+(d.total||0)},0);
+h+='<div style="margin-top:8px"><div style="font-size:10px;color:var(--text-sec)">'+qesc(m.model)+'</div><div><span style="font-size:10px;color:var(--text-sec)">Tokens </span><span style="font-size:15px;font-weight:800;color:var(--text)">'+mt.toLocaleString()+'</span></div></div>';
+h+='<div id=dsc'+idx+'_'+midx+' style="height:130px"></div>';
+});
 }
 h+='</div>';
 });
 box.innerHTML=h;
+dsRenderCharts(arr);
 }catch(e){document.getElementById('dsCards').innerHTML='<div class=er>'+qesc(e.message)+'</div>'}
 }
 function dsDoLogin(name){fetch('/api/deepseek/login'+(name?'?name='+encodeURIComponent(name):'')).then(function(){setTimeout(fd,1500)})}
@@ -292,9 +307,11 @@ top5.forEach(function(m){var p=Math.round((m.total_tokens/total)*100);h+='<div c
 if(ot>0){h+='<div class=dn-i><span class=dn-d style=background:#94a3b8></span><span class=dn-n>其他</span><span class=dn-p>'+Math.round((ot/total)*100)+'%</span><span class=dn-v>'+ab(ot)+'</span></div>'}
 h+='</div></div>';e.innerHTML=h})}
 /* main loop 3s */
-async function fa(){var ok=true;try{await Promise.all([fq(),fd(),fh(),fm().catch(function(){})]);renderBar(hData);renderDonut()}catch(e){ok=false}
+async function fa(){var ok=true;try{await Promise.all([fq(),fh(),fm().catch(function(){})]);renderBar(hData);renderDonut()}catch(e){ok=false}
 var sd=document.getElementById('sd'),ht=document.getElementById('ht');sd.className=ok?'sd':'sd er';ht.textContent=new Date().toLocaleTimeString();ht.className=ok?'ht':'ht er';if(!ok)ht.textContent+=' ✕'}
-fa();setInterval(fa,2000)
+fa();setInterval(fa,2000);
+fd();setInterval(fd,30000);
+window.addEventListener('resize',function(){for(var k in dsCharts){try{dsCharts[k].resize()}catch(e){}}});
 </script>
 </body>
 </html>

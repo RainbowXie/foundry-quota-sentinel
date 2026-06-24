@@ -33,11 +33,17 @@ type DeepSeekSummary struct {
 	CurrentToken    int64   `json:"current_token"`    // 赠送额度
 }
 
-// DeepSeekDayUsage 是某一天跨模型聚合后的 token 用量。
+// DeepSeekDayUsage 是某模型某一天的 token 用量。
 type DeepSeekDayUsage struct {
 	Date      string `json:"date"`
 	CacheHit  int64  `json:"cache_hit"`  // 输入命中缓存
 	CacheMiss int64  `json:"cache_miss"` // 输入未命中缓存
 	Output    int64  `json:"output"`     // 输出
 	Total     int64  `json:"total"`      // = CacheHit + CacheMiss + Output
+}
+
+// DeepSeekModelUsage 是某个模型当月按天的用量（官网每个模型一张图）。
+type DeepSeekModelUsage struct {
+	Model string             `json:"model"`
+	Days  []DeepSeekDayUsage `json:"days"`
 }

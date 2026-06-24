@@ -121,11 +121,11 @@ func (s *Server) Start(addr string) error {
 
 	mux.HandleFunc("/api/deepseek", func(w http.ResponseWriter, r *http.Request) {
 		type card struct {
-			Name    string                   `json:"name"`
-			Success bool                     `json:"success"`
-			Summary *quota.DeepSeekSummary   `json:"summary,omitempty"`
-			Days    []quota.DeepSeekDayUsage `json:"days,omitempty"`
-			Error   string                   `json:"error,omitempty"`
+			Name    string                     `json:"name"`
+			Success bool                       `json:"success"`
+			Summary *quota.DeepSeekSummary     `json:"summary,omitempty"`
+			Models  []quota.DeepSeekModelUsage `json:"models,omitempty"`
+			Error   string                     `json:"error,omitempty"`
 		}
 		accs := s.curDeepSeek()
 		cards := make([]card, len(accs))
@@ -143,7 +143,7 @@ func (s *Server) Start(addr string) error {
 					cards[i] = c
 					return
 				}
-				days, err := q.FetchUsage(now.Year(), int(now.Month()))
+				models, err := q.FetchUsage(now.Year(), int(now.Month()))
 				if err != nil {
 					c.Error = err.Error()
 					cards[i] = c
@@ -151,7 +151,7 @@ func (s *Server) Start(addr string) error {
 				}
 				c.Success = true
 				c.Summary = sum
-				c.Days = days
+				c.Models = models
 				cards[i] = c
 			}(i, a)
 		}
