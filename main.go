@@ -252,14 +252,14 @@ func cmdLoginDeepSeek() {
 		name = strings.TrimSpace(os.Args[2])
 	}
 	fmt.Println("正在打开登录窗口，请在窗口内完成 DeepSeek 登录…")
-	token, err := sidebar.RunDeepSeekLogin()
+	validate := func(t string) bool {
+		q := &quota.DeepSeekWebQuerier{Token: t}
+		_, err := q.FetchSummary()
+		return err == nil
+	}
+	token, err := sidebar.RunDeepSeekLogin(validate)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
-		os.Exit(1)
-	}
-	q := &quota.DeepSeekWebQuerier{Token: token}
-	if _, err := q.FetchSummary(); err != nil {
-		fmt.Fprintf(os.Stderr, "凭证校验失败: %v\n", err)
 		os.Exit(1)
 	}
 	cfg.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token})
