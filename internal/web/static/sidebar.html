@@ -17,6 +17,7 @@
                 --text-sec: #94a3b8;
                 --text-ter: #7c3aed;
                 --card: rgba(255, 255, 255, 0.18);
+                --modal: #ffffff;
                 --card-bd: rgba(255, 255, 255, 0.7);
                 --card-sh: 0 8px 32px rgba(0, 0, 0, 0.05);
                 --hdr-bd: rgba(0, 0, 0, 0.03);
@@ -51,6 +52,7 @@
                 --text-sec: #64748b;
                 --text-ter: #00b8ff;
                 --card: rgba(255, 255, 255, 0.06);
+                --modal: #16162f;
                 --card-bd: rgba(255, 255, 255, 0.06);
                 --card-sh: 0 8px 32px rgba(0, 0, 0, 0.5);
                 --hdr-bd: rgba(255, 255, 255, 0.04);
@@ -486,21 +488,6 @@
                 padding: 4px 0;
                 text-align: center;
             }
-            .addbtn {
-                flex: 1;
-                padding: 7px;
-                border: none;
-                border-radius: 8px;
-                background: rgba(var(--accent-rgb), 0.12);
-                color: var(--accent);
-                font-size: 11px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: background 0.2s;
-            }
-            .addbtn:hover {
-                background: rgba(var(--accent-rgb), 0.2);
-            }
             /* balance */
             .bc {
                 background: var(--card);
@@ -870,6 +857,91 @@
             .hide {
                 display: none;
             }
+            .modal-bg {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.45);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+            }
+            .modal-bg.hide {
+                display: none;
+            }
+            .modal {
+                width: 260px;
+                background: var(--modal);
+                border: var(--card-bd);
+                border-radius: 14px;
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+                padding: 14px;
+            }
+            .modal-h {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--text);
+                margin-bottom: 12px;
+            }
+            .modal-x {
+                cursor: pointer;
+                color: var(--text-sec);
+            }
+            .modal-sub {
+                font-size: 10px;
+                color: var(--text-sec);
+                margin-bottom: 8px;
+            }
+            .prov {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 12px;
+                border-radius: 10px;
+                border: 1px solid var(--input-bd);
+                margin-bottom: 8px;
+                cursor: pointer;
+                transition: all 0.15s;
+            }
+            .prov:hover {
+                border-color: var(--accent);
+                background: rgba(var(--accent-rgb), 0.08);
+            }
+            .prov-n {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text);
+            }
+            .prov-d {
+                font-size: 10px;
+                color: var(--text-sec);
+            }
+            .modal-in {
+                width: 100%;
+                padding: 9px 10px;
+                border-radius: 9px;
+                border: 1px solid var(--input-bd);
+                background: var(--input-bg);
+                color: var(--text);
+                font-size: 13px;
+                font-family: inherit;
+                margin-bottom: 10px;
+                outline: none;
+            }
+            .modal-go {
+                width: 100%;
+                padding: 9px;
+                border: none;
+                border-radius: 9px;
+                background: var(--accent);
+                color: #fff;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+            }
         </style>
     </head>
     <body>
@@ -893,26 +965,43 @@
                         <div class="emp">加载中...</div>
                     </div>
                     <div id="dsCards"></div>
-                    <div class="bc" id="addCard">
-                        <div class="bc-r" id="addHead" style="cursor: pointer">
-                            <span class="bl">添加账户</span
-                            ><span
-                                class="bv"
-                                style="font-size: 18px; line-height: 1"
-                                >＋</span
-                            >
-                        </div>
+                    <div class="bc" id="addCard" style="cursor: pointer">
                         <div
-                            id="addChoice"
-                            class="hide"
-                            style="display: flex; gap: 8px; margin-top: 8px"
+                            style="text-align:center;font-size:26px;line-height:1;color:var(--accent)"
                         >
-                            <button class="addbtn" data-type="opencode">
-                                OpenCode Go
-                            </button>
-                            <button class="addbtn" data-type="deepseek">
-                                DeepSeek
-                            </button>
+                            ＋
+                        </div>
+                    </div>
+                    <div id="addModal" class="modal-bg hide">
+                        <div class="modal">
+                            <div class="modal-h">
+                                <span>添加账户</span
+                                ><span class="modal-x" id="modalClose">✕</span>
+                            </div>
+                            <div id="modalStep1">
+                                <div class="modal-sub">
+                                    选择服务商 / Choose provider
+                                </div>
+                                <div class="prov" data-type="opencode">
+                                    <span class="prov-n">OpenCode Go</span
+                                    ><span class="prov-d">套餐额度</span>
+                                </div>
+                                <div class="prov" data-type="deepseek">
+                                    <span class="prov-n">DeepSeek</span
+                                    ><span class="prov-d">用量 / 余额</span>
+                                </div>
+                            </div>
+                            <div id="modalStep2" class="hide">
+                                <div class="modal-sub" id="modalProvLabel"></div>
+                                <input
+                                    id="modalName"
+                                    class="modal-in"
+                                    placeholder="账户名称"
+                                />
+                                <button id="modalGo" class="modal-go">
+                                    登录
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -991,6 +1080,8 @@
                     h.setAttribute("data-theme", n);
                     localStorage.setItem("ocgt-theme", n);
                     this.textContent = n === "dark" ? "☀️" : "🌙";
+                    if (typeof dsRenderCharts === "function")
+                        dsRenderCharts(dsLastArr);
                 });
             document
                 .getElementById("pinBtn")
@@ -1143,6 +1234,11 @@
                 var cats = days.map(function (x) {
                     return x.date;
                 });
+                var dark =
+                    document.documentElement.getAttribute("data-theme") ===
+                    "dark";
+                var axc = dark ? "#9aa4b8" : "rgb(2,14,54)";
+                var grd = dark ? "rgba(148,163,184,0.18)" : "#D2D8E5";
                 return {
                     animation: false,
                     textStyle: {
@@ -1189,18 +1285,18 @@
                         type: "category",
                         data: cats,
                         axisTick: { show: false },
-                        axisLine: { lineStyle: { color: "#D2D8E5" } },
+                        axisLine: { lineStyle: { color: grd } },
                         axisLabel: {
-                            color: "rgb(2,14,54)",
+                            color: axc,
                             fontSize: 9,
                             formatter: dsFmtDate,
                         },
                     },
                     yAxis: {
                         type: "value",
-                        splitLine: { lineStyle: { color: "#D2D8E5" } },
+                        splitLine: { lineStyle: { color: grd } },
                         axisLabel: {
-                            color: "rgb(2,14,54)",
+                            color: axc,
                             fontSize: 9,
                             formatter: dsAxisFmt,
                         },
@@ -1239,7 +1335,9 @@
                     ],
                 };
             }
+            var dsLastArr = [];
             function dsRenderCharts(arr) {
+                dsLastArr = arr;
                 for (var k in dsCharts) {
                     try {
                         dsCharts[k].dispose();
@@ -1354,26 +1452,59 @@
                     if (t.classList.contains("dsLogin"))
                         dsDoLogin(t.getAttribute("data-name"));
                 });
-            document
-                .getElementById("addHead")
-                .addEventListener("click", function () {
-                    document
-                        .getElementById("addChoice")
-                        .classList.toggle("hide");
+            (function () {
+                var modal = document.getElementById("addModal");
+                var s1 = document.getElementById("modalStep1");
+                var s2 = document.getElementById("modalStep2");
+                var nameIn = document.getElementById("modalName");
+                var provLabel = document.getElementById("modalProvLabel");
+                var curType = "";
+                function openModal() {
+                    s2.classList.add("hide");
+                    s1.classList.remove("hide");
+                    modal.classList.remove("hide");
+                }
+                function closeModal() {
+                    modal.classList.add("hide");
+                }
+                document
+                    .getElementById("addCard")
+                    .addEventListener("click", openModal);
+                document
+                    .getElementById("modalClose")
+                    .addEventListener("click", closeModal);
+                modal.addEventListener("click", function (e) {
+                    if (e.target === modal) closeModal();
                 });
-            document.querySelectorAll(".addbtn").forEach(function (b) {
-                b.addEventListener("click", function () {
-                    var ty = b.getAttribute("data-type");
-                    document.getElementById("addChoice").classList.add("hide");
-                    if (ty === "opencode") {
-                        var nm = prompt("OpenCode 账户名称：", "OpenCode");
-                        if (nm) ocDoLogin(nm.trim());
-                    } else {
-                        var nm = prompt("DeepSeek 账户名称：", "DeepSeek");
-                        if (nm) dsDoLogin(nm.trim());
-                    }
+                document.querySelectorAll(".prov").forEach(function (p) {
+                    p.addEventListener("click", function () {
+                        curType = p.getAttribute("data-type");
+                        provLabel.textContent =
+                            (curType === "opencode"
+                                ? "OpenCode Go"
+                                : "DeepSeek") + " · 账户名称";
+                        nameIn.value =
+                            curType === "opencode" ? "OpenCode" : "DeepSeek";
+                        s1.classList.add("hide");
+                        s2.classList.remove("hide");
+                        nameIn.focus();
+                        nameIn.select();
+                    });
                 });
-            });
+                document
+                    .getElementById("modalGo")
+                    .addEventListener("click", function () {
+                        var nm = nameIn.value.trim();
+                        if (!nm) return;
+                        if (curType === "opencode") ocDoLogin(nm);
+                        else dsDoLogin(nm);
+                        closeModal();
+                    });
+                nameIn.addEventListener("keydown", function (e) {
+                    if (e.key === "Enter")
+                        document.getElementById("modalGo").click();
+                });
+            })();
             /* main loop */
             async function fa() {
                 var ok = true;
