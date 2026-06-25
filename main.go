@@ -292,12 +292,12 @@ func cmdLoginDeepSeek() {
 		_, err := q.FetchSummary()
 		return err == nil
 	}
-	token, tokenKey, err := sidebar.RunDeepSeekLogin(validate)
+	token, webStore, err := sidebar.RunDeepSeekLogin(validate)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
-	cfg.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token, TokenKey: tokenKey})
+	cfg.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token, WebStore: webStore})
 	if err := cfg.Save(); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
@@ -338,7 +338,7 @@ func cmdOpenPage() {
 			os.Exit(1)
 		}
 		url := "https://platform.deepseek.com/usage"
-		if err := sidebar.RunDeepSeekPage(url, acc.Token, acc.TokenKey); err != nil {
+		if err := sidebar.RunDeepSeekPage(url, acc.WebStore); err != nil {
 			fmt.Fprintf(os.Stderr, "内置窗口不可用(%v)，改用系统浏览器打开\n", err)
 			openBrowser(url)
 		}

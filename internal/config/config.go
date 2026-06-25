@@ -15,8 +15,8 @@ type Profile struct {
 
 type DeepSeekAccount struct {
 	Name     string `json:"name"`
-	Token    string `json:"token"`               // platform.deepseek.com 网页 Bearer token
-	TokenKey string `json:"token_key,omitempty"` // token 在网页 localStorage 中的 key，用于打开账户页时注入登录态
+	Token    string `json:"token"`               // platform.deepseek.com 网页 Bearer token（供卡片调接口）
+	WebStore string `json:"web_store,omitempty"` // 登录时 local/sessionStorage 快照 JSON {"l":{},"s":{}}，打开账户页时原样回放以恢复登录态
 }
 
 type Config struct {
