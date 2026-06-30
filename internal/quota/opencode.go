@@ -64,9 +64,11 @@ func buildRPCArgs(workspaceID string) string {
 }
 
 func parseQuotaResponse(text string) (*QuotaData, error) {
-	rollingRe := regexp.MustCompile(`rollingUsage:\$R\[1\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
-	weeklyRe := regexp.MustCompile(`weeklyUsage:\$R\[2\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
-	monthlyRe := regexp.MustCompile(`monthlyUsage:\$R\[3\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
+	// 注意：$R[N] 是 seroval 引用编号，会随响应里前面的字段增减而漂移（如新增的 region 字段
+	// 把 rolling 从 $R[1] 挤到 $R[2]）。故编号不写死，用 (?:\$R\[\d+\]=)? 兼容任意编号/无引用。
+	rollingRe := regexp.MustCompile(`rollingUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
+	weeklyRe := regexp.MustCompile(`weeklyUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
+	monthlyRe := regexp.MustCompile(`monthlyUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
 	rollingMatch := rollingRe.FindStringSubmatch(text)
 	weeklyMatch := weeklyRe.FindStringSubmatch(text)
 	monthlyMatch := monthlyRe.FindStringSubmatch(text)
