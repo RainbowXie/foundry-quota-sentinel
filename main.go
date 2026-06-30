@@ -122,11 +122,30 @@ case "version", "-v", "--version": fmt.Println("foundry-quota-sentinel v" + vers
 	}
 }
 
+// deleteAccountFromConfig 按 provider 从配置文件删除账户并保存（供前端 /api/delete 调用）。
+func deleteAccountFromConfig(provider, name string) error {
+	c := config.Load()
+	var err error
+	switch provider {
+	case "opencode":
+		err = c.DeleteProfile(name)
+	case "deepseek":
+		err = c.DeleteDeepSeekAccount(name)
+	default:
+		return fmt.Errorf("未知 provider: %s", provider)
+	}
+	if err != nil {
+		return err
+	}
+	return c.Save()
+}
+
 func startSidebar() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
+	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
@@ -246,6 +265,7 @@ func cmdServe() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
+	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil { fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err); os.Exit(1) }
 	}()

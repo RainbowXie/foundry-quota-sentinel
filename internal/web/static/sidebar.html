@@ -882,6 +882,35 @@
                 background: rgba(var(--accent-rgb), 0.15);
                 color: var(--accent);
             }
+            .ctxitem-danger {
+                color: var(--red);
+            }
+            .ctxitem-danger:hover {
+                background: rgba(239, 68, 68, 0.15);
+                color: var(--red);
+            }
+            .confirm-btns {
+                display: flex;
+                gap: 8px;
+                margin-top: 12px;
+            }
+            .cbtn {
+                flex: 1;
+                padding: 8px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 13px;
+                border: var(--card-bd);
+            }
+            .cbtn-cancel {
+                background: var(--card);
+                color: var(--text);
+            }
+            .cbtn-danger {
+                background: var(--red);
+                color: #fff;
+                border: none;
+            }
             .modal-bg {
                 position: fixed;
                 inset: 0;
@@ -1045,6 +1074,22 @@
         </div>
         <div id="ctxMenu" class="ctxmenu hide">
             <div class="ctxitem" id="ctxOpen">打开账户页面</div>
+            <div class="ctxitem ctxitem-danger" id="ctxDelete">删除账户</div>
+        </div>
+        <div id="confirmModal" class="modal-bg hide">
+            <div class="modal">
+                <div class="modal-h">
+                    <span>删除账户</span
+                    ><span class="modal-x" id="confirmClose">✕</span>
+                </div>
+                <div class="modal-sub" id="confirmText"></div>
+                <div class="confirm-btns">
+                    <button id="confirmCancel" class="cbtn cbtn-cancel">
+                        取消
+                    </button>
+                    <button id="confirmOk" class="cbtn cbtn-danger">删除</button>
+                </div>
+            </div>
         </div>
         <script src="echarts.min.js"></script>
         <script>
@@ -1553,6 +1598,7 @@
             (function () {
                 var menu = document.getElementById("ctxMenu");
                 var openItem = document.getElementById("ctxOpen");
+                var delItem = document.getElementById("ctxDelete");
                 var cur = { prov: "", name: "" };
                 function hide() {
                     menu.classList.add("hide");
@@ -1588,6 +1634,58 @@
                     );
                     hide();
                 });
+                /* 删除账户：二次确认 */
+                var cm = document.getElementById("confirmModal");
+                var ctext = document.getElementById("confirmText");
+                var pend = { prov: "", name: "" };
+                function closeConfirm() {
+                    cm.classList.add("hide");
+                }
+                delItem.addEventListener("click", function () {
+                    if (!cur.prov) return;
+                    pend.prov = cur.prov;
+                    pend.name = cur.name;
+                    var label =
+                        cur.prov === "opencode" ? "OpenCode Go" : "DeepSeek";
+                    ctext.textContent =
+                        "确定删除 " +
+                        label +
+                        " 账户「" +
+                        cur.name +
+                        "」？此操作不可撤销。";
+                    hide();
+                    cm.classList.remove("hide");
+                });
+                document
+                    .getElementById("confirmClose")
+                    .addEventListener("click", closeConfirm);
+                document
+                    .getElementById("confirmCancel")
+                    .addEventListener("click", closeConfirm);
+                cm.addEventListener("click", function (e) {
+                    if (e.target === cm) closeConfirm();
+                });
+                document
+                    .getElementById("confirmOk")
+                    .addEventListener("click", function () {
+                        if (!pend.prov) return;
+                        fetch(
+                            "/api/delete?provider=" +
+                                encodeURIComponent(pend.prov) +
+                                "&name=" +
+                                encodeURIComponent(pend.name),
+                        )
+                            .then(function () {
+                                closeConfirm();
+                                setTimeout(function () {
+                                    fq();
+                                    fd();
+                                }, 300);
+                            })
+                            .catch(function () {
+                                closeConfirm();
+                            });
+                    });
                 document.addEventListener("click", hide);
                 document.addEventListener("scroll", hide, true);
                 window.addEventListener("resize", hide);

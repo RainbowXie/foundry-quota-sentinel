@@ -39,6 +39,7 @@ type Server struct {
 	dsFn       func() []DeepSeekAccount
 	deepseek   *quota.DeepSeekQuerier
 	onWinSize  func(w, h int)
+	onDelete   func(provider, name string) error
 }
 
 func NewServer(accounts []Account) *Server {
@@ -57,6 +58,9 @@ func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn 
 
 // SetWinSizeHandler 设置窗口大小持久化回调（前端 resize 时上报）。
 func (s *Server) SetWinSizeHandler(fn func(w, h int)) { s.onWinSize = fn }
+
+// SetDeleteHandler 设置删除账户回调（前端右键菜单二次确认后调用）。
+func (s *Server) SetDeleteHandler(fn func(provider, name string) error) { s.onDelete = fn }
 
 func (s *Server) curAccounts() []Account {
 	if s.accountsFn != nil {
@@ -217,6 +221,25 @@ func (s *Server) Start(addr string) error {
 		}
 		cmd := exec.Command(exe, "open-page", provider, name)
 		if err := cmd.Start(); err != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, 200, map[string]any{"success": true})
+	})
+
+	// /api/delete 删除某个账户（前端右键菜单二次确认后调用）。
+	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
+		provider := r.URL.Query().Get("provider")
+		name := r.URL.Query().Get("name")
+		if provider != "opencode" && provider != "deepseek" {
+			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
+			return
+		}
+		if s.onDelete == nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": "delete not supported"})
+			return
+		}
+		if err := s.onDelete(provider, name); err != nil {
 			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
 			return
 		}
