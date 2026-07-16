@@ -15,3 +15,15 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	_, _ = pageURL, webStore
 	return fmt.Errorf("此版本未编译图形界面，无法打开内置窗口")
 }
+
+// RunOllamaLogin 在无 GUI 构建下不可用。
+func RunOllamaLogin(validate func(string) bool) (string, error) {
+	_ = validate
+	return "", fmt.Errorf("此版本未编译图形界面，无法弹窗登录 Ollama；请使用带 GUI 的版本")
+}
+
+// RunOllamaPage 在无 GUI 构建下不可用。
+func RunOllamaPage(pageURL, cookie string) error {
+	_, _ = pageURL, cookie
+	return fmt.Errorf("此版本未编译图形界面，无法打开 Ollama 内置账户页")
+}
