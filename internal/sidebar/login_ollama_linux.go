@@ -93,6 +93,7 @@ func readOllamaCookies(path string) string {
 	defer f.Close()
 
 	var parts []string
+	var metadata []ollamaCookieMeta
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
@@ -110,7 +111,9 @@ func readOllamaCookies(path string) string {
 			continue
 		}
 		parts = append(parts, columns[5]+"="+columns[6])
+		metadata = append(metadata, ollamaCookieMeta{Name: columns[5], ValueLength: len(columns[6])})
 	}
+	logOllamaLogin("cookie snapshot read: count=%d cookies=%s", len(metadata), redactedOllamaCookieSummary(metadata))
 	return strings.Join(parts, "; ")
 }
 
@@ -174,6 +177,7 @@ func RunOllamaPage(pageURL, cookie string) error {
 // RunOllamaLogin captures the authenticated ollama.com cookie jar and only
 // closes the window after the caller verifies it against the settings page.
 func RunOllamaLogin(validate func(string) bool) (string, error) {
+	logOllamaLogin("login window started")
 	w := webview.New(false)
 	defer w.Destroy()
 	w.SetTitle("登录 Ollama（登录成功后自动获取凭证）")
@@ -202,9 +206,11 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 		if !isOllamaLoginCompleteURL(href) {
 			return
 		}
+		logOllamaLogin("authentication-complete location observed")
 		snapshotOllamaCookies(w, snapshotPath)
 		if !snapshotRequested {
 			snapshotRequested = true
+			logOllamaLogin("cookie snapshot requested; waiting for next location tick")
 			return
 		}
 		if !lifecycle.startValidation() {
@@ -213,11 +219,13 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 		go func() {
 			captured := readOllamaCookies(snapshotPath)
 			if captured != "" && validate(captured) {
+				logOllamaLogin("settings validation succeeded")
 				lifecycle.finishValidation(captured, func() {
 					w.Dispatch(func() { w.Terminate() })
 				})
 				return
 			}
+			logOllamaLogin("settings validation failed or cookie snapshot was empty")
 			lifecycle.finishValidation("", func() {})
 		}()
 	})
