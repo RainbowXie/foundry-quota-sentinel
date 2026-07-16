@@ -1,6 +1,7 @@
 package quota
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -20,10 +21,24 @@ const (
 )
 
 var (
-	ollamaTagRE      = regexp.MustCompile(`(?is)<[^>]+>`)
-	ollamaMeterRE    = regexp.MustCompile(`(?i)aria-label\s*=\s*["'](Session|Weekly)\s+usage\s+([0-9]+(?:\.[0-9]+)?)%\s+used["']`)
-	ollamaDataTimeRE = regexp.MustCompile(`(?i)data-time\s*=\s*["']([^"']+)["']`)
+	ollamaRequestTimeout = 15 * time.Second
+	ollamaTagRE          = regexp.MustCompile(`(?is)<[^>]+>`)
+	ollamaTagNameRE      = regexp.MustCompile(`(?is)^<\s*(/?)\s*([a-z][a-z0-9:-]*)`)
+	ollamaMeterRE        = regexp.MustCompile(`(?i)aria-label\s*=\s*["'](Session|Weekly)\s+usage\s+([0-9]+(?:\.[0-9]+)?)%\s+used["']`)
+	ollamaDataTimeRE     = regexp.MustCompile(`(?i)data-time\s*=\s*["']([^"']+)["']`)
 )
+
+var ollamaVoidTags = map[string]bool{
+	"area": true, "base": true, "br": true, "col": true, "embed": true,
+	"hr": true, "img": true, "input": true, "link": true, "meta": true,
+	"param": true, "source": true, "track": true, "wbr": true,
+}
+
+type ollamaTag struct {
+	raw     string
+	depth   int
+	closing bool
+}
 
 type OllamaQuerier struct {
 	Cookie  string
@@ -40,7 +55,9 @@ func (q *OllamaQuerier) FetchQuota() (*QuotaData, error) {
 	if baseURL == "" {
 		baseURL = ollamaBaseURL
 	}
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+"/settings", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), ollamaRequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/settings", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -49,7 +66,7 @@ func (q *OllamaQuerier) FetchQuota() (*QuotaData, error) {
 
 	client := q.Client
 	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: ollamaRequestTimeout}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -72,9 +89,9 @@ func (q *OllamaQuerier) FetchQuota() (*QuotaData, error) {
 
 func parseOllamaQuota(html string) (*QuotaData, error) {
 	meters := make(map[string]QuotaUsage, 2)
-	for _, tagIndex := range ollamaTagRE.FindAllStringIndex(html, -1) {
-		tag := html[tagIndex[0]:tagIndex[1]]
-		match := ollamaMeterRE.FindStringSubmatch(tag)
+	tags := parseOllamaTags(html)
+	for index, tag := range tags {
+		match := ollamaMeterRE.FindStringSubmatch(tag.raw)
 		if match == nil {
 			continue
 		}
@@ -82,7 +99,7 @@ func parseOllamaQuota(html string) (*QuotaData, error) {
 		if _, exists := meters[name]; exists {
 			return nil, fmt.Errorf("duplicate %s usage meter", match[1])
 		}
-		reset, err := nextOllamaReset(html, tagIndex[1])
+		reset, err := nextOllamaReset(tags, index)
 		if err != nil {
 			return nil, fmt.Errorf("%s usage: %w", match[1], err)
 		}
@@ -104,13 +121,44 @@ func parseOllamaQuota(html string) (*QuotaData, error) {
 	return &QuotaData{Rolling: rolling, Weekly: weekly, FetchedAt: time.Now()}, nil
 }
 
-func nextOllamaReset(html string, after int) (string, error) {
-	for _, tagIndex := range ollamaTagRE.FindAllStringIndex(html[after:], -1) {
-		tag := html[after+tagIndex[0] : after+tagIndex[1]]
-		if ollamaMeterRE.MatchString(tag) {
+func parseOllamaTags(html string) []ollamaTag {
+	depth := 0
+	var tags []ollamaTag
+	for _, index := range ollamaTagRE.FindAllStringIndex(html, -1) {
+		raw := html[index[0]:index[1]]
+		match := ollamaTagNameRE.FindStringSubmatch(raw)
+		if match == nil {
+			continue
+		}
+		if match[1] == "/" {
+			if depth > 0 {
+				depth--
+			}
+			tags = append(tags, ollamaTag{raw: raw, depth: depth, closing: true})
+			continue
+		}
+
+		tags = append(tags, ollamaTag{raw: raw, depth: depth})
+		if !ollamaVoidTags[strings.ToLower(match[2])] && !strings.HasSuffix(strings.TrimSpace(raw), "/>") {
+			depth++
+		}
+	}
+	return tags
+}
+
+func nextOllamaReset(tags []ollamaTag, meterIndex int) (string, error) {
+	meter := tags[meterIndex]
+	for _, tag := range tags[meterIndex+1:] {
+		if tag.closing && tag.depth < meter.depth {
 			break
 		}
-		if match := ollamaDataTimeRE.FindStringSubmatch(tag); match != nil {
+		if tag.depth != meter.depth {
+			continue
+		}
+		if ollamaMeterRE.MatchString(tag.raw) {
+			break
+		}
+		if match := ollamaDataTimeRE.FindStringSubmatch(tag.raw); match != nil {
 			return match[1], nil
 		}
 	}
