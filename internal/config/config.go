@@ -19,10 +19,16 @@ type DeepSeekAccount struct {
 	WebStore string `json:"web_store,omitempty"` // 登录时 local/sessionStorage 快照 JSON {"l":{},"s":{}}，打开账户页时原样回放以恢复登录态
 }
 
+type OllamaAccount struct {
+	Name   string `json:"name"`
+	Cookie string `json:"cookie"`
+}
+
 type Config struct {
 	ActiveProfile    string             `json:"active_profile"`
 	Profiles         map[string]Profile `json:"profiles"`
 	DeepSeekAccounts []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
+	OllamaAccounts   []OllamaAccount    `json:"ollama_accounts,omitempty"`
 	WindowW          int                `json:"window_w,omitempty"`
 	WindowH          int                `json:"window_h,omitempty"`
 }
@@ -36,13 +42,17 @@ func SaveWindowSize(w, h int) {
 
 func configDir() (string, error) {
 	h, err := os.UserHomeDir()
-	if err != nil { return "", fmt.Errorf("cannot find home dir: %w", err) }
+	if err != nil {
+		return "", fmt.Errorf("cannot find home dir: %w", err)
+	}
 	return filepath.Join(h, ".foundry-quota-sentinel"), nil
 }
 
 func configPath() (string, error) {
 	d, err := configDir()
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return filepath.Join(d, "config.json"), nil
 }
 
@@ -50,34 +60,56 @@ func configPath() (string, error) {
 // （仅当新目录尚不存在、旧目录存在时整体改名），平滑升级老用户配置。
 func migrateLegacyConfig() {
 	h, err := os.UserHomeDir()
-	if err != nil { return }
+	if err != nil {
+		return
+	}
 	newDir := filepath.Join(h, ".foundry-quota-sentinel")
 	oldDir := filepath.Join(h, ".ocgt-monitor")
-	if _, err := os.Stat(newDir); err == nil { return }      // 新目录已存在，不迁移
-	if _, err := os.Stat(oldDir); err != nil { return }      // 旧目录不存在，无需迁移
+	if _, err := os.Stat(newDir); err == nil {
+		return
+	} // 新目录已存在，不迁移
+	if _, err := os.Stat(oldDir); err != nil {
+		return
+	} // 旧目录不存在，无需迁移
 	_ = os.Rename(oldDir, newDir)
 }
 
 func Load() *Config {
 	migrateLegacyConfig()
 	path, err := configPath()
-	if err != nil { return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}} }
+	if err != nil {
+		return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}}
+	}
 	data, err := os.ReadFile(path)
-	if err != nil { return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}} }
+	if err != nil {
+		return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}}
+	}
 	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil { return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}} }
-	if cfg.Profiles == nil { cfg.Profiles = map[string]Profile{} }
-	if cfg.ActiveProfile == "" { cfg.ActiveProfile = "default" }
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return &Config{ActiveProfile: "default", Profiles: map[string]Profile{}}
+	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]Profile{}
+	}
+	if cfg.ActiveProfile == "" {
+		cfg.ActiveProfile = "default"
+	}
 	return &cfg
 }
 
 func (c *Config) Save() error {
 	path, err := configPath()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	dir, _ := configDir()
-	if err := os.MkdirAll(dir, 0700); err != nil { return err }
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0600)
 }
 
@@ -91,18 +123,28 @@ func (c *Config) AddProfile(name string, p Profile) {
 }
 
 func (c *Config) DeleteProfile(name string) error {
-	if _, ok := c.Profiles[name]; !ok { return fmt.Errorf("Profile %q 不存在", name) }
+	if _, ok := c.Profiles[name]; !ok {
+		return fmt.Errorf("Profile %q 不存在", name)
+	}
 	delete(c.Profiles, name)
-	if len(c.Profiles) == 0 { c.ActiveProfile = "default"; return nil }
+	if len(c.Profiles) == 0 {
+		c.ActiveProfile = "default"
+		return nil
+	}
 	if c.ActiveProfile == name {
-		for k := range c.Profiles { c.ActiveProfile = k; break }
+		for k := range c.Profiles {
+			c.ActiveProfile = k
+			break
+		}
 	}
 	return nil
 }
 
 func (c *Config) ProfileNames() []string {
 	names := make([]string, 0, len(c.Profiles))
-	for k := range c.Profiles { names = append(names, k) }
+	for k := range c.Profiles {
+		names = append(names, k)
+	}
 	return names
 }
 
@@ -128,9 +170,37 @@ func (c *Config) DeleteDeepSeekAccount(name string) error {
 	return fmt.Errorf("DeepSeek 账户 %q 不存在", name)
 }
 
+// UpsertOllamaAccount 按 Name 覆盖或追加一个 Ollama 账户。
+func (c *Config) UpsertOllamaAccount(a OllamaAccount) {
+	for i := range c.OllamaAccounts {
+		if c.OllamaAccounts[i].Name == a.Name {
+			c.OllamaAccounts[i] = a
+			return
+		}
+	}
+	c.OllamaAccounts = append(c.OllamaAccounts, a)
+}
+
+// DeleteOllamaAccount 按 Name 删除，不存在返回错误。
+func (c *Config) DeleteOllamaAccount(name string) error {
+	for i := range c.OllamaAccounts {
+		if c.OllamaAccounts[i].Name == name {
+			c.OllamaAccounts = append(c.OllamaAccounts[:i], c.OllamaAccounts[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("Ollama 账户 %q 不存在", name)
+}
+
 func HasEnvVars() (cookie bool, ws bool, dk bool) {
-	if os.Getenv("OPENCODE_GO_AUTH_COOKIE") != "" { cookie = true }
-	if os.Getenv("OPENCODE_GO_WORKSPACE_ID") != "" { ws = true }
-	if os.Getenv("DEEPSEEK_API_KEY") != "" { dk = true }
+	if os.Getenv("OPENCODE_GO_AUTH_COOKIE") != "" {
+		cookie = true
+	}
+	if os.Getenv("OPENCODE_GO_WORKSPACE_ID") != "" {
+		ws = true
+	}
+	if os.Getenv("DEEPSEEK_API_KEY") != "" {
+		dk = true
+	}
 	return
 }
