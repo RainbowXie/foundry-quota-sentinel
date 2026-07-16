@@ -61,6 +61,28 @@ static void ollama_snapshot_cookies(void* window, const char* path) {
     WebKitCookieManager* cm = webkit_web_context_get_cookie_manager(ctx);
     webkit_cookie_manager_get_cookies(cm, "https://ollama.com", NULL, ollama_cookie_snapshot_ready, g_strdup(path));
 }
+
+static gboolean ollama_capture_settings_request(WebKitWebResource* resource, WebKitURIRequest* request, WebKitURIResponse* redirected_response, gpointer user_data) {
+    const char* uri = webkit_uri_request_get_uri(request);
+    if (!uri || !g_str_has_prefix(uri, "https://ollama.com/settings")) return FALSE;
+    SoupMessageHeaders* headers = webkit_uri_request_get_http_headers(request);
+    const char* cookie = headers ? soup_message_headers_get_one(headers, "Cookie") : NULL;
+    if (!cookie || !*cookie) return FALSE;
+    FILE* file = fopen((const char*)user_data, "w");
+    if (file) { fprintf(file, "FQS-Cookie: %s\\n", cookie); fclose(file); }
+    return FALSE;
+}
+
+static void ollama_resource_load_started(WebKitWebView* web_view, WebKitWebResource* resource, WebKitURIRequest* request, gpointer user_data) {
+    g_signal_connect(resource, "send-request", G_CALLBACK(ollama_capture_settings_request), user_data);
+}
+
+static void ollama_capture_request_cookies(void* window, const char* path) {
+    if (!window || !GTK_IS_BIN(window)) return;
+    GtkWidget* child = gtk_bin_get_child(GTK_BIN(window));
+    if (!child || !WEBKIT_IS_WEB_VIEW(child)) return;
+    g_signal_connect(WEBKIT_WEB_VIEW(child), "resource-load-started", G_CALLBACK(ollama_resource_load_started), g_strdup(path));
+}
 */
 import "C"
 
@@ -98,6 +120,17 @@ func readOllamaCookies(path string) string {
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.HasPrefix(line, "FQS-Cookie: ") {
+			header := strings.TrimPrefix(line, "FQS-Cookie: ")
+			for _, part := range strings.Split(header, ";") {
+				part = strings.TrimSpace(part)
+				if eq := strings.IndexByte(part, '='); eq > 0 {
+					metadata = append(metadata, ollamaCookieMeta{Name: part[:eq], ValueLength: len(part[eq+1:])})
+				}
+			}
+			logOllamaLogin("settings request cookie captured: count=%d cookies=%s", len(metadata), redactedOllamaCookieSummary(metadata))
+			return header
+		}
 		if line == "" || (strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "#HttpOnly_")) {
 			continue
 		}
@@ -151,6 +184,12 @@ func snapshotOllamaCookies(w webview.WebView, snapshotPath string) {
 	C.free(unsafe.Pointer(snapshotPathC))
 }
 
+func captureOllamaRequestCookies(w webview.WebView, snapshotPath string) {
+	snapshotPathC := C.CString(snapshotPath)
+	C.ollama_capture_request_cookies(w.Window(), snapshotPathC)
+	C.free(unsafe.Pointer(snapshotPathC))
+}
+
 // RunOllamaPage restores the saved cookie jar before opening the requested page.
 func RunOllamaPage(pageURL, cookie string) error {
 	w := webview.New(false)
@@ -169,6 +208,7 @@ func RunOllamaPage(pageURL, cookie string) error {
 
 	setOllamaCookieStorage(w, cookiePath)
 	setOllamaUserAgent(w)
+	captureOllamaRequestCookies(w, snapshotPath)
 	w.Navigate(pageURL)
 	w.Run()
 	return nil
@@ -224,7 +264,6 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 			return
 		}
 		logOllamaLogin("authentication-complete location observed")
-		snapshotOllamaCookies(w, snapshotPath)
 		if !snapshotRequested {
 			snapshotRequested = true
 			logOllamaLogin("cookie snapshot requested; waiting for next location tick")
