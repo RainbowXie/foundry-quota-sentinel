@@ -40,7 +40,7 @@ import (
 	"github.com/webview/webview_go"
 )
 
-const ollamaSignInURL = "https://ollama.com/signin"
+const ollamaHomeURL = "https://ollama.com/"
 
 const ollamaUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -169,8 +169,12 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 		}()
 	})
 
+	// Loading the home page first establishes Ollama's first-party state and a
+	// same-origin referrer before entering the authentication route. Direct
+	// WebKitGTK navigation to /signin can otherwise receive a gateway timeout.
+	w.Init(ollamaLoginBootstrapJS())
 	w.Init(ollamaLocationWatchJS)
-	w.Navigate(ollamaSignInURL)
+	w.Navigate(ollamaHomeURL)
 	w.Run()
 
 	// A user-close ends Run without cancelling validation. Mark it closed and
