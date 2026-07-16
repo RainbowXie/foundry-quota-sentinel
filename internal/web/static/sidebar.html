@@ -997,6 +997,7 @@
                 cursor: pointer;
             }
             #accountCards,
+            #ollamaCards,
             #dsCards {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -1004,6 +1005,7 @@
                 margin-bottom: 8px;
             }
             #accountCards > *,
+            #ollamaCards > *,
             #dsCards > * {
                 margin-bottom: 0;
             }
@@ -1029,6 +1031,7 @@
                     <div id="accountCards">
                         <div class="emp">加载中...</div>
                     </div>
+                    <div id="ollamaCards"></div>
                     <div id="dsCards"></div>
                     <div class="bc" id="addCard" style="cursor: pointer">
                         <div
@@ -1054,6 +1057,10 @@
                                 <div class="prov" data-type="deepseek">
                                     <span class="prov-n">DeepSeek</span
                                     ><span class="prov-d">用量 / 余额</span>
+                                </div>
+                                <div class="prov" data-type="ollama">
+                                    <span class="prov-n">Ollama</span
+                                    ><span class="prov-d">Cloud 用量</span>
                                 </div>
                             </div>
                             <div id="modalStep2" class="hide">
@@ -1287,6 +1294,52 @@
                     document.getElementById("accountCards").innerHTML = h;
                 } catch (e) {
                     document.getElementById("accountCards").innerHTML =
+                        "<div class=qerr>" + qesc(e.message) + "</div>";
+                }
+            }
+            /* Ollama cards */
+            function olcard(a) {
+                var body;
+                if (!a.success) {
+                    body =
+                        "<div class=qerr>" +
+                        qesc(a.error || "查询失败") +
+                        "</div>" +
+                        '<div class=bc-d><span class=olLogin data-name="' +
+                        qesc(a.name) +
+                        '" style="cursor:pointer;color:var(--text-sec)">重新登录</span></div>';
+                } else {
+                    var d = a.quota || {};
+                    body =
+                        qrow("Session", d.rolling, "g1") +
+                        qrow("Weekly", d.weekly, "g2");
+                }
+                return (
+                    '<div class=acard data-prov=ollama data-name="' +
+                    qesc(a.name) +
+                    '"><div class=acard-h><span class=ctype>Ollama</span><span class=cname>' +
+                    qesc(a.name) +
+                    "</span></div>" +
+                    body +
+                    "</div>"
+                );
+            }
+            async function fo() {
+                try {
+                    var r = await (await fetch("/api/ollama")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    var arr = r.data || [];
+                    var h = "";
+                    if (!arr.length) {
+                        h = "<div class=emp>未配置账户</div>";
+                    } else {
+                        arr.forEach(function (a) {
+                            h += olcard(a);
+                        });
+                    }
+                    document.getElementById("ollamaCards").innerHTML = h;
+                } catch (e) {
+                    document.getElementById("ollamaCards").innerHTML =
                         "<div class=qerr>" + qesc(e.message) + "</div>";
                 }
             }
@@ -1534,12 +1587,27 @@
                         (name ? "?name=" + encodeURIComponent(name) : ""),
                 );
             }
+            function olDoLogin(name) {
+                fetch(
+                    "/api/ollama/login" +
+                        (name ? "?name=" + encodeURIComponent(name) : ""),
+                ).then(function () {
+                    setTimeout(fo, 1500);
+                });
+            }
             document
                 .getElementById("dsCards")
                 .addEventListener("click", function (e) {
                     var t = e.target;
                     if (t.classList.contains("dsLogin"))
                         dsDoLogin(t.getAttribute("data-name"));
+                });
+            document
+                .getElementById("ollamaCards")
+                .addEventListener("click", function (e) {
+                    var t = e.target;
+                    if (t.classList.contains("olLogin"))
+                        olDoLogin(t.getAttribute("data-name"));
                 });
             (function () {
                 var modal = document.getElementById("addModal");
@@ -1571,9 +1639,15 @@
                         provLabel.textContent =
                             (curType === "opencode"
                                 ? "OpenCode Go"
-                                : "DeepSeek") + " · 账户名称";
+                                : curType === "deepseek"
+                                  ? "DeepSeek"
+                                  : "Ollama") + " · 账户名称";
                         nameIn.value =
-                            curType === "opencode" ? "OpenCode" : "DeepSeek";
+                            curType === "opencode"
+                                ? "OpenCode"
+                                : curType === "deepseek"
+                                  ? "DeepSeek"
+                                  : "Ollama";
                         s1.classList.add("hide");
                         s2.classList.remove("hide");
                         nameIn.focus();
@@ -1586,7 +1660,8 @@
                         var nm = nameIn.value.trim();
                         if (!nm) return;
                         if (curType === "opencode") ocDoLogin(nm);
-                        else dsDoLogin(nm);
+                        else if (curType === "deepseek") dsDoLogin(nm);
+                        else if (curType === "ollama") olDoLogin(nm);
                         closeModal();
                     });
                 nameIn.addEventListener("keydown", function (e) {
@@ -1646,7 +1721,11 @@
                     pend.prov = cur.prov;
                     pend.name = cur.name;
                     var label =
-                        cur.prov === "opencode" ? "OpenCode Go" : "DeepSeek";
+                        cur.prov === "opencode"
+                            ? "OpenCode Go"
+                            : cur.prov === "deepseek"
+                              ? "DeepSeek"
+                              : "Ollama";
                     ctext.textContent =
                         "确定删除 " +
                         label +
@@ -1679,6 +1758,7 @@
                                 closeConfirm();
                                 setTimeout(function () {
                                     fq();
+                                    fo();
                                     fd();
                                 }, 300);
                             })
@@ -1712,6 +1792,8 @@
             setInterval(fa, 2000);
             fd();
             setInterval(fd, 30000);
+            fo();
+            setInterval(fo, 30000);
             var winTimer;
             window.addEventListener("resize", function () {
                 for (var k in dsCharts) {
