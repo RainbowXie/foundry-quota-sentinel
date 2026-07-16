@@ -62,19 +62,23 @@ static void ollama_snapshot_cookies(void* window, const char* path) {
     webkit_cookie_manager_get_cookies(cm, "https://ollama.com", NULL, ollama_cookie_snapshot_ready, g_strdup(path));
 }
 
-static gboolean ollama_capture_settings_request(WebKitWebResource* resource, WebKitURIRequest* request, WebKitURIResponse* redirected_response, gpointer user_data) {
+static void ollama_capture_settings_request(WebKitURIRequest* request, gpointer user_data) {
     const char* uri = webkit_uri_request_get_uri(request);
-    if (!uri || !g_str_has_prefix(uri, "https://ollama.com/settings")) return FALSE;
+    if (!uri || !g_str_has_prefix(uri, "https://ollama.com/settings")) return;
     SoupMessageHeaders* headers = webkit_uri_request_get_http_headers(request);
     const char* cookie = headers ? soup_message_headers_get_one(headers, "Cookie") : NULL;
-    if (!cookie || !*cookie) return FALSE;
     FILE* file = fopen((const char*)user_data, "w");
-    if (file) { fprintf(file, "FQS-Cookie: %s\\n", cookie); fclose(file); }
+    if (file) { fprintf(file, "FQS-Cookie: %s\\n", cookie ? cookie : ""); fclose(file); }
+}
+
+static gboolean ollama_capture_settings_resource_request(WebKitWebResource* resource, WebKitURIRequest* request, WebKitURIResponse* redirected_response, gpointer user_data) {
+    ollama_capture_settings_request(request, user_data);
     return FALSE;
 }
 
 static void ollama_resource_load_started(WebKitWebView* web_view, WebKitWebResource* resource, WebKitURIRequest* request, gpointer user_data) {
-    g_signal_connect(resource, "send-request", G_CALLBACK(ollama_capture_settings_request), user_data);
+    ollama_capture_settings_request(request, user_data);
+    g_signal_connect(resource, "send-request", G_CALLBACK(ollama_capture_settings_resource_request), user_data);
 }
 
 static void ollama_capture_request_cookies(void* window, const char* path) {
