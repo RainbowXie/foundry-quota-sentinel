@@ -44,7 +44,7 @@ const ollamaHomeURL = "https://ollama.com/"
 
 const ollamaLocationWatchJS = `
 (function(){
-  function send(){ try{ if(window.__ocgtOllamaLocation) window.__ocgtOllamaLocation(location.href); }catch(e){} }
+  function send(){ try{if(window.__ocgtOllamaLocation)window.__ocgtOllamaLocation(location.href)}catch(e){} }
   send(); setInterval(send, 2000);
 })();
 `
@@ -150,11 +150,10 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	setOllamaUserAgent(w)
 
 	lifecycle := newOllamaLoginLifecycle()
-	w.Bind("__ocgtOllamaLocation", func(string) {
-		if !lifecycle.startValidation() {
+	w.Bind("__ocgtOllamaLocation", func(href string) {
+		if !isOllamaLoginCompleteURL(href) || !lifecycle.startValidation() {
 			return
 		}
-
 		go func() {
 			captured := readOllamaCookies(cookiePath)
 			if captured != "" && validate(captured) {
