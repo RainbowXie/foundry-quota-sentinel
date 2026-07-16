@@ -5,6 +5,8 @@ package sidebar
 /*
 #cgo pkg-config: gtk+-3.0 webkit2gtk-4.0
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 
@@ -26,6 +28,38 @@ static void ollama_set_user_agent(void* window, const char* user_agent) {
     if (!child || !WEBKIT_IS_WEB_VIEW(child)) return;
     WebKitSettings* settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(child));
     webkit_settings_set_user_agent(settings, user_agent);
+}
+
+static void ollama_cookie_snapshot_ready(GObject* source, GAsyncResult* result, gpointer user_data) {
+    gchar* path = user_data;
+    GError* error = NULL;
+    GList* cookies = webkit_cookie_manager_get_cookies_finish(WEBKIT_COOKIE_MANAGER(source), result, &error);
+    if (cookies) {
+        FILE* file = fopen(path, "w");
+        if (file) {
+            fprintf(file, "# Netscape HTTP Cookie File\\n");
+            for (GList* item = cookies; item; item = item->next) {
+                SoupCookie* cookie = item->data;
+                const char* domain = soup_cookie_get_domain(cookie);
+                if (domain && (!strcmp(domain, "ollama.com") || !strcmp(domain, ".ollama.com"))) {
+                    fprintf(file, "#HttpOnly_%s\\tTRUE\\t/\\tTRUE\\t2000000000\\t%s\\t%s\\n", domain, soup_cookie_get_name(cookie), soup_cookie_get_value(cookie));
+                }
+            }
+            fclose(file);
+        }
+        g_list_free_full(cookies, (GDestroyNotify)soup_cookie_free);
+    }
+    if (error) g_error_free(error);
+    g_free(path);
+}
+
+static void ollama_snapshot_cookies(void* window, const char* path) {
+    if (!window || !GTK_IS_BIN(window)) return;
+    GtkWidget* child = gtk_bin_get_child(GTK_BIN(window));
+    if (!child || !WEBKIT_IS_WEB_VIEW(child)) return;
+    WebKitWebContext* ctx = webkit_web_view_get_context(WEBKIT_WEB_VIEW(child));
+    WebKitCookieManager* cm = webkit_web_context_get_cookie_manager(ctx);
+    webkit_cookie_manager_get_cookies(cm, "https://ollama.com", NULL, ollama_cookie_snapshot_ready, g_strdup(path));
 }
 */
 import "C"
@@ -108,6 +142,12 @@ func setOllamaUserAgent(w webview.WebView) {
 	C.free(unsafe.Pointer(userAgentC))
 }
 
+func snapshotOllamaCookies(w webview.WebView, snapshotPath string) {
+	snapshotPathC := C.CString(snapshotPath)
+	C.ollama_snapshot_cookies(w.Window(), snapshotPathC)
+	C.free(unsafe.Pointer(snapshotPathC))
+}
+
 // RunOllamaPage restores the saved cookie jar before opening the requested page.
 func RunOllamaPage(pageURL, cookie string) error {
 	w := webview.New(false)
@@ -146,16 +186,32 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	cookiePath := f.Name()
 	_ = f.Close()
 	defer os.Remove(cookiePath)
+	snapshot, err := os.CreateTemp("", "ocgt-ollama-snapshot-*.txt")
+	if err != nil {
+		return "", fmt.Errorf("创建 Ollama cookie 快照文件失败: %w", err)
+	}
+	snapshotPath := snapshot.Name()
+	_ = snapshot.Close()
+	defer os.Remove(snapshotPath)
 	setOllamaCookieStorage(w, cookiePath)
 	setOllamaUserAgent(w)
 
 	lifecycle := newOllamaLoginLifecycle()
+	snapshotRequested := false
 	w.Bind("__ocgtOllamaLocation", func(href string) {
-		if !isOllamaLoginCompleteURL(href) || !lifecycle.startValidation() {
+		if !isOllamaLoginCompleteURL(href) {
+			return
+		}
+		snapshotOllamaCookies(w, snapshotPath)
+		if !snapshotRequested {
+			snapshotRequested = true
+			return
+		}
+		if !lifecycle.startValidation() {
 			return
 		}
 		go func() {
-			captured := readOllamaCookies(cookiePath)
+			captured := readOllamaCookies(snapshotPath)
 			if captured != "" && validate(captured) {
 				lifecycle.finishValidation(captured, func() {
 					w.Dispatch(func() { w.Terminate() })
