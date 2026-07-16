@@ -27,7 +27,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"unsafe"
 
 	"github.com/webview/webview_go"
@@ -134,35 +133,21 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	defer os.Remove(cookiePath)
 	setOllamaCookieStorage(w, cookiePath)
 
-	var mu sync.Mutex
-	var cookie string
-	inflight := false
-	var closeOnce sync.Once
+	lifecycle := newOllamaLoginLifecycle()
 	w.Bind("__ocgtOllamaLocation", func(string) {
-		mu.Lock()
-		if cookie != "" || inflight {
-			mu.Unlock()
+		if !lifecycle.startValidation() {
 			return
 		}
-		inflight = true
-		mu.Unlock()
 
 		go func() {
-			defer func() {
-				mu.Lock()
-				inflight = false
-				mu.Unlock()
-			}()
 			captured := readOllamaCookies(cookiePath)
-			if captured == "" || !validate(captured) {
+			if captured != "" && validate(captured) {
+				lifecycle.finishValidation(captured, func() {
+					w.Dispatch(func() { w.Terminate() })
+				})
 				return
 			}
-			mu.Lock()
-			if cookie == "" {
-				cookie = captured
-			}
-			mu.Unlock()
-			closeOnce.Do(func() { w.Dispatch(func() { w.Terminate() }) })
+			lifecycle.finishValidation("", func() {})
 		}()
 	})
 
@@ -170,9 +155,10 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	w.Navigate(ollamaSignInURL)
 	w.Run()
 
-	mu.Lock()
-	captured := cookie
-	mu.Unlock()
+	// A user-close ends Run without cancelling validation. Mark it closed and
+	// wait before deferred Destroy/remove make the WebView or cookie file unsafe.
+	lifecycle.closeAndWait()
+	captured := lifecycle.cookieValue()
 	if captured == "" {
 		return "", fmt.Errorf("未捕获到有效 Ollama 凭证（窗口已关闭）")
 	}
