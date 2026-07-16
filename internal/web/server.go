@@ -31,15 +31,23 @@ type DeepSeekAccount struct {
 	Token string
 }
 
+type OllamaAccount struct {
+	Name   string
+	Cookie string
+}
+
 type Server struct {
-	addr       string
-	accounts   []Account
-	accountsFn func() []Account
-	dsAccounts []DeepSeekAccount
-	dsFn       func() []DeepSeekAccount
-	deepseek   *quota.DeepSeekQuerier
-	onWinSize  func(w, h int)
-	onDelete   func(provider, name string) error
+	addr           string
+	accounts       []Account
+	accountsFn     func() []Account
+	dsAccounts     []DeepSeekAccount
+	dsFn           func() []DeepSeekAccount
+	ollamaAccounts []OllamaAccount
+	ollamaFn       func() []OllamaAccount
+	ollamaFetch    func(OllamaAccount) (*quota.QuotaData, error)
+	deepseek       *quota.DeepSeekQuerier
+	onWinSize      func(w, h int)
+	onDelete       func(provider, name string) error
 }
 
 func NewServer(accounts []Account) *Server {
@@ -49,12 +57,18 @@ func NewServer(accounts []Account) *Server {
 // SetDeepSeekAccounts 注入静态 DeepSeek 账户列表。
 func (s *Server) SetDeepSeekAccounts(accs []DeepSeekAccount) { s.dsAccounts = accs }
 
+// SetOllamaAccounts 注入静态 Ollama 账户列表。
+func (s *Server) SetOllamaAccounts(accs []OllamaAccount) { s.ollamaAccounts = accs }
+
 // SetAccountsProvider 设置动态账户来源，每次请求实时读取（反映 config 变更，
 // 例如 GUI 弹窗登录新增账户后无需重启即可出现）。
 func (s *Server) SetAccountsProvider(fn func() []Account) { s.accountsFn = fn }
 
 // SetDeepSeekProvider 设置动态 DeepSeek 账户来源，每次请求实时读取。
 func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn }
+
+// SetOllamaProvider 设置动态 Ollama 账户来源，每次请求实时读取。
+func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn }
 
 // SetWinSizeHandler 设置窗口大小持久化回调（前端 resize 时上报）。
 func (s *Server) SetWinSizeHandler(fn func(w, h int)) { s.onWinSize = fn }
@@ -76,8 +90,22 @@ func (s *Server) curDeepSeek() []DeepSeekAccount {
 	return s.dsAccounts
 }
 
+func (s *Server) curOllama() []OllamaAccount {
+	if s.ollamaFn != nil {
+		return s.ollamaFn()
+	}
+	return s.ollamaAccounts
+}
+
 func (s *Server) Start(addr string) error {
-	if addr != "" { s.addr = addr }
+	if addr != "" {
+		s.addr = addr
+	}
+	return http.ListenAndServe(s.addr, s.Handler())
+}
+
+// Handler returns the server routes for embedding and tests.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/quota", func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +117,10 @@ func (s *Server) Start(addr string) error {
 		a := accs[0]
 		q := &quota.OpenCodeGoQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
 		d, e := q.FetchQuota()
-		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
+		if e != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
 	})
 
@@ -121,9 +152,45 @@ func (s *Server) Start(addr string) error {
 		writeJSON(w, 200, map[string]any{"success": true, "data": results})
 	})
 
+	mux.HandleFunc("/api/ollama", func(w http.ResponseWriter, r *http.Request) {
+		type card struct {
+			Name    string           `json:"name"`
+			Success bool             `json:"success"`
+			Quota   *quota.QuotaData `json:"quota,omitempty"`
+			Error   string           `json:"error,omitempty"`
+		}
+		accs := s.curOllama()
+		cards := make([]card, len(accs))
+		fetch := s.ollamaFetch
+		if fetch == nil {
+			fetch = func(a OllamaAccount) (*quota.QuotaData, error) {
+				return (&quota.OllamaQuerier{Cookie: a.Cookie}).FetchQuota()
+			}
+		}
+		var wg sync.WaitGroup
+		for i, a := range accs {
+			wg.Add(1)
+			go func(i int, a OllamaAccount) {
+				defer wg.Done()
+				d, err := fetch(a)
+				if err != nil {
+					cards[i] = card{Name: a.Name, Error: err.Error()}
+					return
+				}
+				cards[i] = card{Name: a.Name, Success: true, Quota: d}
+			}(i, a)
+		}
+		wg.Wait()
+		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": cards})
+	})
+
 	mux.HandleFunc("/api/balance", func(w http.ResponseWriter, r *http.Request) {
 		d, e := s.deepseek.FetchBalance()
-		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
+		if e != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
 	})
 
@@ -206,11 +273,29 @@ func (s *Server) Start(addr string) error {
 		writeJSON(w, 200, map[string]any{"success": true})
 	})
 
+	mux.HandleFunc("/api/ollama/login", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		exe, err := os.Executable()
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		args := []string{"login-ollama"}
+		if name != "" {
+			args = append(args, name)
+		}
+		if err := exec.Command(exe, args...).Start(); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+	})
+
 	// /api/open 拉起一个子进程，弹出 app 内窗口展示该账户对应服务商页面（注入登录态）。
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
@@ -231,7 +316,7 @@ func (s *Server) Start(addr string) error {
 	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
@@ -248,18 +333,32 @@ func (s *Server) Start(addr string) error {
 
 	mux.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
 		logs, e := storage.ReadOCGTLogs(storage.OCGTLogDir())
-		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
+		if e != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()})
+			return
+		}
 		daily := storage.CalculateDailyStats(logs, 7)
-		type DayStat struct { Date string `json:"date"`; InputTokens int `json:"input_tokens"`; OutputTokens int `json:"output_tokens"`; TotalTokens int `json:"total_tokens"`; RequestCount int `json:"request_count"` }
+		type DayStat struct {
+			Date         string `json:"date"`
+			InputTokens  int    `json:"input_tokens"`
+			OutputTokens int    `json:"output_tokens"`
+			TotalTokens  int    `json:"total_tokens"`
+			RequestCount int    `json:"request_count"`
+		}
 		var list []DayStat
-		for _, s := range daily { list = append(list, DayStat{s.Date, s.InputTokens, s.OutputTokens, s.TotalTokens, s.RequestCount}) }
+		for _, s := range daily {
+			list = append(list, DayStat{s.Date, s.InputTokens, s.OutputTokens, s.TotalTokens, s.RequestCount})
+		}
 		sort.Slice(list, func(i, j int) bool { return list[i].Date < list[j].Date })
 		writeJSON(w, 200, map[string]any{"success": true, "data": list})
 	})
 
 	mux.HandleFunc("/api/models", func(w http.ResponseWriter, r *http.Request) {
 		logs, e := storage.ReadOCGTLogs(storage.OCGTLogDir())
-		if e != nil { writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()}); return }
+		if e != nil {
+			writeJSON(w, 200, map[string]any{"success": false, "error": e.Error()})
+			return
+		}
 		r.ParseForm()
 		var models map[string]storage.TokenStatsByModel
 		if from := r.Form.Get("from"); from != "" {
@@ -271,7 +370,9 @@ func (s *Server) Start(addr string) error {
 			} else {
 				days := 7
 				if d := r.Form.Get("days"); d != "" {
-					if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 { days = 7 }
+					if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 {
+						days = 7
+					}
 				}
 				if days == 1 {
 					now := time.Now()
@@ -284,7 +385,9 @@ func (s *Server) Start(addr string) error {
 		} else {
 			days := 7
 			if d := r.Form.Get("days"); d != "" {
-				if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 { days = 7 }
+				if n, err := fmt.Sscanf(d, "%d", &days); err != nil || n != 1 || days < 1 {
+					days = 7
+				}
 			}
 			if days == 1 {
 				now := time.Now()
@@ -294,17 +397,35 @@ func (s *Server) Start(addr string) error {
 				models = storage.CalculateModelStats(logs, days)
 			}
 		}
-		type MStat struct { Model string `json:"model"`; InputTokens int `json:"input_tokens"`; OutputTokens int `json:"output_tokens"`; TotalTokens int `json:"total_tokens"`; RequestCount int `json:"request_count"` }
+		type MStat struct {
+			Model        string `json:"model"`
+			InputTokens  int    `json:"input_tokens"`
+			OutputTokens int    `json:"output_tokens"`
+			TotalTokens  int    `json:"total_tokens"`
+			RequestCount int    `json:"request_count"`
+		}
 		var list []MStat
-		for _, s := range models { list = append(list, MStat{s.Model, s.InputTokens, s.OutputTokens, s.TotalTokens, s.RequestCount}) }
+		for _, s := range models {
+			list = append(list, MStat{s.Model, s.InputTokens, s.OutputTokens, s.TotalTokens, s.RequestCount})
+		}
 		sort.Slice(list, func(i, j int) bool { return list[i].TotalTokens > list[j].TotalTokens })
 		writeJSON(w, 200, map[string]any{"success": true, "data": list})
 	})
 
-	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "ok", "time": time.Now()}) })
-	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"status": "bye"}); go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }() })
-	mux.HandleFunc("/api/pin", func(w http.ResponseWriter, r *http.Request) { state.Pinned = !state.Pinned; writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
-	mux.HandleFunc("/api/pin-state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"pinned": state.Pinned}) })
+	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"status": "ok", "time": time.Now()})
+	})
+	mux.HandleFunc("/api/quit", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"status": "bye"})
+		go func() { time.Sleep(100 * time.Millisecond); os.Exit(0) }()
+	})
+	mux.HandleFunc("/api/pin", func(w http.ResponseWriter, r *http.Request) {
+		state.Pinned = !state.Pinned
+		writeJSON(w, 200, map[string]any{"pinned": state.Pinned})
+	})
+	mux.HandleFunc("/api/pin-state", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, map[string]any{"pinned": state.Pinned})
+	})
 	mux.HandleFunc("/api/position", func(w http.ResponseWriter, r *http.Request) {
 		if yStr := r.URL.Query().Get("y"); yStr != "" {
 			var y int
@@ -327,7 +448,7 @@ func (s *Server) Start(addr string) error {
 
 	sub, _ := fs.Sub(webAssets, "static")
 	mux.Handle("/", http.FileServer(http.FS(sub)))
-	return http.ListenAndServe(s.addr, mux)
+	return mux
 }
 
 func writeJSON(w http.ResponseWriter, s int, d any) {
