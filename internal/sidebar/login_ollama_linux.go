@@ -42,8 +42,6 @@ import (
 
 const ollamaHomeURL = "https://ollama.com/"
 
-const ollamaUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-
 const ollamaLocationWatchJS = `
 (function(){
   function send(){ try{ if(window.__ocgtOllamaLocation) window.__ocgtOllamaLocation(location.href); }catch(e){} }
