@@ -19,6 +19,14 @@ static void ollama_set_cookie_storage(void* window, const char* path) {
     WebKitCookieManager* cm = webkit_web_context_get_cookie_manager(ctx);
     webkit_cookie_manager_set_persistent_storage(cm, path, WEBKIT_COOKIE_PERSISTENT_STORAGE_TEXT);
 }
+
+static void ollama_set_user_agent(void* window, const char* user_agent) {
+    if (!window || !GTK_IS_BIN(window)) return;
+    GtkWidget* child = gtk_bin_get_child(GTK_BIN(window));
+    if (!child || !WEBKIT_IS_WEB_VIEW(child)) return;
+    WebKitSettings* settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(child));
+    webkit_settings_set_user_agent(settings, user_agent);
+}
 */
 import "C"
 
@@ -33,6 +41,8 @@ import (
 )
 
 const ollamaSignInURL = "https://ollama.com/signin"
+
+const ollamaUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 const ollamaLocationWatchJS = `
 (function(){
@@ -94,6 +104,12 @@ func setOllamaCookieStorage(w webview.WebView, cookiePath string) {
 	C.free(unsafe.Pointer(cookiePathC))
 }
 
+func setOllamaUserAgent(w webview.WebView) {
+	userAgentC := C.CString(ollamaUserAgent)
+	C.ollama_set_user_agent(w.Window(), userAgentC)
+	C.free(unsafe.Pointer(userAgentC))
+}
+
 // RunOllamaPage restores the saved cookie jar before opening the requested page.
 func RunOllamaPage(pageURL, cookie string) error {
 	w := webview.New(false)
@@ -111,6 +127,7 @@ func RunOllamaPage(pageURL, cookie string) error {
 	defer os.Remove(cookiePath)
 
 	setOllamaCookieStorage(w, cookiePath)
+	setOllamaUserAgent(w)
 	w.Navigate(pageURL)
 	w.Run()
 	return nil
@@ -132,6 +149,7 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	_ = f.Close()
 	defer os.Remove(cookiePath)
 	setOllamaCookieStorage(w, cookiePath)
+	setOllamaUserAgent(w)
 
 	lifecycle := newOllamaLoginLifecycle()
 	w.Bind("__ocgtOllamaLocation", func(string) {
