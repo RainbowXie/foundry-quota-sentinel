@@ -208,7 +208,6 @@ func RunOllamaPage(pageURL, cookie string) error {
 
 	setOllamaCookieStorage(w, cookiePath)
 	setOllamaUserAgent(w)
-	captureOllamaRequestCookies(w, snapshotPath)
 	w.Navigate(pageURL)
 	w.Run()
 	return nil
@@ -239,6 +238,7 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	defer os.Remove(snapshotPath)
 	setOllamaCookieStorage(w, cookiePath)
 	setOllamaUserAgent(w)
+	captureOllamaRequestCookies(w, snapshotPath)
 
 	lifecycle := newOllamaLoginLifecycle()
 	w.Bind("__ocgtOllamaCandidate", func(source, candidate string) {
