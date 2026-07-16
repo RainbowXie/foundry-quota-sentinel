@@ -201,6 +201,23 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	setOllamaUserAgent(w)
 
 	lifecycle := newOllamaLoginLifecycle()
+	w.Bind("__ocgtOllamaCandidate", func(source, candidate string) {
+		if !lifecycle.startValidation() {
+			return
+		}
+		logOllamaLogin("storage/request candidate observed: source=%s len=%d", source, len(candidate))
+		go func() {
+			if validate(candidate) {
+				logOllamaLogin("storage/request candidate validation succeeded")
+				lifecycle.finishValidation(candidate, func() {
+					w.Dispatch(func() { w.Terminate() })
+				})
+				return
+			}
+			logOllamaLogin("storage/request candidate validation failed")
+			lifecycle.finishValidation("", func() {})
+		}()
+	})
 	snapshotRequested := false
 	w.Bind("__ocgtOllamaLocation", func(href string) {
 		if !isOllamaLoginCompleteURL(href) {
@@ -234,6 +251,7 @@ func RunOllamaLogin(validate func(string) bool) (string, error) {
 	// same-origin referrer before entering the authentication route. Direct
 	// WebKitGTK navigation to /signin can otherwise receive a gateway timeout.
 	w.Init(ollamaLoginBootstrapJS())
+	w.Init(ollamaAuthCaptureJS())
 	w.Init(ollamaLocationWatchJS)
 	w.Navigate(ollamaHomeURL)
 	w.Run()
