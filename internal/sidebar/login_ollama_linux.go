@@ -76,9 +76,30 @@ static gboolean ollama_capture_settings_resource_request(WebKitWebResource* reso
     return FALSE;
 }
 
+static void ollama_write_set_cookie_header(const char* name, const char* value, gpointer user_data) {
+    if (g_ascii_strcasecmp(name, "Set-Cookie") != 0) return;
+    FILE* file = (FILE*)user_data;
+    fprintf(file, "FQS-Set-Cookie: %s\\n", value);
+}
+
+static void ollama_capture_callback_response(GObject* object, GParamSpec* pspec, gpointer user_data) {
+    WebKitWebResource* resource = WEBKIT_WEB_RESOURCE(object);
+    const char* uri = webkit_web_resource_get_uri(resource);
+    if (!uri || !g_str_has_prefix(uri, "https://ollama.com/auth/callback")) return;
+    WebKitURIResponse* response = webkit_web_resource_get_response(resource);
+    if (!response) return;
+    SoupMessageHeaders* headers = webkit_uri_response_get_http_headers(response);
+    if (!headers) return;
+    FILE* file = fopen((const char*)user_data, "w");
+    if (!file) return;
+    soup_message_headers_foreach(headers, ollama_write_set_cookie_header, file);
+    fclose(file);
+}
+
 static void ollama_resource_load_started(WebKitWebView* web_view, WebKitWebResource* resource, WebKitURIRequest* request, gpointer user_data) {
     ollama_capture_settings_request(request, user_data);
     g_signal_connect(resource, "send-request", G_CALLBACK(ollama_capture_settings_resource_request), user_data);
+    g_signal_connect(resource, "notify::response", G_CALLBACK(ollama_capture_callback_response), user_data);
 }
 
 static void ollama_capture_request_cookies(void* window, const char* path) {
@@ -124,6 +145,17 @@ func readOllamaCookies(path string) string {
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
+		if strings.HasPrefix(line, "FQS-Set-Cookie: ") {
+			part := strings.TrimPrefix(line, "FQS-Set-Cookie: ")
+			if end := strings.IndexByte(part, ';'); end >= 0 {
+				part = part[:end]
+			}
+			if eq := strings.IndexByte(part, '='); eq > 0 {
+				parts = append(parts, part)
+				metadata = append(metadata, ollamaCookieMeta{Name: part[:eq], ValueLength: len(part[eq+1:])})
+			}
+			continue
+		}
 		if strings.HasPrefix(line, "FQS-Cookie: ") {
 			header := strings.TrimPrefix(line, "FQS-Cookie: ")
 			for _, part := range strings.Split(header, ";") {
