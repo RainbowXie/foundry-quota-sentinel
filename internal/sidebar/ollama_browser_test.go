@@ -1,7 +1,9 @@
 package sidebar
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"strings"
@@ -57,5 +59,39 @@ func TestOllamaBrowserCloseWaitsAndRemovesPrivateProfile(t *testing.T) {
 	}
 	if _, err := os.Stat(profile); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("profile stat error = %v, want removed profile", err)
+	}
+}
+
+func TestOllamaBrowserCloseIgnoresWaitErrorAfterOwnKill(t *testing.T) {
+	p := &ollamaBrowserProcess{
+		profileDir: t.TempDir(),
+		kill:       func() error { return nil },
+		wait:       func() error { return errors.New("signal: killed") },
+	}
+	if err := p.Close(); err != nil {
+		t.Fatalf("Close() error = %v, want application-initiated kill to succeed", err)
+	}
+}
+
+func TestOllamaBrowserCDPRetriesUntilDevToolsIsReady(t *testing.T) {
+	oldConnect := connectOllamaCDP
+	t.Cleanup(func() { connectOllamaCDP = oldConnect })
+	attempts := 0
+	want := &fakeOllamaCDP{}
+	connectOllamaCDP = func(context.Context, string) (ollamaCDP, error) {
+		attempts++
+		if attempts == 1 {
+			return nil, fmt.Errorf("DevToolsActivePort not ready")
+		}
+		return want, nil
+	}
+
+	p := &ollamaBrowserProcess{profileDir: t.TempDir()}
+	got, err := p.CDP(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want || attempts != 2 {
+		t.Fatalf("cdp=%T attempts=%d, want fake client after two attempts", got, attempts)
 	}
 }

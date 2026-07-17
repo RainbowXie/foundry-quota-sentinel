@@ -122,6 +122,36 @@ func (c *ollamaCDPClient) Cookies(ctx context.Context) ([]cdpCookie, error) {
 	return result.Cookies, nil
 }
 
+func (c *ollamaCDPClient) SetSessionCookie(ctx context.Context, value string) error {
+	if !isSafeOllamaCookieValue(value) {
+		return fmt.Errorf("Ollama 登录状态无效")
+	}
+	var result struct {
+		Success bool `json:"success"`
+	}
+	if err := c.call(ctx, "Network.setCookie", map[string]any{
+		"url":      "https://ollama.com/",
+		"name":     "__Secure-session",
+		"value":    value,
+		"path":     "/",
+		"secure":   true,
+		"httpOnly": true,
+	}, &result); err != nil {
+		return err
+	}
+	if !result.Success {
+		return fmt.Errorf("浏览器拒绝设置 Ollama 登录状态")
+	}
+	return nil
+}
+
+func (c *ollamaCDPClient) Navigate(ctx context.Context, pageURL string) error {
+	if !isOllamaPageURL(pageURL) {
+		return fmt.Errorf("Ollama 账户页地址无效")
+	}
+	return c.call(ctx, "Page.navigate", map[string]any{"url": pageURL}, nil)
+}
+
 func (c *ollamaCDPClient) call(ctx context.Context, method string, params any, result any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -188,4 +218,9 @@ func isOllamaCookieDomain(domain string) bool {
 
 func isSafeOllamaCookieValue(value string) bool {
 	return value != "" && !strings.ContainsAny(value, ";\r\n")
+}
+
+func isOllamaPageURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && u.Scheme == "https" && isOllamaCookieDomain(u.Hostname())
 }

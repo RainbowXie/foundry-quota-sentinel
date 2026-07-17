@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var ollamaBrowserCandidates = []string{
@@ -17,6 +18,10 @@ var ollamaBrowserCandidates = []string{
 	"chromium-browser",
 	"microsoft-edge",
 	"microsoft-edge-stable",
+}
+
+var connectOllamaCDP = func(ctx context.Context, activePortPath string) (ollamaCDP, error) {
+	return newOllamaCDP(ctx, activePortPath)
 }
 
 func findOllamaBrowser(lookPath func(string) (string, error)) (string, error) {
@@ -112,6 +117,25 @@ func (p *ollamaBrowserProcess) Exited() bool {
 	return p.exited != nil && p.exited()
 }
 
+func (p *ollamaBrowserProcess) CDP(ctx context.Context) (ollamaCDP, error) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		client, err := connectOllamaCDP(ctx, p.DevToolsActivePortPath())
+		if err == nil {
+			return client, nil
+		}
+		if p.Exited() {
+			return nil, fmt.Errorf("登录浏览器已关闭")
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("等待登录浏览器就绪超时: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
 func (p *ollamaBrowserProcess) Wait() error {
 	p.waitOnce.Do(func() {
 		if p.wait != nil {
@@ -125,13 +149,20 @@ func (p *ollamaBrowserProcess) Wait() error {
 func (p *ollamaBrowserProcess) Close() error {
 	p.closeOnce.Do(func() {
 		var killErr error
+		killedByUs := false
 		if p.kill != nil {
 			killErr = p.kill()
+			killedByUs = killErr == nil
 			if errors.Is(killErr, os.ErrProcessDone) {
 				killErr = nil
 			}
 		}
-		p.closeErr = errors.Join(killErr, p.Wait())
+		waitErr := p.Wait()
+		if killedByUs {
+			p.closeErr = p.cleanErr
+			return
+		}
+		p.closeErr = errors.Join(killErr, waitErr)
 	})
 	return p.closeErr
 }

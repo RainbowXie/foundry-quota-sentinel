@@ -427,7 +427,7 @@ func cmdLoginOllama() {
 	if len(os.Args) > 2 && strings.TrimSpace(os.Args[2]) != "" {
 		name = strings.TrimSpace(os.Args[2])
 	}
-	fmt.Println("正在打开 Ollama 登录窗口，请在窗口内完成登录…")
+	fmt.Println("正在打开 Ollama 系统浏览器临时窗口，请在窗口内完成登录…")
 	validate := func(cookie string) bool {
 		_, err := (&quota.OllamaQuerier{Cookie: cookie}).FetchQuota()
 		return err == nil
@@ -446,7 +446,7 @@ func cmdLoginOllama() {
 	fmt.Printf("OK Ollama 账户 %q 已保存\n", name)
 }
 
-// cmdOpenPage 弹出一个 app 内窗口展示对应账户的服务商页面，并注入该账户登录态。
+// cmdOpenPage 打开对应账户的服务商页面，并注入该账户登录态。
 // 用法: open-page <opencode|deepseek|ollama> <账户名>。由侧边栏右键菜单经 /api/open 拉起。
 func cmdOpenPage() {
 	if len(os.Args) < 4 {
@@ -497,8 +497,8 @@ func cmdOpenPage() {
 		}
 		url := "https://ollama.com/settings"
 		if err := sidebar.RunOllamaPage(url, acc.Cookie); err != nil {
-			fmt.Fprintf(os.Stderr, "内置窗口不可用(%v)，改用系统浏览器打开\n", err)
-			openBrowser(url)
+			fmt.Fprintf(os.Stderr, "Ollama 账户页浏览器不可用: %v\n", err)
+			os.Exit(1)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "未知 provider: %s（应为 opencode、deepseek 或 ollama）\n", provider)
