@@ -96,6 +96,22 @@ static void ollama_capture_callback_response(GObject* object, GParamSpec* pspec,
     fclose(file);
 }
 
+static gboolean ollama_capture_callback_policy(WebKitWebView* web_view, WebKitPolicyDecision* decision, WebKitPolicyDecisionType type, gpointer user_data) {
+    if (type != WEBKIT_POLICY_DECISION_TYPE_RESPONSE || !WEBKIT_IS_RESPONSE_POLICY_DECISION(decision)) return FALSE;
+    WebKitResponsePolicyDecision* response_decision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
+    WebKitURIRequest* request = webkit_response_policy_decision_get_request(response_decision);
+    const char* uri = request ? webkit_uri_request_get_uri(request) : NULL;
+    if (!uri || !g_str_has_prefix(uri, "https://ollama.com/auth/callback")) return FALSE;
+    WebKitURIResponse* response = webkit_response_policy_decision_get_response(response_decision);
+    SoupMessageHeaders* headers = response ? webkit_uri_response_get_http_headers(response) : NULL;
+    if (!headers) return FALSE;
+    FILE* file = fopen((const char*)user_data, "w");
+    if (!file) return FALSE;
+    soup_message_headers_foreach(headers, ollama_write_set_cookie_header, file);
+    fclose(file);
+    return FALSE;
+}
+
 static void ollama_resource_load_started(WebKitWebView* web_view, WebKitWebResource* resource, WebKitURIRequest* request, gpointer user_data) {
     ollama_capture_settings_request(request, user_data);
     g_signal_connect(resource, "send-request", G_CALLBACK(ollama_capture_settings_resource_request), user_data);
@@ -107,6 +123,7 @@ static void ollama_capture_request_cookies(void* window, const char* path) {
     GtkWidget* child = gtk_bin_get_child(GTK_BIN(window));
     if (!child || !WEBKIT_IS_WEB_VIEW(child)) return;
     g_signal_connect(WEBKIT_WEB_VIEW(child), "resource-load-started", G_CALLBACK(ollama_resource_load_started), g_strdup(path));
+    g_signal_connect(WEBKIT_WEB_VIEW(child), "decide-policy", G_CALLBACK(ollama_capture_callback_policy), g_strdup(path));
 }
 */
 import "C"
