@@ -38,6 +38,16 @@ func TestParseOllamaQuotaSkipsUnrelatedTimestamp(t *testing.T) {
 	}
 }
 
+func TestParseOllamaQuotaFindsResetBesideNestedUsageMeter(t *testing.T) {
+	q, err := parseOllamaQuota(`<section><div><div data-usage-meter><div aria-label="Session usage 42.5% used"></div></div><div data-time="2099-02-01T00:00:00Z"></div></div><div><div data-usage-meter><div aria-label="Weekly usage 17.7% used"></div></div><div data-time="2099-03-01T00:00:00Z"></div></div></section>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Rolling.UsagePercent != 43 || q.Weekly.UsagePercent != 18 {
+		t.Fatalf("quota = %#v", q)
+	}
+}
+
 func TestParseOllamaQuotaRejectsOutOfRangePercent(t *testing.T) {
 	_, err := parseOllamaQuota(`<i aria-label="Session usage 100.1% used"></i><i data-time="2099-01-01T00:00:00Z"></i><i aria-label="Weekly usage 2% used"></i><i data-time="2099-01-02T00:00:00Z"></i>`)
 	if err == nil || !strings.Contains(err.Error(), "invalid usage percent") {
@@ -64,14 +74,14 @@ func TestOllamaQuerierSendsCookie(t *testing.T) {
 		if got := r.Header.Get("Cookie"); got != "__Secure-session=valid" {
 			t.Fatalf("Cookie = %q", got)
 		}
-		if r.Header.Get("User-Agent") == "" {
-			t.Fatal("User-Agent header is empty")
+		if got := r.Header.Get("User-Agent"); got != "Ollama login browser" {
+			t.Fatalf("User-Agent = %q, want login browser user agent", got)
 		}
 		_, _ = io.WriteString(w, `<i aria-label="Session usage 1% used"></i><i data-time="2099-01-01T00:00:00Z"></i><i aria-label="Weekly usage 2% used"></i><i data-time="2099-01-02T00:00:00Z"></i>`)
 	}))
 	defer s.Close()
 
-	if _, err := (&OllamaQuerier{Cookie: "__Secure-session=valid", BaseURL: s.URL}).FetchQuota(); err != nil {
+	if _, err := (&OllamaQuerier{Cookie: "__Secure-session=valid", UserAgent: "Ollama login browser", BaseURL: s.URL}).FetchQuota(); err != nil {
 		t.Fatal(err)
 	}
 }

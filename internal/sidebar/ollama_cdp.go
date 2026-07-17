@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,9 +26,10 @@ type cdpCookie struct {
 }
 
 type ollamaCDPClient struct {
-	conn   *websocket.Conn
-	mu     sync.Mutex
-	nextID int64
+	conn            *websocket.Conn
+	browserEndpoint string
+	mu              sync.Mutex
+	nextID          int64
 }
 
 type cdpTarget struct {
@@ -46,13 +46,16 @@ type cdpResponse struct {
 	} `json:"error"`
 }
 
-func newOllamaCDP(ctx context.Context, activePortPath string) (*ollamaCDPClient, error) {
-	port, err := readOllamaDevToolsPort(activePortPath)
+func newOllamaCDP(ctx context.Context, debugAddress string) (*ollamaCDPClient, error) {
+	if !isLoopbackDebugAddress(debugAddress) {
+		return nil, fmt.Errorf("浏览器调试地址无效")
+	}
+	browserEndpoint, err := fetchOllamaBrowserEndpoint(ctx, debugAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/json/list", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+debugAddress+"/json/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建浏览器 DevTools 请求失败: %w", err)
 	}
@@ -80,22 +83,47 @@ func newOllamaCDP(ctx context.Context, activePortPath string) (*ollamaCDPClient,
 		if err != nil {
 			return nil, fmt.Errorf("连接浏览器调试页面失败: %w", err)
 		}
-		return &ollamaCDPClient{conn: conn}, nil
+		return &ollamaCDPClient{conn: conn, browserEndpoint: browserEndpoint}, nil
 	}
 	return nil, fmt.Errorf("浏览器尚未创建可用的登录页面")
 }
 
-func readOllamaDevToolsPort(activePortPath string) (string, error) {
-	data, err := os.ReadFile(activePortPath)
+func fetchOllamaBrowserEndpoint(ctx context.Context, debugAddress string) (string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+debugAddress+"/json/version", nil)
 	if err != nil {
-		return "", fmt.Errorf("读取浏览器调试端口失败: %w", err)
+		return "", fmt.Errorf("创建浏览器 DevTools 版本请求失败: %w", err)
 	}
-	line, _, _ := strings.Cut(string(data), "\n")
-	port, err := strconv.Atoi(strings.TrimSpace(line))
-	if err != nil || port < 1 || port > 65535 {
-		return "", fmt.Errorf("浏览器调试端口无效")
+	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)
+	if err != nil {
+		return "", fmt.Errorf("连接浏览器 DevTools 失败: %w", err)
 	}
-	return strconv.Itoa(port), nil
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("浏览器 DevTools 返回 %s", response.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("读取浏览器 DevTools 版本失败: %w", err)
+	}
+	var version struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.Unmarshal(data, &version); err != nil {
+		return "", fmt.Errorf("解析浏览器 DevTools 版本失败: %w", err)
+	}
+	if !isLoopbackWebSocketURL(version.WebSocketDebuggerURL) {
+		return "", fmt.Errorf("浏览器调试端点无效")
+	}
+	return version.WebSocketDebuggerURL, nil
+}
+
+func isLoopbackDebugAddress(address string) bool {
+	host, rawPort, err := net.SplitHostPort(address)
+	if err != nil || (host != "127.0.0.1" && host != "::1" && host != "localhost") {
+		return false
+	}
+	port, err := strconv.Atoi(rawPort)
+	return err == nil && port > 0 && port <= 65535
 }
 
 func isLoopbackWebSocketURL(rawURL string) bool {
@@ -111,15 +139,47 @@ func isLoopbackWebSocketURL(rawURL string) bool {
 }
 
 func (c *ollamaCDPClient) Cookies(ctx context.Context) ([]cdpCookie, error) {
+	browser, err := c.browserClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer browser.Close()
 	var result struct {
 		Cookies []cdpCookie `json:"cookies"`
 	}
-	if err := c.call(ctx, "Network.getCookies", map[string]any{
-		"urls": []string{"https://ollama.com/"},
-	}, &result); err != nil {
+	if err := browser.call(ctx, "Storage.getCookies", nil, &result); err != nil {
 		return nil, err
 	}
 	return result.Cookies, nil
+}
+
+func (c *ollamaCDPClient) UserAgent(ctx context.Context) (string, error) {
+	browser, err := c.browserClient(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer browser.Close()
+	var result struct {
+		UserAgent string `json:"userAgent"`
+	}
+	if err := browser.call(ctx, "Browser.getVersion", nil, &result); err != nil {
+		return "", err
+	}
+	if !isSafeOllamaUserAgent(result.UserAgent) {
+		return "", fmt.Errorf("浏览器返回的 User-Agent 无效")
+	}
+	return result.UserAgent, nil
+}
+
+func (c *ollamaCDPClient) browserClient(ctx context.Context) (*ollamaCDPClient, error) {
+	if c.browserEndpoint == "" {
+		return nil, fmt.Errorf("浏览器调试端点无效")
+	}
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, c.browserEndpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("连接浏览器调试端点失败: %w", err)
+	}
+	return &ollamaCDPClient{conn: conn}, nil
 }
 
 func (c *ollamaCDPClient) SetSessionCookie(ctx context.Context, value string) error {
@@ -195,20 +255,33 @@ func (c *ollamaCDPClient) Close() error {
 }
 
 func ollamaSessionCookieHeader(cookies []cdpCookie) string {
-	var value string
+	wanted := []string{"__Secure-session", "cf_clearance", "aid"}
+	values := make(map[string]string, len(wanted))
 	for _, cookie := range cookies {
-		if cookie.Name != "__Secure-session" || !cookie.Secure || !cookie.HTTPOnly || !isOllamaCookieDomain(cookie.Domain) || !isSafeOllamaCookieValue(cookie.Value) {
+		if !cookie.Secure || !cookie.HTTPOnly || !isOllamaCookieDomain(cookie.Domain) || !isSafeOllamaCookieValue(cookie.Value) {
 			continue
 		}
-		if value != "" {
-			return ""
+		for _, name := range wanted {
+			if cookie.Name != name {
+				continue
+			}
+			if values[name] != "" {
+				break
+			}
+			values[name] = cookie.Value
+			break
 		}
-		value = cookie.Value
 	}
-	if value == "" {
+	if values["__Secure-session"] == "" {
 		return ""
 	}
-	return "__Secure-session=" + value
+	parts := make([]string, 0, len(wanted))
+	for _, name := range wanted {
+		if values[name] != "" {
+			parts = append(parts, name+"="+values[name])
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 func isOllamaCookieDomain(domain string) bool {
@@ -218,6 +291,10 @@ func isOllamaCookieDomain(domain string) bool {
 
 func isSafeOllamaCookieValue(value string) bool {
 	return value != "" && !strings.ContainsAny(value, ";\r\n")
+}
+
+func isSafeOllamaUserAgent(value string) bool {
+	return strings.TrimSpace(value) != "" && !strings.ContainsAny(value, "\r\n")
 }
 
 func isOllamaPageURL(rawURL string) bool {

@@ -36,6 +36,21 @@ func TestFindOllamaBrowserExplainsMissingBrowser(t *testing.T) {
 	}
 }
 
+func TestOllamaBrowserArgsDoNotUsePortZero(t *testing.T) {
+	foundPort := false
+	for _, arg := range ollamaBrowserArgs("/tmp/ollama-profile", "https://ollama.com/settings", 39231) {
+		if arg == "--remote-debugging-port=0" {
+			t.Fatal("debugging port 0 exposes navigator.webdriver and must not be used")
+		}
+		if arg == "--remote-debugging-port=39231" {
+			foundPort = true
+		}
+	}
+	if !foundPort {
+		t.Fatal("expected the selected non-zero debugging port")
+	}
+}
+
 func TestOllamaBrowserCloseWaitsAndRemovesPrivateProfile(t *testing.T) {
 	profile := t.TempDir()
 	var killed, waited bool
@@ -78,15 +93,18 @@ func TestOllamaBrowserCDPRetriesUntilDevToolsIsReady(t *testing.T) {
 	t.Cleanup(func() { connectOllamaCDP = oldConnect })
 	attempts := 0
 	want := &fakeOllamaCDP{}
-	connectOllamaCDP = func(context.Context, string) (ollamaCDP, error) {
+	connectOllamaCDP = func(_ context.Context, debugAddress string) (ollamaCDP, error) {
+		if debugAddress != "127.0.0.1:39099" {
+			t.Fatalf("debug address = %q, want reserved nonzero port", debugAddress)
+		}
 		attempts++
 		if attempts == 1 {
-			return nil, fmt.Errorf("DevToolsActivePort not ready")
+			return nil, fmt.Errorf("DevTools HTTP endpoint not ready")
 		}
 		return want, nil
 	}
 
-	p := &ollamaBrowserProcess{profileDir: t.TempDir()}
+	p := &ollamaBrowserProcess{profileDir: t.TempDir(), debugAddress: "127.0.0.1:39099"}
 	got, err := p.CDP(context.Background())
 	if err != nil {
 		t.Fatal(err)

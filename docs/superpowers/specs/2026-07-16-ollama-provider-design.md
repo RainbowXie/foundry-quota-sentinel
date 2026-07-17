@@ -2,61 +2,46 @@
 
 ## Goal
 
-Add Ollama Cloud account monitoring to the desktop sidebar. A user can add one or more Ollama accounts through the existing `+` flow, complete sign-in in a WebView, and see Session and Weekly cloud-usage limits on cards that behave like OpenCode Go cards.
+Add Ollama Cloud as a third multi-account provider. Users can add an account from the existing `+` flow, sign in through an application-owned system browser window, and see Session and Weekly usage with reset times.
 
-## Scope
+## Authentication model
 
-- Add Ollama as a third provider in the account picker.
-- Open an Ollama sign-in WebView, capture the authenticated Ollama cookie jar, and validate it before saving an account.
-- Fetch and display Session and Weekly usage, including reset times.
-- Support opening the authenticated Ollama settings page and deleting an Ollama account from the card context menu.
-- Preserve existing OpenCode Go and DeepSeek behavior.
+Ollama does not expose a public account-quota API. Usage is rendered in the authenticated `https://ollama.com/settings` page, so each configured account stores:
 
-The feature does not add CLI quota/watch commands for Ollama, per-model usage charts, extra-usage billing controls, or manual cookie entry.
+- the account name;
+- the Ollama cookie header, including `__Secure-session` and any available Cloudflare cookies needed by the request;
+- the User-Agent reported by the login browser.
 
-## Data and authentication
+The configuration file is written with mode `0600`. Credentials are never included in API responses, rendered HTML, errors, or logs.
 
-`Config` gains an independent `OllamaAccounts []OllamaAccount` collection. Each entry contains an account name and the complete `.ollama.com` cookie string. The configuration file is already written with mode `0600`; the UI and logs must never display cookie values.
+## Login flow
 
-The HTTP client sends the saved cookie in a request to `https://ollama.com/settings`. `__Secure-session` is the essential authentication cookie; the provider stores the complete host cookie string captured by WebKit so that the settings page can be reopened reliably. A successful parse of both usage meters validates a newly captured credential.
+WebKitGTK cannot export Ollama's HttpOnly session, so Ollama login does not use the application's WebView. `RunOllamaLogin` instead:
+
+1. Finds Chrome, Chromium, or Edge.
+2. Creates a private temporary browser profile.
+3. Reserves a nonzero loopback debugging port and launches `https://ollama.com/settings` in a visible browser window.
+4. Polls browser-level CDP `Storage.getCookies` until a secure HttpOnly `__Secure-session` for `ollama.com` exists.
+5. Reads the browser User-Agent, returns the credentials, closes the browser, waits for exit, and removes the temporary profile.
+6. Saves the account before the Go quota request starts. A temporary quota/network failure therefore does not discard a successfully captured login.
+
+The nonzero port is required because Edge exposes `navigator.webdriver` when `--remote-debugging-port=0`, which causes Ollama's Cloudflare challenge to reject the login window. Because Chromium does not create `DevToolsActivePort` for an explicitly selected nonzero port, the application carries the reserved address directly and discovers the browser WebSocket through `/json/version`.
+
+Opening an existing Ollama account page uses another temporary browser profile, injects the saved `__Secure-session` through CDP, navigates to Settings, and cleans up when the user closes the window.
 
 ## Usage retrieval
 
-Ollama does not expose a public account-quota API. The authenticated settings page is server-rendered HTML and contains:
+`OllamaQuerier.FetchQuota` sends the saved Cookie and browser User-Agent to `/settings` with a bounded timeout and response-size limit. The server-rendered HTML contains Session and Weekly usage meters plus reset timestamps. The parser maps Session to `QuotaData.Rolling`, Weekly to `QuotaData.Weekly`, and leaves Monthly absent.
 
-- `aria-label="Session usage <percent>% used"`, followed by a reset element with `data-time="<RFC3339 timestamp>"`.
-- `aria-label="Weekly usage <percent>% used"`, followed by its own reset `data-time` element.
-
-`OllamaQuerier.FetchQuota` performs the request with a bounded timeout, rejects non-2xx responses, parses both meter/reset pairs, and maps them to the existing `QuotaData` shape: Session is shown as `Rolling`; Weekly is shown as `Weekly`; `Monthly` remains absent. Reset timestamps are formatted through the existing duration formatter.
-
-## Login and account page
-
-On Linux GUI builds, a new `RunOllamaLogin` uses the established WebKit cookie-storage technique from OpenCode:
-
-1. Create a temporary Netscape-format cookie file and attach it to the WebView before navigation.
-2. Navigate to Ollama sign-in.
-3. Poll the cookie file after navigation and validate the extracted `.ollama.com` cookie string via `OllamaQuerier`.
-4. On success, close the window and return the cookie string; otherwise return a clear cancellation/error message when the user closes it.
-
-`RunOllamaPage` rehydrates that cookie string into a temporary WebKit cookie store and opens `https://ollama.com/settings`. Non-GUI builds expose matching stubs that explain the limitation. Platform-specific fallbacks follow the established OpenCode conventions.
+Each account is queried independently. A request or parser failure affects only that card and exposes a re-login action.
 
 ## Sidebar and local API
 
-`web.Server` receives an Ollama account provider and supplies:
+- `GET /api/ollama` concurrently queries configured Ollama accounts and returns cards sorted by name.
+- `GET /api/ollama/login?name=...` starts the one-shot browser login child process.
+- `/api/open` and `/api/delete` accept `provider=ollama`.
+- The add-account modal and card renderer use the same interaction patterns as OpenCode Go.
 
-- `GET /api/ollama` — concurrently queries each Ollama account and returns `{name, success, quota, error}` cards sorted by name.
-- `GET /api/ollama/login?name=...` — spawns `login-ollama`.
-- Extended `/api/open` and `/api/delete` provider validation for `ollama`.
+## Verification
 
-The add-account modal presents Ollama alongside OpenCode Go and DeepSeek. The frontend renders a provider-labelled Ollama card using the same quota-row components as OpenCode Go, with `Session` and `Weekly` labels. Right-click actions use the existing generic context-menu flow.
-
-## Error handling
-
-- A failed settings request or parse makes only that card show its error and a “re-login” action.
-- Login saves an account only after a live settings-page validation succeeds.
-- Missing usage markers are an explicit parsing error, not interpreted as zero usage.
-- No credentials appear in JSON responses, rendered HTML, standard output, or errors.
-
-## Tests
-
-Unit tests cover successful Ollama settings-page parsing, missing meter rejection, invalid percentage/timestamp rejection, and correct HTTP cookie usage. Configuration tests cover upsert/delete semantics. Server tests cover the Ollama cards endpoint’s response shape and provider validation. Existing Go tests must remain green.
+Automated tests cover HTML parsing, request headers, Cookie filtering, browser/CDP connection, process cleanup, login lifecycle, configuration, and server routes. The final flow was also verified with a real Edge process: a secure HttpOnly test session was captured, the browser closed, the temporary profile was deleted, and credentials were saved before the Go quota request.

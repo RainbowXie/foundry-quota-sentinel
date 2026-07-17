@@ -17,7 +17,7 @@ func TestRunOllamaLoginWithoutGUIUsesExternalBrowserFlow(t *testing.T) {
 		return browser, nil
 	}
 
-	_, err := RunOllamaLogin(func(string) bool { return false })
+	_, err := RunOllamaLogin()
 	if err == nil || strings.Contains(err.Error(), "图形界面") {
 		t.Fatalf("RunOllamaLogin() error = %v, want external browser result", err)
 	}

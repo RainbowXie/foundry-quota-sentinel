@@ -41,9 +41,10 @@ type ollamaTag struct {
 }
 
 type OllamaQuerier struct {
-	Cookie  string
-	BaseURL string
-	Client  *http.Client
+	Cookie    string
+	UserAgent string
+	BaseURL   string
+	Client    *http.Client
 }
 
 func (q *OllamaQuerier) FetchQuota() (*QuotaData, error) {
@@ -61,8 +62,15 @@ func (q *OllamaQuerier) FetchQuota() (*QuotaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
+	userAgent := strings.TrimSpace(q.UserAgent)
+	if userAgent == "" {
+		userAgent = ollamaUserAgent
+	}
+	if strings.ContainsAny(userAgent, "\r\n") {
+		return nil, fmt.Errorf("invalid Ollama user agent")
+	}
 	req.Header.Set("Cookie", q.Cookie)
-	req.Header.Set("User-Agent", ollamaUserAgent)
+	req.Header.Set("User-Agent", userAgent)
 
 	client := q.Client
 	if client == nil {
@@ -148,6 +156,24 @@ func parseOllamaTags(html string) []ollamaTag {
 
 func nextOllamaReset(tags []ollamaTag, meterIndex int) (string, error) {
 	meter := tags[meterIndex]
+	if containerDepth := ollamaUsageMeterContainerDepth(tags, meterIndex, meter.depth); containerDepth >= 0 {
+		for _, tag := range tags[meterIndex+1:] {
+			if tag.closing && tag.depth < containerDepth {
+				break
+			}
+			if tag.depth != containerDepth {
+				continue
+			}
+			if !tag.closing && strings.Contains(tag.raw, "data-usage-meter") {
+				break
+			}
+			if match := ollamaDataTimeRE.FindStringSubmatch(tag.raw); match != nil {
+				return match[1], nil
+			}
+		}
+		return "", fmt.Errorf("missing reset timestamp")
+	}
+
 	for _, tag := range tags[meterIndex+1:] {
 		if tag.closing && tag.depth < meter.depth {
 			break
@@ -163,6 +189,19 @@ func nextOllamaReset(tags []ollamaTag, meterIndex int) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("missing reset timestamp")
+}
+
+func ollamaUsageMeterContainerDepth(tags []ollamaTag, meterIndex, meterDepth int) int {
+	for index := meterIndex - 1; index >= 0; index-- {
+		tag := tags[index]
+		if tag.closing || tag.depth >= meterDepth {
+			continue
+		}
+		if strings.Contains(tag.raw, "data-usage-meter") {
+			return tag.depth
+		}
+	}
+	return -1
 }
 
 func newOllamaUsage(percentText, resetText string) (QuotaUsage, error) {

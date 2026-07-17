@@ -32,8 +32,9 @@ type DeepSeekAccount struct {
 }
 
 type OllamaAccount struct {
-	Name   string
-	Cookie string
+	Name      string
+	Cookie    string
+	UserAgent string
 }
 
 type Server struct {
@@ -164,7 +165,7 @@ func (s *Server) Handler() http.Handler {
 		fetch := s.ollamaFetch
 		if fetch == nil {
 			fetch = func(a OllamaAccount) (*quota.QuotaData, error) {
-				return (&quota.OllamaQuerier{Cookie: a.Cookie}).FetchQuota()
+				return (&quota.OllamaQuerier{Cookie: a.Cookie, UserAgent: a.UserAgent}).FetchQuota()
 			}
 		}
 		var wg sync.WaitGroup

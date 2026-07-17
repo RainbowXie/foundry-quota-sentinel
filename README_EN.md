@@ -4,7 +4,7 @@
 
 **Multi-provider LLM quota &amp; usage monitor**
 
-*One desktop sidebar to watch OpenCode Go quota and DeepSeek token usage — multi-account, browser login.*
+*One desktop sidebar to watch OpenCode Go, DeepSeek, and Ollama Cloud usage — multi-account, browser login.*
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.7.4-4466FF?style=flat-square" alt="version">
@@ -36,19 +36,23 @@
   <td width="50%"><strong>DeepSeek · Multi-account</strong><br><span style="color:#5A5A7A;font-size:13px">Balance + this month's per-model daily token usage (echarts stacked bars: cache hit / miss / output).</span></td>
 </tr>
 <tr>
-  <td><strong>Browser login</strong><br><span style="color:#5A5A7A;font-size:13px">A pop-up login captures credentials automatically — OpenCode web Cookie, DeepSeek web Token — no manual F12 copy-paste.</span></td>
-  <td><strong>Dual theme</strong><br><span style="color:#5A5A7A;font-size:13px">Light "glassy cards" and dark "pro" themes, one-click switch.</span></td>
+  <td><strong>Ollama Cloud · Multi-account</strong><br><span style="color:#5A5A7A;font-size:13px">Session / Weekly usage and reset times, with credentials captured from a one-shot Chrome, Chromium, or Edge login.</span></td>
+  <td><strong>Browser login</strong><br><span style="color:#5A5A7A;font-size:13px">Automatically captures OpenCode Cookies, DeepSeek Tokens, and Ollama sessions — no manual F12 copy-paste.</span></td>
 </tr>
 <tr>
-  <td><strong>Right-click → account page</strong><br><span style="color:#5A5A7A;font-size:13px">Right-click any card → a pop-up window opens the provider page (OpenCode workspace / DeepSeek usage) with that account's login state injected.</span></td>
+  <td><strong>Dual theme</strong><br><span style="color:#5A5A7A;font-size:13px">Light "glassy cards" and dark "pro" themes, one-click switch.</span></td>
+  <td><strong>Right-click → account page</strong><br><span style="color:#5A5A7A;font-size:13px">Right-click any card → open its OpenCode workspace, DeepSeek usage page, or Ollama Settings with that account's login state injected.</span></td>
+</tr>
+<tr>
   <td><strong>Auto refresh</strong><br><span style="color:#5A5A7A;font-size:13px">Account quota polled every 2s; DeepSeek usage on a timer.</span></td>
+  <td></td>
 </tr>
 </table>
 
 ## Quick Start
 
 1. **Download** the binary for your platform from Releases.
-2. **Add an account** — click the "Add account" card at the bottom of the panel → choose OpenCode or DeepSeek → log in via the pop-up, credentials are saved automatically. Or from the CLI: `foundry-quota-sentinel login-deepseek <name>` / `login-opencode <name>`.
+2. **Add an account** — click the "Add account" card → choose OpenCode, DeepSeek, or Ollama → sign in and the credentials are saved automatically. The matching `login-*` commands are also available.
 3. **Run** — double-click the binary; the desktop sidebar starts, no terminal needed.
 
 > **PowerShell:** prefix commands with `.\`, e.g. `.\foundry-quota-sentinel login-deepseek myacct`
@@ -61,13 +65,13 @@
 
 ## Platform Support
 
-| Platform | GUI form | OpenCode browser login | DeepSeek browser login | CLI / web panel |
-|---|---|---|---|---|
-| Windows | Edge-docked auto-hiding sidebar | via `config add` (manual) | ✅ | ✅ |
-| macOS | Standalone window | via `config add` (manual) | ✅ | ✅ |
-| Linux | Standalone window | ✅ | ✅ | ✅ |
+| Platform | GUI form | OpenCode browser login | DeepSeek browser login | Ollama browser login | CLI / web panel |
+|---|---|---|---|---|---|
+| Windows | Edge-docked auto-hiding sidebar | via `config add` (manual) | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
+| macOS | Standalone window | via `config add` (manual) | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
+| Linux | Standalone window | ✅ | ✅ | ✅ (verified with Edge) | ✅ |
 
-> OpenCode's login credential is an httpOnly Cookie; auto-capture relies on the system WebView's cookie store and is currently implemented on Linux (WebKitGTK). Other platforms use `config add` to enter Cookie / Workspace ID manually. DeepSeek's credential is a web Token and can be captured by the pop-up on all three platforms. Edge-docked auto-hide is a Windows-native capability.
+> OpenCode's login credential is an httpOnly Cookie; auto-capture relies on the system WebView's cookie store and is currently implemented on Linux (WebKitGTK). Other platforms use `config add` to enter Cookie / Workspace ID manually. DeepSeek's credential is a web Token and can be captured by the pop-up on all three platforms. Ollama uses a separate system browser plus CDP and does not depend on WebView. Edge-docked auto-hide is a Windows-native capability.
 
 ## Build from Source
 
@@ -115,12 +119,15 @@ foundry-quota-sentinel serve
 | `history` | Local 7-day token usage history |
 | `login-deepseek <name>` | Pop-up login, save DeepSeek web Token |
 | `login-opencode <name>` | Pop-up login, save OpenCode Cookie (Linux) |
+| `login-ollama <name>` | One-shot Chrome / Chromium / Edge login, save Ollama Cookie |
 | `config init` / `config add <name>` | Interactive setup / add account |
 | `config list` / `config use <name>` | List / switch accounts |
 
 ## Configuration
 
-Config lives in `~/.foundry-quota-sentinel/config.json` (Windows: `%USERPROFILE%\.foundry-quota-sentinel\config.json`), per user. OpenCode accounts under `profiles`, DeepSeek accounts under `deepseek_accounts`. (A legacy `~/.ocgt-monitor` directory is migrated automatically on first run.)
+Config lives in `~/.foundry-quota-sentinel/config.json` (Windows: `%USERPROFILE%\.foundry-quota-sentinel\config.json`), per user. OpenCode, DeepSeek, and Ollama accounts live under `profiles`, `deepseek_accounts`, and `ollama_accounts`. (A legacy `~/.ocgt-monitor` directory is migrated automatically on first run.)
+
+Ollama login requires Chrome, Chromium, or Edge to be available as a system executable. The app launches a one-shot browser with a private temporary profile, reads the session through loopback-only Chrome DevTools Protocol, then closes the browser and removes the profile. It never reads the user's everyday browser profile.
 
 Environment variables override the config file (for the CLI's active-account queries only):
 
@@ -132,7 +139,7 @@ export DEEPSEEK_API_KEY='sk-xxxxxxxxxxxxxxxx'
 
 ## Tech Stack
 
-**Go 1.26+** · system WebView (WebKitGTK / WKWebView / WebView2) · **echarts** · OpenCode Go RPC · DeepSeek web API
+**Go 1.26+** · system WebView (WebKitGTK / WKWebView / WebView2) · Chrome DevTools Protocol · **echarts** · OpenCode Go RPC · DeepSeek / Ollama web APIs
 
 ---
 

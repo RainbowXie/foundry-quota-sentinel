@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -20,8 +21,8 @@ var ollamaBrowserCandidates = []string{
 	"microsoft-edge-stable",
 }
 
-var connectOllamaCDP = func(ctx context.Context, activePortPath string) (ollamaCDP, error) {
-	return newOllamaCDP(ctx, activePortPath)
+var connectOllamaCDP = func(ctx context.Context, debugAddress string) (ollamaCDP, error) {
+	return newOllamaCDP(ctx, debugAddress)
 }
 
 func findOllamaBrowser(lookPath func(string) (string, error)) (string, error) {
@@ -33,11 +34,25 @@ func findOllamaBrowser(lookPath func(string) (string, error)) (string, error) {
 	return "", fmt.Errorf("未找到 Chrome、Chromium 或 Edge；请安装其中之一后重试")
 }
 
-func ollamaBrowserArgs(profileDir, pageURL string) []string {
+func reserveOllamaDebugPort() (int, error) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return 0, fmt.Errorf("分配 Ollama 浏览器调试端口失败: %w", err)
+	}
+	defer listener.Close()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	if port == 0 {
+		return 0, fmt.Errorf("分配 Ollama 浏览器调试端口失败")
+	}
+	return port, nil
+}
+
+func ollamaBrowserArgs(profileDir, pageURL string, debugPort int) []string {
 	return []string{
 		"--user-data-dir=" + profileDir,
 		"--remote-debugging-address=127.0.0.1",
-		"--remote-debugging-port=0",
+		"--remote-debugging-port=" + strconv.Itoa(debugPort),
 		"--no-first-run",
 		"--no-default-browser-check",
 		"--new-window",
@@ -46,10 +61,11 @@ func ollamaBrowserArgs(profileDir, pageURL string) []string {
 }
 
 type ollamaBrowserProcess struct {
-	profileDir string
-	kill       func() error
-	wait       func() error
-	exited     func() bool
+	profileDir   string
+	debugAddress string
+	kill         func() error
+	wait         func() error
+	exited       func() bool
 
 	waitOnce  sync.Once
 	waitErr   error
@@ -72,8 +88,17 @@ func launchOllamaBrowserProcess(ctx context.Context, pageURL string) (*ollamaBro
 		_ = os.RemoveAll(profileDir)
 		return nil, fmt.Errorf("保护 Ollama 临时浏览器配置失败: %w", err)
 	}
+	// Edge exposes navigator.webdriver when remote-debugging-port=0, which makes
+	// Ollama's Cloudflare challenge reject the login window. A reserved nonzero
+	// port avoids that marker, so carry its address directly instead of waiting
+	// for DevToolsActivePort (Chromium only writes that file for port zero).
+	debugPort, err := reserveOllamaDebugPort()
+	if err != nil {
+		_ = os.RemoveAll(profileDir)
+		return nil, err
+	}
 
-	cmd := exec.CommandContext(ctx, browser, ollamaBrowserArgs(profileDir, pageURL)...)
+	cmd := exec.CommandContext(ctx, browser, ollamaBrowserArgs(profileDir, pageURL, debugPort)...)
 	if err := cmd.Start(); err != nil {
 		_ = os.RemoveAll(profileDir)
 		return nil, fmt.Errorf("启动 Ollama 登录浏览器失败: %w", err)
@@ -90,8 +115,9 @@ func launchOllamaBrowserProcess(ctx context.Context, pageURL string) (*ollamaBro
 	}()
 
 	return &ollamaBrowserProcess{
-		profileDir: profileDir,
-		kill:       cmd.Process.Kill,
+		profileDir:   profileDir,
+		debugAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(debugPort)),
+		kill:         cmd.Process.Kill,
 		wait: func() error {
 			<-done
 			processMu.Lock()
@@ -109,10 +135,6 @@ func launchOllamaBrowserProcess(ctx context.Context, pageURL string) (*ollamaBro
 	}, nil
 }
 
-func (p *ollamaBrowserProcess) DevToolsActivePortPath() string {
-	return filepath.Join(p.profileDir, "DevToolsActivePort")
-}
-
 func (p *ollamaBrowserProcess) Exited() bool {
 	return p.exited != nil && p.exited()
 }
@@ -121,7 +143,7 @@ func (p *ollamaBrowserProcess) CDP(ctx context.Context) (ollamaCDP, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		client, err := connectOllamaCDP(ctx, p.DevToolsActivePortPath())
+		client, err := connectOllamaCDP(ctx, p.debugAddress)
 		if err == nil {
 			return client, nil
 		}

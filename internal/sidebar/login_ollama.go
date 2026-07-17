@@ -15,6 +15,7 @@ var launchOllamaBrowser = func(ctx context.Context, pageURL string) (ollamaLogin
 
 type ollamaCDP interface {
 	Cookies(context.Context) ([]cdpCookie, error)
+	UserAgent(context.Context) (string, error)
 	SetSessionCookie(context.Context, string) error
 	Navigate(context.Context, string) error
 	Close() error
@@ -27,17 +28,19 @@ type ollamaLoginBrowser interface {
 	Wait() error
 }
 
-func RunOllamaLogin(validate func(string) bool) (string, error) {
-	if validate == nil {
-		return "", fmt.Errorf("Ollama 登录验证函数不能为空")
-	}
+type OllamaLoginCredentials struct {
+	Cookie    string
+	UserAgent string
+}
+
+func RunOllamaLogin() (OllamaLoginCredentials, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	browser, err := launchOllamaBrowser(ctx, "https://ollama.com/settings")
 	if err != nil {
-		return "", err
+		return OllamaLoginCredentials{}, err
 	}
-	return runOllamaLogin(ctx, browser, validate)
+	return runOllamaLogin(ctx, browser)
 }
 
 func RunOllamaPage(pageURL, cookieHeader string) error {
@@ -53,36 +56,45 @@ func RunOllamaPage(pageURL, cookieHeader string) error {
 	return runOllamaPage(ctx, browser, pageURL, cookieHeader)
 }
 
-func runOllamaLogin(ctx context.Context, browser ollamaLoginBrowser, validate func(string) bool) (cookie string, err error) {
+func runOllamaLogin(ctx context.Context, browser ollamaLoginBrowser) (credentials OllamaLoginCredentials, err error) {
 	defer func() {
 		if closeErr := browser.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("关闭 Ollama 登录浏览器失败: %w", closeErr)
 		}
 	}()
 
-	cdp, err := browser.CDP(ctx)
-	if err != nil {
-		return "", fmt.Errorf("连接 Ollama 登录浏览器失败: %w", err)
-	}
-	defer cdp.Close()
-
 	for {
+		// 登录会跨 signin.ollama.com 与 ollama.com 跳转；每轮都重新连接当前 page
+		// target，避免继续读取跳转前的 DevTools 会话。
+		cdp, err := browser.CDP(ctx)
+		if err != nil {
+			return OllamaLoginCredentials{}, fmt.Errorf("连接 Ollama 登录浏览器失败: %w", err)
+		}
 		cookies, err := cdp.Cookies(ctx)
+		if err == nil {
+			if candidate := ollamaSessionCookieHeader(cookies); candidate != "" {
+				userAgent, userAgentErr := cdp.UserAgent(ctx)
+				_ = cdp.Close()
+				if userAgentErr != nil {
+					return OllamaLoginCredentials{}, fmt.Errorf("读取 Ollama 登录浏览器标识失败: %w", userAgentErr)
+				}
+				credentials = OllamaLoginCredentials{Cookie: candidate, UserAgent: userAgent}
+				return credentials, nil
+			}
+		}
+		_ = cdp.Close()
 		if err != nil {
 			if browser.Exited() {
-				return "", fmt.Errorf("未获取到有效 Ollama 凭证（登录窗口已关闭）")
+				return OllamaLoginCredentials{}, fmt.Errorf("未获取到有效 Ollama 凭证（登录窗口已关闭）")
 			}
-			return "", fmt.Errorf("读取 Ollama 登录状态失败: %w", err)
-		}
-		if candidate := ollamaSessionCookieHeader(cookies); candidate != "" && validate(candidate) {
-			return candidate, nil
+			return OllamaLoginCredentials{}, fmt.Errorf("读取 Ollama 登录状态失败: %w", err)
 		}
 		if browser.Exited() {
-			return "", fmt.Errorf("未获取到有效 Ollama 凭证（登录窗口已关闭）")
+			return OllamaLoginCredentials{}, fmt.Errorf("未获取到有效 Ollama 凭证（登录窗口已关闭）")
 		}
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("未获取到有效 Ollama 凭证（登录超时或已取消）")
+			return OllamaLoginCredentials{}, fmt.Errorf("未获取到有效 Ollama 凭证（登录超时或已取消）")
 		case <-time.After(ollamaLoginPollInterval):
 		}
 	}

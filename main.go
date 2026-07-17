@@ -125,7 +125,7 @@ func ollamaFromConfig(conf *config.Config) []web.OllamaAccount {
 		if a.Cookie == "" {
 			continue
 		}
-		out = append(out, web.OllamaAccount{Name: a.Name, Cookie: a.Cookie})
+		out = append(out, web.OllamaAccount{Name: a.Name, Cookie: a.Cookie, UserAgent: a.UserAgent})
 	}
 	return out
 }
@@ -428,19 +428,18 @@ func cmdLoginOllama() {
 		name = strings.TrimSpace(os.Args[2])
 	}
 	fmt.Println("正在打开 Ollama 系统浏览器临时窗口，请在窗口内完成登录…")
-	validate := func(cookie string) bool {
-		_, err := (&quota.OllamaQuerier{Cookie: cookie}).FetchQuota()
-		return err == nil
-	}
-	cookie, err := sidebar.RunOllamaLogin(validate)
+	credentials, err := sidebar.RunOllamaLogin()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
-	// RunOllamaLogin only returns after the callback validates the cookie.
-	cfg.UpsertOllamaAccount(config.OllamaAccount{Name: name, Cookie: cookie})
+	cfg.UpsertOllamaAccount(config.OllamaAccount{Name: name, Cookie: credentials.Cookie, UserAgent: credentials.UserAgent})
 	if err := cfg.Save(); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+		os.Exit(1)
+	}
+	if _, err := (&quota.OllamaQuerier{Cookie: credentials.Cookie, UserAgent: credentials.UserAgent}).FetchQuota(); err != nil {
+		fmt.Fprintf(os.Stderr, "Ollama 账户已保存，但读取额度失败: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Printf("OK Ollama 账户 %q 已保存\n", name)

@@ -20,8 +20,9 @@ type DeepSeekAccount struct {
 }
 
 type OllamaAccount struct {
-	Name   string `json:"name"`
-	Cookie string `json:"cookie"`
+	Name      string `json:"name"`
+	Cookie    string `json:"cookie"`
+	UserAgent string `json:"user_agent,omitempty"`
 }
 
 type Config struct {
