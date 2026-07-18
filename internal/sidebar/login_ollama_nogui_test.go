@@ -30,7 +30,7 @@ func TestRunOllamaPageWithoutGUIUsesExternalBrowserFlow(t *testing.T) {
 		return newFakeOllamaBrowser(nil), nil
 	}
 
-	err := RunOllamaPage("https://ollama.com/settings", "__Secure-session=saved")
+	err := RunOllamaPage("https://ollama.com/settings", "__Secure-session=saved", "")
 	if err != nil || strings.Contains(errString(err), "图形界面") {
 		t.Fatalf("RunOllamaPage() error = %v, want external browser flow", err)
 	}
