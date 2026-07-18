@@ -3,6 +3,7 @@ package sidebar
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"foundry-quota-sentinel/internal/browserauth"
@@ -28,15 +29,17 @@ func (b *fakeDeepSeekBrowser) Close() error {
 }
 
 type fakeDeepSeekCDP struct {
-	pageURL       string
-	events        chan browserauth.Event
-	snapshotValue string
-	closed        bool
+	pageURL        string
+	events         chan browserauth.Event
+	snapshotValue  string
+	closed         bool
+	setCookies     []browserauth.Cookie
+	browserCookies []browserauth.Cookie
 }
 
 func (c *fakeDeepSeekCDP) EnableNetwork(context.Context) error { return nil }
 func (c *fakeDeepSeekCDP) BrowserCookies(context.Context) ([]browserauth.Cookie, error) {
-	return nil, nil
+	return append([]browserauth.Cookie(nil), c.browserCookies...), nil
 }
 func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	return c.pageURL, nil
@@ -52,9 +55,12 @@ func (c *fakeDeepSeekCDP) Evaluate(context.Context, string) (json.RawMessage, er
 	}
 	return json.RawMessage(`{"result":{"value":` + string(raw) + `}}`), nil
 }
-func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error   { return nil }
-func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error      { return nil }
-func (c *fakeDeepSeekCDP) SetCookies(context.Context, []browserauth.Cookie) error { return nil }
+func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error { return nil }
+func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error    { return nil }
+func (c *fakeDeepSeekCDP) SetCookies(_ context.Context, cookies []browserauth.Cookie) error {
+	c.setCookies = append([]browserauth.Cookie(nil), cookies...)
+	return nil
+}
 func (c *fakeDeepSeekCDP) Close() error {
 	c.closed = true
 	return nil
@@ -216,6 +222,50 @@ func TestRunDeepSeekLoginRejectsExitedWithoutValidSnapshot(t *testing.T) {
 	_, _, err := runDeepSeekLogin(context.Background(), browser, func(string) bool { return true })
 	if err == nil {
 		t.Fatal("expected error when browser exits without a valid platform snapshot")
+	}
+}
+
+// TestRunDeepSeekLoginDoesNotAcceptPreLoginStorageCandidates proves that
+// token-shaped strings on the sign-in page (Cloudflare/analytics values)
+// are not enough to close the browser and create an account.
+func TestRunDeepSeekLoginDoesNotAcceptPreLoginStorageCandidates(t *testing.T) {
+	browser := &fakeDeepSeekBrowser{
+		exited: true,
+		cdp:    &fakeDeepSeekCDP{pageURL: deepSeekLoginURL},
+	}
+	_, _, err := runDeepSeekLogin(context.Background(), browser, func(string) bool { return true })
+	if err == nil {
+		t.Fatal("expected pre-login storage candidates to be rejected")
+	}
+}
+
+func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+
+	webStore := `{"l":{},"s":{},"c":[{"name":"session","value":"cookie-value","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true}]}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatal(err)
+	}
+	if len(cdp.setCookies) != 1 || cdp.setCookies[0].Name != "session" {
+		t.Fatalf("restored cookies = %#v", cdp.setCookies)
+	}
+}
+
+func TestDeepSeekSnapshotWithCookiesPersistsPlatformCookies(t *testing.T) {
+	cdp := &fakeDeepSeekCDP{browserCookies: []browserauth.Cookie{
+		{Name: "session", Value: "v", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+		{Name: "other", Value: "x", Domain: "example.com", Path: "/"},
+	}}
+	got := deepSeekSnapshotWithCookies(context.Background(), `{"l":{},"s":{}}`, cdp)
+	if !strings.Contains(got, `"name":"session"`) || strings.Contains(got, `"name":"other"`) {
+		t.Fatalf("snapshot cookies = %s", got)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"foundry-quota-sentinel/internal/browserauth"
@@ -207,7 +208,7 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	if err := validateDeepSeekPageURL(pageURL); err != nil {
 		return err
 	}
-	script, err := deepSeekRestoreScript(webStore)
+	script, cookies, err := deepSeekRestoreState(webStore)
 	if err != nil {
 		return err
 	}
@@ -217,7 +218,7 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return runDeepSeekPage(ctx, browser, pageURL, script)
+	return runDeepSeekPage(ctx, browser, pageURL, script, cookies)
 }
 
 // deepSeekSnapshotJS reads both storage areas and returns the
@@ -248,9 +249,11 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 
 	events := cdp.Events()
 	candidates := make(map[string]bool)
+	networkCandidates := make(map[string]bool)
 	urls := make(map[string]string)    // requestId → URL from requestWillBeSent
 	pending := make(map[string]string) // token → requestId awaiting URL
 	var lastSnapshot string
+	var authenticatedPage bool
 	var firstEligible time.Time
 
 	for {
@@ -289,6 +292,7 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 			if u, ok := urls[requestID]; ok {
 				if isOnDeepSeekHost(u) {
 					candidates[token] = true
+					networkCandidates[token] = true
 					delete(pending, token)
 				}
 				// The token is associated with a requestId;
@@ -319,12 +323,14 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 			for token, requestID := range pending {
 				if u, ok := urls[requestID]; ok && isOnDeepSeekHost(u) {
 					candidates[token] = true
+					networkCandidates[token] = true
 					delete(pending, token)
 				}
 			}
 		}
 		if snapErr == nil && urlErr == nil && isDeepSeekSnapshotValid(snapshot) && isOnDeepSeekHost(pageURL) {
-			lastSnapshot = snapshot
+			lastSnapshot = deepSeekSnapshotWithCookies(ctx, snapshot, cdp)
+			authenticatedPage = !isDeepSeekLoginPage(pageURL)
 			for _, candidate := range deepSeekStorageCandidates(snapshot) {
 				candidates[candidate] = true
 			}
@@ -333,7 +339,9 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 		// Settle only when we have a saved valid snapshot AND at
 		// least one candidate. The two-second settling window
 		// starts when both become true.
-		if lastSnapshot != "" && len(candidates) > 0 {
+		eligible := lastSnapshot != "" && len(candidates) > 0 &&
+			(len(networkCandidates) > 0 || authenticatedPage)
+		if eligible {
 			if firstEligible.IsZero() {
 				firstEligible = time.Now()
 			}
@@ -350,7 +358,7 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 			// otherwise return an error so the caller can ask
 			// the user to re-login. An empty WebStore never
 			// reaches the persisted credential.
-			if lastSnapshot != "" && len(candidates) > 0 {
+			if eligible {
 				goto settled
 			}
 			return "", "", fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
@@ -376,7 +384,7 @@ settled:
 	return "", "", fmt.Errorf("未找到可验证的 DeepSeek 凭证")
 }
 
-func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, script string) (err error) {
+func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, script string, cookies []browserauth.Cookie) (err error) {
 	defer func() {
 		if err != nil {
 			_ = browser.Close()
@@ -388,6 +396,11 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		return fmt.Errorf("连接 DeepSeek 账户页浏览器失败: %w", err)
 	}
 	defer cdp.Close()
+	if len(cookies) > 0 {
+		if err := cdp.SetCookies(ctx, cookies); err != nil {
+			return fmt.Errorf("恢复 DeepSeek 登录 cookie 失败: %w", err)
+		}
+	}
 	if script != "" {
 		if err := cdp.AddScriptOnNewDocument(ctx, script); err != nil {
 			return fmt.Errorf("准备 DeepSeek 登录态脚本失败: %w", err)
@@ -423,6 +436,81 @@ func deepSeekRestoreScript(webStore string) (string, error) {
 		`}catch(e){}})();`, nil
 }
 
+type deepSeekStoredCookie struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Domain   string `json:"domain"`
+	Path     string `json:"path"`
+	Secure   bool   `json:"secure"`
+	HTTPOnly bool   `json:"httpOnly"`
+}
+
+func deepSeekRestoreState(webStore string) (string, []browserauth.Cookie, error) {
+	if webStore == "" {
+		script, err := deepSeekRestoreScript(webStore)
+		return script, nil, err
+	}
+	var envelope struct {
+		L map[string]json.RawMessage `json:"l"`
+		S map[string]json.RawMessage `json:"s"`
+		C []deepSeekStoredCookie     `json:"c"`
+	}
+	if err := json.Unmarshal([]byte(webStore), &envelope); err != nil {
+		return "", nil, fmt.Errorf("DeepSeek 登录态快照无效: %w", err)
+	}
+	cookies := make([]browserauth.Cookie, 0, len(envelope.C))
+	for _, cookie := range envelope.C {
+		if cookie.Name == "" || cookie.Value == "" || cookie.Domain == "" {
+			continue
+		}
+		path := cookie.Path
+		if path == "" {
+			path = "/"
+		}
+		cookies = append(cookies, browserauth.Cookie{
+			Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain,
+			Path: path, Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly,
+		})
+	}
+	script, err := deepSeekRestoreScript(webStore)
+	return script, cookies, err
+}
+
+func deepSeekSnapshotWithCookies(ctx context.Context, snapshot string, cdp deepSeekCDP) string {
+	cookies, err := cdp.BrowserCookies(ctx)
+	if err != nil {
+		return snapshot
+	}
+	stored := make([]deepSeekStoredCookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if !cookieDomainMatches(cookie.Domain, deepSeekHost) || cookie.Value == "" ||
+			strings.ContainsAny(cookie.Name+cookie.Value, ";\r\n") {
+			continue
+		}
+		stored = append(stored, deepSeekStoredCookie{
+			Name: cookie.Name, Value: cookie.Value, Domain: cookie.Domain,
+			Path: cookie.Path, Secure: cookie.Secure, HTTPOnly: cookie.HTTPOnly,
+		})
+	}
+	if len(stored) == 0 {
+		return snapshot
+	}
+	var envelope struct {
+		L map[string]json.RawMessage `json:"l"`
+		S map[string]json.RawMessage `json:"s"`
+		C []deepSeekStoredCookie     `json:"c"`
+	}
+	if err := json.Unmarshal([]byte(snapshot), &envelope); err != nil {
+		return snapshot
+	}
+	envelope.C = stored
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		return snapshot
+	}
+	return string(data)
+}
+
 // isOnDeepSeekHost reports whether the page URL is on the platform
 // origin.
 func isOnDeepSeekHost(pageURL string) bool {
@@ -431,6 +519,14 @@ func isOnDeepSeekHost(pageURL string) bool {
 		return false
 	}
 	return cookieDomainMatches(u.Hostname(), deepSeekHost)
+}
+
+func isDeepSeekLoginPage(pageURL string) bool {
+	u, err := url.Parse(pageURL)
+	if err != nil || !cookieDomainMatches(u.Hostname(), deepSeekHost) {
+		return false
+	}
+	return u.Path == "/sign_in" || u.Path == "/sign_in/"
 }
 
 // isDeepSeekSnapshotValid reports whether a storage snapshot string
