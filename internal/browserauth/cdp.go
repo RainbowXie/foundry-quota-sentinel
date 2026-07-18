@@ -43,10 +43,11 @@ type Client struct {
 	nextID  int64
 	pending map[int64]chan cdpResponse
 
-	events    chan Event
-	done      chan struct{}
-	closeOnce sync.Once
-	closeErr  error
+	events     chan Event
+	eventsOnce sync.Once
+	done       chan struct{}
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 // Connect dials a running DevTools endpoint, validates it is loopback, and
@@ -221,9 +222,10 @@ func fetchFirstPageEndpoint(ctx context.Context, debugAddress string) (string, e
 }
 
 // Call sends a JSON-RPC command and returns the raw result. Concurrent
-// calls are safe; the read loop dispatches responses to the matching
-// pending channel. The context bounds how long the call may wait; a
-// cancelled context fails the call immediately.
+// calls on the same Client are serialised: the gorilla websocket.Conn is
+// not safe for concurrent WriteJSON, so the call mutex covers both the
+// id assignment and the write. The context bounds how long the call may
+// wait; a cancelled context or a closed connection fails the call.
 func (c *Client) Call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	c.mu.Lock()
 	if c.conn == nil {
@@ -236,16 +238,14 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 	c.pending[id] = ch
 	payload := map[string]any{"id": id, "method": method, "params": params}
 	conn := c.conn
+	writeErr := conn.WriteJSON(payload)
 	c.mu.Unlock()
 
-	defer func() {
+	if writeErr != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
-	}()
-
-	if err := conn.WriteJSON(payload); err != nil {
-		return nil, fmt.Errorf("调用浏览器 %s 失败: %w", method, err)
+		return nil, fmt.Errorf("调用浏览器 %s 失败: %w", method, writeErr)
 	}
 	select {
 	case response := <-ch:
@@ -277,26 +277,23 @@ func (c *Client) Close() error {
 
 // shutdown releases the WebSocket and pending callers without closing the
 // shared done channel. Connection.Close uses this so done is closed once.
+// Per-call pending channels are left for the read loop to drain; closing
+// them here would let a waiting Call receive the zero value, which looks
+// indistinguishable from a successful empty response.
 func (c *Client) shutdown() error {
 	if c.conn != nil {
 		_ = c.conn.Close()
 	}
 	c.mu.Lock()
-	for id, ch := range c.pending {
-		close(ch)
+	for id := range c.pending {
 		delete(c.pending, id)
 	}
 	c.mu.Unlock()
-	// Drain events so consumers do not block once they notice done.
-	go func() {
-		for range c.events {
-		}
-	}()
-	close(c.events)
 	return nil
 }
 
 func (c *Client) readLoop() {
+	defer c.eventsOnce.Do(func() { close(c.events) })
 	for {
 		var raw json.RawMessage
 		if err := c.conn.ReadJSON(&raw); err != nil {
@@ -311,10 +308,11 @@ func (c *Client) readLoop() {
 			continue
 		}
 		if envelope.Method != "" {
+			// Non-blocking send: a slow consumer must not stall the read
+			// loop and back up the WebSocket. Excess events are dropped.
 			select {
 			case c.events <- Event{Method: envelope.Method, Params: envelope.Params}:
-			case <-c.done:
-				return
+			default:
 			}
 			continue
 		}
