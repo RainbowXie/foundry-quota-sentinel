@@ -71,7 +71,7 @@
 | macOS | Standalone window | via `config add` (manual) | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
 | Linux | Standalone window | ✅ | ✅ | ✅ (verified with Edge) | ✅ |
 
-> OpenCode's login credential is an httpOnly Cookie; auto-capture relies on the system WebView's cookie store and is currently implemented on Linux (WebKitGTK). Other platforms use `config add` to enter Cookie / Workspace ID manually. DeepSeek's credential is a web Token and can be captured by the pop-up on all three platforms. Ollama uses a separate system browser plus CDP and does not depend on WebView. Edge-docked auto-hide is a Windows-native capability.
+> OpenCode, DeepSeek, and Ollama all use the same `internal/browserauth` path: a one-shot temporary profile launches an installed Chrome/Chromium/Edge and the DevTools Protocol captures credentials. The system WebView only powers the local sidebar UI. Edge-docked auto-hide is a Windows-native capability.
 
 ## Build from Source
 

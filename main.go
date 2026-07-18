@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -462,8 +460,8 @@ func cmdOpenPage() {
 		}
 		url := "https://opencode.ai/workspace/" + p.WorkspaceID + "/go"
 		if err := sidebar.RunOpenCodePage(url, p.Cookie); err != nil {
-			fmt.Fprintf(os.Stderr, "内置窗口不可用(%v)，改用系统浏览器打开\n", err)
-			openBrowser(url)
+			fmt.Fprintf(os.Stderr, "OpenCode 账户页浏览器不可用: %v\n", err)
+			os.Exit(1)
 		}
 	case "deepseek":
 		var acc *config.DeepSeekAccount
@@ -479,8 +477,8 @@ func cmdOpenPage() {
 		}
 		url := "https://platform.deepseek.com/usage"
 		if err := sidebar.RunDeepSeekPage(url, acc.WebStore); err != nil {
-			fmt.Fprintf(os.Stderr, "内置窗口不可用(%v)，改用系统浏览器打开\n", err)
-			openBrowser(url)
+			fmt.Fprintf(os.Stderr, "DeepSeek 账户页浏览器不可用: %v\n", err)
+			os.Exit(1)
 		}
 	case "ollama":
 		var acc *config.OllamaAccount
@@ -495,29 +493,13 @@ func cmdOpenPage() {
 			os.Exit(1)
 		}
 		url := "https://ollama.com/settings"
-		if err := sidebar.RunOllamaPage(url, acc.Cookie); err != nil {
+		if err := sidebar.RunOllamaPage(url, acc.Cookie, acc.UserAgent); err != nil {
 			fmt.Fprintf(os.Stderr, "Ollama 账户页浏览器不可用: %v\n", err)
 			os.Exit(1)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "未知 provider: %s（应为 opencode、deepseek 或 ollama）\n", provider)
 		os.Exit(1)
-	}
-}
-
-// openBrowser 用系统默认浏览器打开 URL（内置窗口不可用时的回退）。
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "打开浏览器失败: %v\n", err)
 	}
 }
 

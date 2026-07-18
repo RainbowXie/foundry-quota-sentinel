@@ -71,7 +71,7 @@
 | macOS | 普通独立窗口 | 用 `config add` 手动配置 | ✅ | 需 Chrome / Chromium / Edge 在 PATH | ✅ |
 | Linux | 普通独立窗口 | ✅ | ✅ | ✅（已验证 Edge） | ✅ |
 
-> OpenCode 的登录凭证是 httpOnly Cookie，自动抓取依赖系统 WebView 的 cookie store，目前实现于 Linux（WebKitGTK）；其它平台用 `config add` 手动填 Cookie / Workspace ID。DeepSeek 凭证为网页 Token，三平台均可弹窗自动抓取。Ollama 使用独立系统浏览器与 CDP，不依赖 WebView。停靠侧边栏的贴边自动隐藏是 Windows 原生能力。
+> OpenCode、DeepSeek、Ollama 的登录与账户页统一走 `internal/browserauth`：使用本机已安装的 Chrome/Chromium/Edge 启动一个一次性临时配置窗口，通过 DevTools Protocol 抓取凭证。停靠侧边栏的贴边自动隐藏是 Windows 原生能力。
 
 ## 从源码构建
 
