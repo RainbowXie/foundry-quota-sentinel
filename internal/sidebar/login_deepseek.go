@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"strings"
 	"time"
 
 	"foundry-quota-sentinel/internal/browserauth"
@@ -463,6 +462,3 @@ func validateDeepSeekPageURL(rawURL string) error {
 	}
 	return nil
 }
-
-// strings import kept for future expansion.
-var _ = strings.TrimSpace
