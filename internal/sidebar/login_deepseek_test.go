@@ -9,15 +9,15 @@ import (
 )
 
 type fakeDeepSeekBrowser struct {
-	cdp      *fakeDeepSeekCDP
-	exited   bool
-	closed   bool
-	onClose  func()
+	cdp     *fakeDeepSeekCDP
+	exited  bool
+	closed  bool
+	onClose func()
 }
 
 func (b *fakeDeepSeekBrowser) CDP(context.Context) (deepSeekCDP, error) { return b.cdp, nil }
-func (b *fakeDeepSeekBrowser) Exited() bool                              { return b.exited }
-func (b *fakeDeepSeekBrowser) Wait() error                               { return nil }
+func (b *fakeDeepSeekBrowser) Exited() bool                             { return b.exited }
+func (b *fakeDeepSeekBrowser) Wait() error                              { return nil }
 func (b *fakeDeepSeekBrowser) Close() error {
 	b.closed = true
 	b.exited = true
@@ -43,8 +43,8 @@ func (c *fakeDeepSeekCDP) Events() <-chan browserauth.Event { return nil }
 func (c *fakeDeepSeekCDP) Evaluate(context.Context, string) (json.RawMessage, error) {
 	return json.RawMessage(`{"result":{"value":"{\"l\":{\"k\":\"candidate_abcdefghijklmnopqrstuvwxyz\"},\"s\":{}}"}}`), nil
 }
-func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error { return nil }
-func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error    { return nil }
+func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error   { return nil }
+func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error      { return nil }
 func (c *fakeDeepSeekCDP) SetCookies(context.Context, []browserauth.Cookie) error { return nil }
 func (c *fakeDeepSeekCDP) Close() error {
 	c.closed = true

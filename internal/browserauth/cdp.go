@@ -48,6 +48,12 @@ type Client struct {
 	done       chan struct{}
 	closeOnce  sync.Once
 	closeErr   error
+
+	// signalDone closes the shared done channel exactly once across the
+	// whole Connection. Every read loop and every Close path funnels
+	// through this function so a Close race cannot double-close the
+	// channel.
+	signalDone func()
 }
 
 // Connect dials a running DevTools endpoint, validates it is loopback, and
@@ -67,22 +73,24 @@ func Connect(ctx context.Context, debugAddress string) (*Connection, error) {
 		done:         make(chan struct{}),
 	}
 	conn.browser = &Client{
-		debugName: "browser",
-		pending:   map[int64]chan cdpResponse{},
-		events:    make(chan Event, 64),
-		done:      conn.done,
+		debugName:  "browser",
+		pending:    map[int64]chan cdpResponse{},
+		events:     make(chan Event, 64),
+		done:       conn.done,
+		signalDone: conn.signalDone,
 	}
 	conn.page = &Client{
-		debugName: "page",
-		pending:   map[int64]chan cdpResponse{},
-		events:    make(chan Event, 64),
-		done:      conn.done,
+		debugName:  "page",
+		pending:    map[int64]chan cdpResponse{},
+		events:     make(chan Event, 64),
+		done:       conn.done,
+		signalDone: conn.signalDone,
 	}
 	if err := conn.dialBrowser(ctx, browserURL); err != nil {
 		return nil, err
 	}
 	if err := conn.dialPage(ctx, pageURL); err != nil {
-		_ = conn.browser.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 	return conn, nil
@@ -95,8 +103,16 @@ type Connection struct {
 	browser      *Client
 	page         *Client
 	done         chan struct{}
+	doneOnce     sync.Once
 	closeOnce    sync.Once
 	closeErr     error
+}
+
+// signalDone fires the Connection-level done once. It is the single
+// point that closes the shared done channel; every read loop, Client
+// close, and Connection close path calls this.
+func (c *Connection) signalDone() {
+	c.doneOnce.Do(func() { close(c.done) })
 }
 
 // Browser returns the browser-level Client (Storage.getCookies,
@@ -111,10 +127,14 @@ func (c *Connection) Page() *Client { return c.page }
 func (c *Connection) DebugAddress() string { return c.debugAddress }
 
 // Close shuts down both Clients. Pending Calls fail immediately; events
-// stop being delivered. The shared done channel is closed exactly once.
+// stop being delivered. The shared done channel is closed exactly once
+// via the Connection-owned signalDone closure. Every path that detects
+// "this connection is over" (Connection.Close, Client.Close, read loop
+// exit) funnels through the same closure, so a race cannot double-close
+// done.
 func (c *Connection) Close() error {
 	c.closeOnce.Do(func() {
-		close(c.done)
+		c.signalDone()
 		var first error
 		if err := c.browser.shutdown(); err != nil && first == nil {
 			first = err
@@ -264,13 +284,17 @@ func (c *Client) Call(ctx context.Context, method string, params any) (json.RawM
 // channel closes when the connection ends.
 func (c *Client) Events() <-chan Event { return c.events }
 
-// Close terminates the WebSocket and fails every pending call. Events stop
-// being delivered; subsequent Calls return an error. For Connections that
-// share a done channel, prefer shutdown so close(done) is not called twice.
+// Close terminates the WebSocket and fails every pending call. Events
+// stop being delivered; subsequent Calls return an error.
+//
+// The shared done channel is owned by the enclosing Connection. The
+// read loop also signals done when the WebSocket itself dies
+// unexpectedly, so the "server hung up" race is covered without
+// double-close. This method only triggers shutdown; it never closes
+// done.
 func (c *Client) Close() error {
 	c.closeOnce.Do(func() {
 		c.shutdown()
-		close(c.done)
 	})
 	return c.closeErr
 }
@@ -294,6 +318,7 @@ func (c *Client) shutdown() error {
 
 func (c *Client) readLoop() {
 	defer c.eventsOnce.Do(func() { close(c.events) })
+	defer c.signalDone()
 	for {
 		var raw json.RawMessage
 		if err := c.conn.ReadJSON(&raw); err != nil {

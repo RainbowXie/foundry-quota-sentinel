@@ -8,10 +8,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -39,13 +43,113 @@ var browserCandidates = []string{
 // lookPath can locate. It is split out from Launch so tests can drive the
 // ordering without invoking a real exec.
 func resolveBrowser(lookPath func(string) (string, error)) (string, error) {
-	for _, name := range browserCandidates {
-		path, err := lookPath(name)
-		if err == nil && path != "" {
+	return resolveForPlatform(lookPath, os.Stat, runtime.GOOS, linuxCommandCandidates())
+}
+
+// resolveForPlatform finds a supported browser on the requested platform.
+// lookPath resolves a command name on $PATH; stat checks that a fully
+// qualified file (e.g. a Windows .exe or macOS bundle binary) is
+// present. The platform string is the GOOS value; pass runtime.GOOS for
+// the host. The candidate list is the platform's fully-qualified
+// fallback paths.
+func resolveForPlatform(
+	lookPath func(string) (string, error),
+	stat func(string) (fs.FileInfo, error),
+	platform string,
+	candidates []string,
+) (string, error) {
+	switch platform {
+	case "linux", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris":
+		return firstExistingCommand(lookPath, candidates)
+	case "darwin":
+		for _, bundle := range candidates {
+			if _, err := stat(bundle); err == nil {
+				return bundle, nil
+			}
+		}
+		// Last resort: fall back to command-path for development hosts
+		// where the application bundle is not installed in /Applications.
+		return firstExistingCommand(lookPath, macOSCommandCandidates())
+	case "windows":
+		for _, exe := range candidates {
+			if _, err := stat(exe); err == nil {
+				return exe, nil
+			}
+		}
+		return firstExistingCommand(lookPath, windowsCommandCandidates())
+	}
+	return firstExistingCommand(lookPath, candidates)
+}
+
+// firstExistingCommand walks the candidate list and returns the first
+// entry whose command name is resolvable on $PATH. The stat function is
+// unused on Linux; it is accepted so callers can swap platforms without
+// branching the test surface.
+func firstExistingCommand(lookPath func(string) (string, error), candidates []string) (string, error) {
+	for _, name := range candidates {
+		if path, err := lookPath(name); err == nil && path != "" {
 			return path, nil
 		}
 	}
+	// As a final fallback, try the literal name as a fully-qualified
+	// path. This keeps macOS bundle binaries working when they happen to
+	// be present but the platform was mis-detected.
+	for _, name := range candidates {
+		if strings.HasPrefix(name, "/") || strings.Contains(name, string(os.PathSeparator)) {
+			if path, err := lookPath(name); err == nil && path != "" {
+				return path, nil
+			}
+		}
+	}
 	return "", fmt.Errorf("未找到 Chrome、Chromium 或 Edge；请安装其中之一后重试")
+}
+
+func linuxCommandCandidates() []string {
+	return append([]string{}, browserCandidates...)
+}
+
+func macOSCommandCandidates() []string {
+	return []string{"Google Chrome", "Microsoft Edge", "Chromium"}
+}
+
+func windowsCommandCandidates() []string {
+	return []string{"msedge", "msedge.exe", "chrome", "chrome.exe", "chromium"}
+}
+
+// winExePath resolves a Windows .exe path by checking both
+// %ProgramFiles% and %ProgramFiles(x86)% for the supplied leaf, then
+// %LocalAppData%. Returns the first existing path. Production code
+// passes os.Stat and the leaf names "msedge.exe" and "chrome.exe".
+func winExePath(stat func(string) (fs.FileInfo, error), leafs ...string) []string {
+	roots := []string{
+		filepath.Join(os.Getenv("ProgramFiles"), "Google", "Chrome", "Application"),
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Google", "Chrome", "Application"),
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Microsoft", "Edge", "Application"),
+		filepath.Join(os.Getenv("ProgramFiles"), "Microsoft", "Edge", "Application"),
+		filepath.Join(os.Getenv("LocalAppData"), "Google", "Chrome", "Application"),
+		filepath.Join(os.Getenv("LocalAppData"), "Microsoft", "Edge", "Application"),
+	}
+	out := make([]string, 0, len(roots)*len(leafs))
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		for _, leaf := range leafs {
+			out = append(out, filepath.Join(root, leaf))
+		}
+	}
+	// Always drop non-existent roots so the caller does not stat 50
+	// missing paths per call. Stat is cheap but trivially avoidable.
+	if stat == nil {
+		return out
+	}
+	filtered := out[:0]
+	for _, p := range out {
+		if _, err := stat(filepath.Dir(p)); err == nil {
+			filtered = append(filtered, p)
+		}
+	}
+	return filtered
 }
 
 // reserveDebugPort returns a nonzero TCP port on the loopback interface. The

@@ -344,3 +344,108 @@ func (s *eventFloodServer) EmitAndWait(within time.Duration) bool {
 	}
 	return atomic.LoadInt64(&s.emitted) >= 200
 }
+
+// disconnectOnFirstFrameServer drops the WebSocket connection as soon as
+// the client has sent its first request. The client's read loop sees a
+// read error on the same conn; the read-loop exit must wake every
+// pending Call.
+type disconnectOnFirstFrameServer struct {
+	t      *testing.T
+	server *httptest.Server
+}
+
+func newDisconnectOnFirstFrameServer(t *testing.T) *disconnectOnFirstFrameServer {
+	s := &disconnectOnFirstFrameServer{t: t}
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/json/version", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"webSocketDebuggerUrl": "ws" + strings.TrimPrefix(s.server.URL, "http") + "/ws",
+		})
+	})
+	mux.HandleFunc("/json/list", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]string{{
+			"type":                 "page",
+			"webSocketDebuggerUrl": "ws" + strings.TrimPrefix(s.server.URL, "http") + "/ws",
+		}})
+	})
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		// Read the first frame, then drop the connection without ever
+		// responding. The client's read loop sees a read error on the
+		// next iteration.
+		var msg map[string]any
+		_ = conn.ReadJSON(&msg)
+		_ = conn.Close()
+	})
+	s.server = httptest.NewServer(mux)
+	return s
+}
+
+func (s *disconnectOnFirstFrameServer) DebugAddress() string {
+	u, _ := url.Parse(s.server.URL)
+	return u.Host
+}
+
+func (s *disconnectOnFirstFrameServer) Close() { s.server.Close() }
+
+// TestReadErrorWakesPendingCalls proves that when the server's WebSocket
+// dies without a Connection.Close, the read loop's exit still wakes
+// every pending Call. The Call goroutines must observe an error, not
+// hang on their context.
+func TestReadErrorWakesPendingCalls(t *testing.T) {
+	server := newDisconnectOnFirstFrameServer(t)
+	defer server.Close()
+	conn, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	const N = 4
+	results := make([]json.RawMessage, N)
+	errs := make([]error, N)
+	for i := 0; i < N; i++ {
+		results[i], errs[i] = conn.Page().Call(context.Background(),
+			"Page.command", map[string]any{"i": i})
+	}
+	for i, e := range errs {
+		if e == nil {
+			t.Fatalf("Call[%d] returned success (result=%s) after server disconnect", i, string(results[i]))
+		}
+	}
+}
+
+// TestClientAndConnectionCloseNoDoubleClose proves a race between
+// Client.Close and Connection.Close does not panic on
+// "close of closed channel". The shared done is signalled exactly once.
+func TestClientAndConnectionCloseNoDoubleClose(t *testing.T) {
+	server := newFakeDevToolsServer(t)
+	defer server.Close()
+	conn, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	const N = 16
+	var wg sync.WaitGroup
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = conn.Page().Close()
+			_ = conn.Browser().Close()
+		}()
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = conn.Close()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close calls did not return within 2s")
+	}
+	wg.Wait()
+}

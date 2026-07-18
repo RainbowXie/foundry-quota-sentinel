@@ -15,8 +15,8 @@ type fakeOpenCodeBrowser struct {
 }
 
 func (b *fakeOpenCodeBrowser) CDP(context.Context) (openCodeCDP, error) { return b.cdp, nil }
-func (b *fakeOpenCodeBrowser) Exited() bool                              { return b.exited }
-func (b *fakeOpenCodeBrowser) Wait() error                               { return nil }
+func (b *fakeOpenCodeBrowser) Exited() bool                             { return b.exited }
+func (b *fakeOpenCodeBrowser) Wait() error                              { return nil }
 func (b *fakeOpenCodeBrowser) Close() error {
 	b.closed = true
 	if b.onClose != nil {
@@ -108,4 +108,3 @@ func TestRunOpenCodeLoginRejectsEmptyCredentials(t *testing.T) {
 		t.Fatal("expected error when no workspace is observed")
 	}
 }
-
