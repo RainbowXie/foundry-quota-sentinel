@@ -29,14 +29,18 @@ const deepSeekSettleWindow = 2 * time.Second
 // deepSeekPollInterval is the cadence for snapshot evaluation.
 const deepSeekPollInterval = 300 * time.Millisecond
 
-// deepSeekTokenFromEvent pulls a Bearer credential from a Network header
-// event. Empty / non-Bearer / whitespace values are ignored.
-func deepSeekTokenFromEvent(event browserauth.Event) string {
+// deepSeekTokenFromEvent pulls a Bearer credential from a Network
+// header event along with the event's requestId and URL. The
+// coordinator uses the requestId to pair the event with the matching
+// requestWillBeSent (which carries the URL when the current event
+// is an ExtraInfo that only carries headers). Empty / non-Bearer /
+// whitespace values are ignored.
+func deepSeekTokenFromEvent(event browserauth.Event) (token, requestID, requestURL string) {
 	decoded, ok := browserauth.DecodeRequestHeadersEvent(event)
 	if !ok {
-		return ""
+		return "", "", ""
 	}
-	return browserauth.BearerToken(decoded.Headers)
+	return browserauth.BearerToken(decoded.Headers), decoded.RequestID, decoded.URL
 }
 
 // deepSeekStorageCandidates walks a {"l":{...},"s":{...}} snapshot and
@@ -245,6 +249,8 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 
 	events := cdp.Events()
 	candidates := make(map[string]bool)
+	urls := make(map[string]string)    // requestId → URL from requestWillBeSent
+	pending := make(map[string]string) // token → requestId awaiting URL
 	var lastSnapshot string
 	var firstEligible time.Time
 
@@ -255,8 +261,42 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 				events = nil
 				continue
 			}
-			if token := deepSeekTokenFromEvent(event); token != "" {
-				candidates[token] = true
+			token, requestID, requestURL := deepSeekTokenFromEvent(event)
+			// Record the requestId→URL mapping first. A
+			// requestWillBeSent often carries no Authorization header
+			// but does carry the URL; the matching ExtraInfo (which
+			// has the token but no URL) cannot be associated without
+			// the prior URL.
+			if requestID != "" && requestURL != "" {
+				urls[requestID] = requestURL
+				// Promote any pending tokens awaiting this
+				// requestId.
+				for t, rid := range pending {
+					if rid == requestID && isOnDeepSeekHost(requestURL) {
+						candidates[t] = true
+						delete(pending, t)
+					}
+				}
+			}
+			if token == "" {
+				continue
+			}
+			if requestID == "" {
+				// No requestId means we can never resolve the
+				// origin. Drop the token to avoid an attacker
+				// pre-seeding candidates with no provenance.
+				continue
+			}
+			if u, ok := urls[requestID]; ok {
+				if isOnDeepSeekHost(u) {
+					candidates[token] = true
+					delete(pending, token)
+				}
+				// The token is associated with a requestId;
+				// if the URL is not yet on platform we keep
+				// it in pending for a future URL update.
+			} else {
+				pending[token] = requestID
 			}
 		case <-time.After(deepSeekPollInterval):
 		}
@@ -274,14 +314,27 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 				snapshot = envelope.Result.Value
 			}
 		}
-		if snapErr == nil && urlErr == nil && snapshot != "" && isOnDeepSeekHost(pageURL) {
+		// Promote any pending tokens whose URL is now known and
+		// on platform, then update lastSnapshot.
+		if urlErr == nil && pageURL != "" {
+			for token, requestID := range pending {
+				if u, ok := urls[requestID]; ok && isOnDeepSeekHost(u) {
+					candidates[token] = true
+					delete(pending, token)
+				}
+			}
+		}
+		if snapErr == nil && urlErr == nil && isDeepSeekSnapshotValid(snapshot) && isOnDeepSeekHost(pageURL) {
 			lastSnapshot = snapshot
 			for _, candidate := range deepSeekStorageCandidates(snapshot) {
 				candidates[candidate] = true
 			}
 		}
 
-		if snapshot != "" && isOnDeepSeekHost(pageURL) && len(candidates) > 0 {
+		// Settle only when we have a saved valid snapshot AND at
+		// least one candidate. The two-second settling window
+		// starts when both become true.
+		if lastSnapshot != "" && len(candidates) > 0 {
 			if firstEligible.IsZero() {
 				firstEligible = time.Now()
 			}
@@ -293,7 +346,12 @@ func runDeepSeekLogin(ctx context.Context, browser deepSeekLoginBrowser, validat
 		}
 
 		if browser.Exited() {
-			if len(candidates) > 0 {
+			// Browser closed early. Only settle if we have a
+			// saved valid snapshot and at least one candidate;
+			// otherwise return an error so the caller can ask
+			// the user to re-login. An empty WebStore never
+			// reaches the persisted credential.
+			if lastSnapshot != "" && len(candidates) > 0 {
 				goto settled
 			}
 			return "", "", fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
@@ -366,12 +424,33 @@ func deepSeekRestoreScript(webStore string) (string, error) {
 		`}catch(e){}})();`, nil
 }
 
+// isOnDeepSeekHost reports whether the page URL is on the platform
+// origin.
 func isOnDeepSeekHost(pageURL string) bool {
 	u, err := url.Parse(pageURL)
 	if err != nil {
 		return false
 	}
 	return cookieDomainMatches(u.Hostname(), deepSeekHost)
+}
+
+// isDeepSeekSnapshotValid reports whether a storage snapshot string
+// is a parseable {"l":{...},"s":{...}} envelope with both keys
+// present. Anything else (null, missing keys, malformed JSON, an
+// empty string) is rejected so a transient mid-navigation snapshot
+// cannot be mistaken for a real envelope.
+func isDeepSeekSnapshotValid(snapshot string) bool {
+	if snapshot == "" {
+		return false
+	}
+	var envelope struct {
+		L map[string]json.RawMessage `json:"l"`
+		S map[string]json.RawMessage `json:"s"`
+	}
+	if err := json.Unmarshal([]byte(snapshot), &envelope); err != nil {
+		return false
+	}
+	return envelope.L != nil && envelope.S != nil
 }
 
 func validateDeepSeekPageURL(rawURL string) error {

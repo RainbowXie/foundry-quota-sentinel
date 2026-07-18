@@ -5,26 +5,30 @@ import (
 	"strings"
 )
 
-// RequestHeadersEvent is the decoded form of Network.requestWillBeSent and
-// Network.requestWillBeSentExtraInfo. ExtraInfo only carries headers; the
-// regular requestWillBeSent carries the request URL plus headers under
-// request.headers.
+// RequestHeadersEvent is the decoded form of Network.requestWillBeSent
+// and Network.requestWillBeSentExtraInfo. The two events share a
+// requestId so a coordinator can pair an ExtraInfo (which carries
+// only headers) with the matching requestWillBeSent (which carries
+// the URL). Both requestId and URL are decoded when present.
 type RequestHeadersEvent struct {
-	URL     string
-	Headers map[string]string
+	RequestID string
+	URL       string
+	Headers   map[string]string
 }
 
-// DecodeRequestHeadersEvent returns the typed view of a Network event if
-// the event method is one we know how to decode. Header keys are lower-cased
-// to match the conventional look-up path.
+// DecodeRequestHeadersEvent returns the typed view of a Network event
+// if the event method is one we know how to decode. Header keys are
+// lower-cased to match the conventional look-up path. requestId is
+// always decoded; URL is decoded only when present.
 func DecodeRequestHeadersEvent(event Event) (RequestHeadersEvent, bool) {
 	if !strings.HasPrefix(event.Method, "Network.requestWillBeSent") {
 		return RequestHeadersEvent{}, false
 	}
 	var payload struct {
-		URL     string            `json:"url"`
-		Headers map[string]string `json:"headers"`
-		Request struct {
+		RequestID string            `json:"requestId"`
+		URL       string            `json:"url"`
+		Headers   map[string]string `json:"headers"`
+		Request   struct {
 			URL     string            `json:"url"`
 			Headers map[string]string `json:"headers"`
 		} `json:"request"`
@@ -42,7 +46,7 @@ func DecodeRequestHeadersEvent(event Event) (RequestHeadersEvent, bool) {
 	if payload.URL == "" {
 		payload.URL = payload.Request.URL
 	}
-	return RequestHeadersEvent{URL: payload.URL, Headers: headers}, true
+	return RequestHeadersEvent{RequestID: payload.RequestID, URL: payload.URL, Headers: headers}, true
 }
 
 // BearerToken extracts a Bearer credential from the given request headers.
