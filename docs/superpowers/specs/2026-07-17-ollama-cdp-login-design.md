@@ -17,27 +17,18 @@ This replaces the rejected WebKitGTK approach. It does not install an extension,
 
 ## Components
 
-### `internal/sidebar/ollama_browser.go`
-
-- Resolves Chrome, Chromium, or Edge from the executable path.
-- Creates a mode-`0700` temporary profile.
-- Reserves a nonzero `127.0.0.1` port and passes the address to the CDP client.
-- Owns browser termination, process reaping, and profile cleanup.
-
-### `internal/sidebar/ollama_cdp.go`
-
-- Accepts only loopback DevTools HTTP and WebSocket addresses.
-- Reads the browser WebSocket URL from `/json/version` and page targets from `/json/list`.
-- Uses browser-level `Storage.getCookies` so redirects and page-target replacement cannot hide the session.
-- Uses `Browser.getVersion` for the matching User-Agent.
-- Filters accepted Cookie names and Ollama domains without logging values.
-- Retains page-target operations only for injecting a saved session and navigating an account page.
+The browser process, CDP transport, Cookie / page / Network operations, and lifecycle plumbing now live in the shared `internal/browserauth` package. This document describes the Ollama-specific coordinator on top of that shared layer; for the underlying mechanism see [`docs/superpowers/specs/2026-07-18-unified-browser-auth-design.md`](../specs/2026-07-18-unified-browser-auth-design.md).
 
 ### `internal/sidebar/login_ollama.go`
 
-- Polls until a valid Ollama session appears, the user closes the window, or the five-minute context expires.
-- Returns captured Cookie and User-Agent without performing an HTTP quota request while the browser is open.
+- Launches `https://ollama.com/settings` through `browserauth.Launch`, which resolves the system browser, reserves a nonzero loopback DevTools port, creates a private temporary profile, and owns browser termination.
+- Polls `Browser().BrowserCookies` and `Browser().BrowserUserAgent` until a secure `__Secure-session` for an Ollama domain appears, the user closes the window, or the five-minute context expires.
+- Returns captured Cookie header and User-Agent without performing an HTTP quota request while the browser is open.
 - Always closes the application-owned browser on return.
+
+### Account-page flow
+
+`RunOllamaPage(pageURL, cookieHeader, userAgent)` launches `about:blank`, calls `Browser().SetCookies` and `Browser().SetUserAgent`, then navigates to the requested Ollama page through `Page().Navigate`. The browser stays open until the user closes it.
 
 ### Go quota/config flow
 
