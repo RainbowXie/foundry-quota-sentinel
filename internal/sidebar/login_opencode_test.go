@@ -8,15 +8,19 @@ import (
 )
 
 type fakeOpenCodeBrowser struct {
-	cdp     *fakeOpenCodeCDP
-	exited  bool
-	closed  bool
-	onClose func()
+	cdp        *fakeOpenCodeCDP
+	exited     bool
+	closed     bool
+	onClose    func()
+	operations []string
 }
 
 func (b *fakeOpenCodeBrowser) CDP(context.Context) (openCodeCDP, error) { return b.cdp, nil }
 func (b *fakeOpenCodeBrowser) Exited() bool                             { return b.exited }
-func (b *fakeOpenCodeBrowser) Wait() error                              { return nil }
+func (b *fakeOpenCodeBrowser) Wait() error {
+	b.operations = append(b.operations, "wait")
+	return nil
+}
 func (b *fakeOpenCodeBrowser) Close() error {
 	b.closed = true
 	if b.onClose != nil {
@@ -26,6 +30,7 @@ func (b *fakeOpenCodeBrowser) Close() error {
 }
 
 type fakeOpenCodeCDP struct {
+	browser      *fakeOpenCodeBrowser
 	cookieHeader string
 	workspaceID  string
 	pageURL      string
@@ -44,21 +49,29 @@ func (c *fakeOpenCodeCDP) PageURL(context.Context, ...string) (string, error) {
 	}
 	return "https://opencode.ai/workspace/" + c.workspaceID + "/go", nil
 }
-func (c *fakeOpenCodeCDP) SetCookies(context.Context, []browserauth.Cookie) error { return nil }
-func (c *fakeOpenCodeCDP) Navigate(context.Context, string) error                 { return nil }
+func (c *fakeOpenCodeCDP) SetCookies(_ context.Context, _ []browserauth.Cookie) error {
+	c.browser.operations = append(c.browser.operations, "set-cookie")
+	return nil
+}
+func (c *fakeOpenCodeCDP) Navigate(context.Context, string) error {
+	c.browser.operations = append(c.browser.operations, "navigate")
+	return nil
+}
 func (c *fakeOpenCodeCDP) Close() error {
 	c.closed = true
 	return nil
 }
 
 func newFakeOpenCodeBrowser(cookieHeader, workspaceID string, onClose func()) *fakeOpenCodeBrowser {
-	return &fakeOpenCodeBrowser{
-		cdp: &fakeOpenCodeCDP{
-			cookieHeader: cookieHeader,
-			workspaceID:  workspaceID,
-		},
+	browser := &fakeOpenCodeBrowser{
 		onClose: onClose,
 	}
+	browser.cdp = &fakeOpenCodeCDP{
+		browser:      browser,
+		cookieHeader: cookieHeader,
+		workspaceID:  workspaceID,
+	}
+	return browser
 }
 
 func TestOpenCodeCookieHeaderKeepsOnlyMainDomain(t *testing.T) {

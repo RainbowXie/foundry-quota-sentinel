@@ -169,6 +169,10 @@ func RunOpenCodePage(pageURL, cookie string) error {
 
 func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validate func(string, string) bool) (cookie, wsid string, err error) {
 	defer func() {
+		// Close regardless of how we exit. Validation runs BEFORE this
+		// defer fires (it is in the same function body), so the
+		// browser is already reaped by the time validate makes its
+		// outbound Go request.
 		if closeErr := browser.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("关闭 OpenCode 登录浏览器失败: %w", closeErr)
 		}
@@ -199,6 +203,13 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 		}
 	}
 
+	// Close the browser BEFORE invoking the Go validator. The validator
+	// issues a network request of its own, and the user's machine must
+	// not still be hosting an application-owned Chrome process for the
+	// duration of that round trip.
+	if closeErr := browser.Close(); closeErr != nil {
+		return "", "", fmt.Errorf("关闭 OpenCode 登录浏览器失败: %w", closeErr)
+	}
 	if !validate(capturedCookie, capturedWS) {
 		return "", "", fmt.Errorf("OpenCode 凭证验证失败")
 	}
@@ -247,17 +258,43 @@ func filterOpenCodeCookies(cookies []browserauth.Cookie) []browserauth.Cookie {
 	return out
 }
 
+// openCodeCookieNameRe is the character set allowed in a cookie name.
+// Names cannot contain `=` because the parser splits on the first
+// `=`; they cannot contain `;`, whitespace, quotes, or backslash
+// because those would let an attacker forge the cookie line.
+var openCodeCookieNameRe = regexp.MustCompile(`^[A-Za-z0-9._\-%+:@]+$`)
+
+// openCodeCookieValueRe is the character set allowed in a cookie
+// value. `=` is permitted because base64 padding is common in real
+// session cookies. `;`, CR, LF, whitespace, quotes, backslash, and
+// any other control character are rejected because they would let
+// an attacker forge a header or smuggle a second cookie.
+var openCodeCookieValueRe = regexp.MustCompile(`^[A-Za-z0-9._\-%+:@=]+$`)
+
+// openCodeSavedCookies parses a persisted "name=value; name=value"
+// header into a list of secure cookies for the opencode.ai origin.
+// The split on `;` is the canonical cookie-separator; each segment
+// is split once on the first `=` to separate name and value, then
+// each side is matched against its own character set. The value
+// charset permits `=` so real session cookies (base64, JWT) survive
+// the round trip. Empty, duplicate, or malformed pairs are rejected
+// so the configuration write fails atomically rather than partially.
 func openCodeSavedCookies(cookieHeader string) ([]browserauth.Cookie, error) {
-	parts := strings.Split(cookieHeader, ";")
-	out := make([]browserauth.Cookie, 0, len(parts))
-	seen := make(map[string]bool, len(parts))
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
+	if cookieHeader == "" {
+		return nil, fmt.Errorf("OpenCode 登录状态无效")
+	}
+	out := make([]browserauth.Cookie, 0)
+	seen := make(map[string]bool)
+	for _, segment := range strings.Split(cookieHeader, ";") {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
 			continue
 		}
-		name, value, ok := strings.Cut(part, "=")
+		name, value, ok := strings.Cut(segment, "=")
 		if !ok || name == "" || value == "" {
+			return nil, fmt.Errorf("OpenCode 登录状态无效")
+		}
+		if !openCodeCookieNameRe.MatchString(name) || !openCodeCookieValueRe.MatchString(value) {
 			return nil, fmt.Errorf("OpenCode 登录状态无效")
 		}
 		if seen[name] {
@@ -265,10 +302,12 @@ func openCodeSavedCookies(cookieHeader string) ([]browserauth.Cookie, error) {
 		}
 		seen[name] = true
 		out = append(out, browserauth.Cookie{
-			Name:   name,
-			Value:  value,
-			Domain: openCodeHost,
-			Path:   "/",
+			Name:     name,
+			Value:    value,
+			Domain:   openCodeHost,
+			Path:     "/",
+			Secure:   true,
+			HTTPOnly: true,
 		})
 	}
 	if len(out) == 0 {
