@@ -81,11 +81,11 @@ func TestOpenCodeSavedCookiesRejectsControlAndQuoteChars(t *testing.T) {
 		"session=ok\rSet-Cookie: x",
 		`session=ok"`,
 		`session=ok\`,
-		"session=ok second=1",   // whitespace in value
-		"se ssion=ok",            // whitespace in name
-		"a=b;c",                 // empty value
-		"=v",                    // empty name
-		"a;session=ok",          // duplicate
+		"session=ok second=1", // whitespace in value
+		"se ssion=ok",         // whitespace in name
+		"a=b;c",               // empty value
+		"=v",                  // empty name
+		"a;session=ok",        // duplicate
 		"a;session=ok;session=x",
 	}
 	for _, c := range cases {
@@ -165,5 +165,89 @@ func TestRunOpenCodePageInjectsCookiesBeforeNavigate(t *testing.T) {
 	want := []string{"set-cookie", "navigate", "wait"}
 	if !reflect.DeepEqual(browser.operations, want) {
 		t.Fatalf("operations = %#v, want %#v", browser.operations, want)
+	}
+}
+
+// TestOpenCodeCookieHeaderDropsUnsafeCapture proves the capture-time
+// serialiser refuses cookies whose name or value contains an unsafe
+// character. Cookies that fail the check are dropped from the header
+// so a malformed capture cannot reach the persisted credential.
+func TestOpenCodeCookieHeaderDropsUnsafeCapture(t *testing.T) {
+	cookies := []browserauth.Cookie{
+		{Name: "session", Value: "YWJj==", Domain: "opencode.ai"},
+		{Name: "ok", Value: "safe", Domain: "opencode.ai"},
+		{Name: "bad\r\n", Value: "v", Domain: "opencode.ai"},
+		{Name: "quote", Value: `v"`, Domain: "opencode.ai"},
+		{Name: "", Value: "empty", Domain: "opencode.ai"},
+		{Name: "emptyVal", Value: "", Domain: "opencode.ai"},
+		{Name: "wronghost", Value: "x", Domain: "example.com"},
+		{Name: "auth", Value: "sub", Domain: "auth.opencode.ai"},
+	}
+	got := openCodeCookieHeader(cookies)
+	want := "session=YWJj==; ok=safe"
+	if got != want {
+		t.Fatalf("openCodeCookieHeader = %q, want %q", got, want)
+	}
+}
+
+// TestOpenCodeCookieHeaderEmptyWhenAllUnsafe proves the capture path
+// yields an empty header when every captured cookie is unsafe. The
+// caller (runOpenCodeLogin) sees an empty header and keeps polling
+// instead of returning a corrupted credential.
+func TestOpenCodeCookieHeaderEmptyWhenAllUnsafe(t *testing.T) {
+	cookies := []browserauth.Cookie{
+		{Name: "bad\r\n", Value: "v", Domain: "opencode.ai"},
+		{Name: "wronghost", Value: "x", Domain: "example.com"},
+	}
+	if got := openCodeCookieHeader(cookies); got != "" {
+		t.Fatalf("got %q, want empty", got)
+	}
+}
+
+// TestFilterOpenCodeCookiesAppliesSafetyCheck proves the
+// capture-time filter that feeds the serialiser also rejects
+// cookies whose name or value falls outside the safe character set.
+// Otherwise the two paths could disagree: the filter would admit a
+// bad cookie and the serialiser would silently drop it, but
+// downstream code would still observe a partial credential.
+func TestFilterOpenCodeCookiesAppliesSafetyCheck(t *testing.T) {
+	in := []browserauth.Cookie{
+		{Name: "session", Value: "YWJj==", Domain: "opencode.ai"},
+		{Name: "ok", Value: "safe", Domain: "opencode.ai"},
+		{Name: "bad\r\n", Value: "v", Domain: "opencode.ai"},
+		{Name: "quote", Value: `v"`, Domain: "opencode.ai"},
+		{Name: "wronghost", Value: "x", Domain: "example.com"},
+		{Name: "auth", Value: "sub", Domain: "auth.opencode.ai"},
+	}
+	got := filterOpenCodeCookies(in)
+	if len(got) != 2 {
+		t.Fatalf("filter returned %d cookies, want 2: %#v", len(got), got)
+	}
+	if got[0].Name != "session" || got[1].Name != "ok" {
+		t.Fatalf("filter dropped the wrong entries: %#v", got)
+	}
+}
+
+// TestFilterOpenCodeCookiesDropsUnsafe proves the filter that feeds
+// openCodeCookieHeader also rejects cookies whose name or value
+// contains an unsafe character. Otherwise the two paths would
+// disagree: the filter would admit a bad cookie and the serialiser
+// would silently drop it, but downstream code would still observe
+// a partial credential.
+func TestFilterOpenCodeCookiesDropsUnsafe(t *testing.T) {
+	in := []browserauth.Cookie{
+		{Name: "session", Value: "YWJj==", Domain: "opencode.ai"},
+		{Name: "ok", Value: "safe", Domain: "opencode.ai"},
+		{Name: "bad\r\n", Value: "v", Domain: "opencode.ai"},
+		{Name: "quote", Value: `v"`, Domain: "opencode.ai"},
+		{Name: "wronghost", Value: "x", Domain: "example.com"},
+		{Name: "auth", Value: "sub", Domain: "auth.opencode.ai"},
+	}
+	got := filterOpenCodeCookies(in)
+	if len(got) != 2 {
+		t.Fatalf("filter returned %d cookies, want 2: %#v", len(got), got)
+	}
+	if got[0].Name != "session" || got[1].Name != "ok" {
+		t.Fatalf("filter dropped the wrong entries: %#v", got)
 	}
 }

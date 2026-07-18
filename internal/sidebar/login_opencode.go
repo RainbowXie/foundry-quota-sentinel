@@ -26,7 +26,9 @@ const openCodeLoginPollInterval = 300 * time.Millisecond
 
 // openCodeCookieHeader serialises the saved opencode.ai cookies into a
 // "name=value; name=value" header. Cookies on the auth subdomain are
-// filtered out so they never reach the main origin.
+// filtered out so they never reach the main origin; cookies whose
+// name or value fall outside the safe character set are dropped so a
+// captured corruption never reaches the persisted credential.
 func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 	parts := make([]string, 0, len(cookies))
 	for _, cookie := range cookies {
@@ -36,7 +38,7 @@ func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 		if cookieDomainMatches(cookie.Domain, openCodeAuthHost) {
 			continue
 		}
-		if strings.TrimSpace(cookie.Value) == "" {
+		if !openCodeCookieValueSafe(cookie) {
 			continue
 		}
 		parts = append(parts, cookie.Name+"="+cookie.Value)
@@ -242,8 +244,11 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL 
 	return nil
 }
 
-// filterOpenCodeCookies narrows the captured cookie set to the main domain
-// so the auth subdomain cookies never reach the saved credential.
+// filterOpenCodeCookies narrows the captured cookie set to the main
+// domain so the auth subdomain cookies never reach the saved
+// credential. It also drops cookies whose name or value falls
+// outside the safe character set so a captured corruption cannot
+// reach the persisted credential.
 func filterOpenCodeCookies(cookies []browserauth.Cookie) []browserauth.Cookie {
 	out := make([]browserauth.Cookie, 0, len(cookies))
 	for _, cookie := range cookies {
@@ -253,12 +258,27 @@ func filterOpenCodeCookies(cookies []browserauth.Cookie) []browserauth.Cookie {
 		if cookieDomainMatches(cookie.Domain, openCodeAuthHost) {
 			continue
 		}
+		if !openCodeCookieValueSafe(cookie) {
+			continue
+		}
 		out = append(out, cookie)
 	}
 	return out
 }
 
-// openCodeCookieNameRe is the character set allowed in a cookie name.
+// openCodeCookieValueSafe reports whether a captured cookie is safe
+// to keep in the persisted credential. The check reuses the saved
+// parser's name and value character sets so the two paths cannot
+// drift; an unsafe cookie is dropped at capture time rather than
+// being saved and re-rejected at write time.
+func openCodeCookieValueSafe(cookie browserauth.Cookie) bool {
+	if cookie.Name == "" || cookie.Value == "" {
+		return false
+	}
+	return openCodeCookieNameRe.MatchString(cookie.Name) &&
+		openCodeCookieValueRe.MatchString(cookie.Value)
+}
+
 // Names cannot contain `=` because the parser splits on the first
 // `=`; they cannot contain `;`, whitespace, quotes, or backslash
 // because those would let an attacker forge the cookie line.
