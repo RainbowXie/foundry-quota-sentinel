@@ -57,6 +57,24 @@ func configPath() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
+// Revision returns a non-credential, monotonically-increasing token
+// for the saved config — the config file's mtime in Unix nanoseconds.
+// Callers compare revisions to detect that a NEW config was written
+// (e.g. a login subprocess saved a rotated credential) without ever
+// reading the credentials themselves. A missing or unreadable file
+// returns 0.
+func Revision() int64 {
+	path, err := configPath()
+	if err != nil {
+		return 0
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return info.ModTime().UnixNano()
+}
+
 // migrateLegacyConfig 把旧目录 ~/.ocgt-monitor 迁移到新目录 ~/.foundry-quota-sentinel
 // （仅当新目录尚不存在、旧目录存在时整体改名），平滑升级老用户配置。
 func migrateLegacyConfig() {

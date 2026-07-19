@@ -189,6 +189,7 @@ func startSidebar() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
+	srv.SetDeepSeekRevision(config.Revision)
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
@@ -356,6 +357,7 @@ func cmdServe() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
+	srv.SetDeepSeekRevision(config.Revision)
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {

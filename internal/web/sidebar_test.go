@@ -36,3 +36,28 @@ func TestSidebarDeepSeekLoginDoesNotGuessWithFixedTimeout(t *testing.T) {
 		t.Fatal("DeepSeek login must poll the fast /api/deepseek/accounts endpoint")
 	}
 }
+
+// TestSidebarDeepSeekLoginDetectsReLoginByRevision proves the
+// DeepSeek login completion poll keys off a config REVISION change,
+// not just account-name presence. Without revision-aware polling, a
+// re-login for an account that already exists stops on the first poll
+// (name already in config) and uses the stale token; the rotated
+// credential only shows up on the 30s interval. The login response
+// must carry a pre-login revision and the poll must wait for a
+// different revision. It must also handle a success=false login
+// response instead of polling forever.
+func TestSidebarDeepSeekLoginDetectsReLoginByRevision(t *testing.T) {
+	html, err := webAssets.ReadFile("static/sidebar.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(html), "revision") {
+		t.Fatal("DeepSeek login must capture and compare a config revision to detect re-login")
+	}
+	if !strings.Contains(string(html), "preRev") {
+		t.Fatal("DeepSeek login poll must hold a pre-login revision and wait for it to change")
+	}
+	if !strings.Contains(string(html), ".success") {
+		t.Fatal("DeepSeek login must check the login response success flag (handle spawn failure)")
+	}
+}

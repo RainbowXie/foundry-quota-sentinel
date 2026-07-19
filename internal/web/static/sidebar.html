@@ -1569,38 +1569,59 @@
                 fetch(
                     "/api/deepseek/login" +
                         (name ? "?name=" + encodeURIComponent(name) : ""),
-                ).then(function () {
-                    dsLoginPoll(name);
-                });
+                )
+                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        // Handle spawn failure: the login subprocess could
+                        // not be started, so no revision change will ever
+                        // come. Surface the error instead of polling forever.
+                        if (!r || !r.success) {
+                            var box = document.getElementById("dsCards");
+                            if (box) {
+                                box.innerHTML =
+                                    '<div class=er>' +
+                                    qesc((r && r.error) || "无法启动登录") +
+                                    "</div>";
+                            }
+                            return;
+                        }
+                        dsLoginPoll(name, r.revision || 0);
+                    })
+                    .catch(function () {
+                        dsLoginPoll(name, 0);
+                    });
             }
             // dsLoginPoll watches the fast /api/deepseek/accounts endpoint
-            // after a login is kicked off. The login subprocess writes the
-            // account to config only on real success; a cancel or failure
-            // never writes it, so no ghost card can appear. The moment the
-            // account shows up in config we render a loading shell and fire
-            // the data fetch (fd). We never guess the login is done with a
-            // fixed setTimeout; we observe config completion instead. The
-            // poll stops once the account appears or after a 5-minute
-            // timeout (the login browser's own context deadline).
-            function dsLoginPoll(name) {
+            // after a login is kicked off. Completion is detected by a
+            // config REVISION change from the pre-login value captured by
+            // /api/deepseek/login — NOT by account-name presence. A re-login
+            // for an account that already exists must be detected by the
+            // new save; otherwise the poll stops on the stale config and
+            // the rotated token only shows up on the 30s interval. Once the
+            // revision changes we render a loading shell and fire the data
+            // fetch (fd). A cancel/failure never writes config so the
+            // revision never changes and no ghost card appears; the poll
+            // stops after ~5 min (the login browser's own context deadline).
+            function dsLoginPoll(name, preRev) {
                 var tries = 0;
                 var maxTries = 250; // ~5 min at 1.2s
-                var seen = false;
                 function tick() {
                     fetch("/api/deepseek/accounts")
                         .then(function (r) { return r.json(); })
                         .then(function (r) {
                             if (!r || !r.success) { schedule(); return; }
+                            // Wait for the config to be (re)written: the
+                            // revision must differ from the pre-login value.
+                            if (r.revision === preRev) { schedule(); return; }
                             var arr = r.data || [];
                             var hit = false;
                             arr.forEach(function (c) {
                                 if (c.name === name) hit = true;
                             });
-                            if (hit && !seen) {
-                                seen = true;
+                            if (hit) {
                                 dsRenderShells(arr);
                                 fd();
-                                return; // stop polling once observed
+                                return; // stop polling once the new save lands
                             }
                             schedule();
                         })
