@@ -1566,43 +1566,72 @@
                 }
             }
             function dsDoLogin(name) {
-                fetch(
-                    "/api/deepseek/login" +
-                        (name ? "?name=" + encodeURIComponent(name) : ""),
-                )
+                // Capture the target account's pre-login fingerprint from
+                // /api/deepseek/accounts BEFORE starting the login. The
+                // fingerprint is a non-credential hash of THIS account's
+                // token, so only a real save of THIS account changes it —
+                // a window-size save or another provider's save does not.
+                // A global config revision cannot do this: any config write
+                // would flip it and falsely complete a re-login poll.
+                fetch("/api/deepseek/accounts")
                     .then(function (r) { return r.json(); })
-                    .then(function (r) {
-                        // Handle spawn failure: the login subprocess could
-                        // not be started, so no revision change will ever
-                        // come. Surface the error instead of polling forever.
-                        if (!r || !r.success) {
-                            var box = document.getElementById("dsCards");
-                            if (box) {
-                                box.innerHTML =
-                                    '<div class=er>' +
-                                    qesc((r && r.error) || "无法启动登录") +
-                                    "</div>";
-                            }
-                            return;
+                    .then(function (acctR) {
+                        var preFingerprint = "";
+                        if (acctR && acctR.success) {
+                            (acctR.data || []).forEach(function (c) {
+                                if (c.name === name) preFingerprint = c.fingerprint || "";
+                            });
                         }
-                        dsLoginPoll(name, r.revision || 0);
+                        return fetch(
+                            "/api/deepseek/login" +
+                                (name ? "?name=" + encodeURIComponent(name) : ""),
+                        )
+                            .then(function (r) { return r.json(); })
+                            .then(function (r) {
+                                // Handle spawn failure: the login subprocess
+                                // could not start, so no fingerprint change
+                                // will ever come. Surface the error instead
+                                // of polling forever. Do NOT fall back to a
+                                // poll with an empty pre-fingerprint: that
+                                // would let the first poll falsely complete.
+                                if (!r || !r.success) {
+                                    var box = document.getElementById("dsCards");
+                                    if (box) {
+                                        box.innerHTML =
+                                            '<div class=er>' +
+                                            qesc((r && r.error) || "无法启动登录") +
+                                            "</div>";
+                                    }
+                                    return;
+                                }
+                                dsLoginPoll(name, preFingerprint);
+                            });
                     })
                     .catch(function () {
-                        dsLoginPoll(name, 0);
+                        // Network/accounts fetch failure is a real error;
+                        // surface it rather than polling with an empty
+                        // pre-fingerprint that would false-complete.
+                        var box = document.getElementById("dsCards");
+                        if (box) {
+                            box.innerHTML =
+                                '<div class=er>无法读取账户状态，登录未启动</div>';
+                        }
                     });
             }
-            // dsLoginPoll watches the fast /api/deepseek/accounts endpoint
-            // after a login is kicked off. Completion is detected by a
-            // config REVISION change from the pre-login value captured by
-            // /api/deepseek/login — NOT by account-name presence. A re-login
-            // for an account that already exists must be detected by the
-            // new save; otherwise the poll stops on the stale config and
-            // the rotated token only shows up on the 30s interval. Once the
-            // revision changes we render a loading shell and fire the data
-            // fetch (fd). A cancel/failure never writes config so the
-            // revision never changes and no ghost card appears; the poll
-            // stops after ~5 min (the login browser's own context deadline).
-            function dsLoginPoll(name, preRev) {
+            // dsLoginPoll watches /api/deepseek/accounts after a login is
+            // kicked off. Completion is detected by the TARGET account's
+            // per-account fingerprint CHANGING from the pre-login value —
+            // NOT by name presence, and NOT by a global config revision. A
+            // re-login for an existing account must be detected by the new
+            // save of THIS account; an unrelated save (window size, another
+            // provider) does not change this account's fingerprint, so it
+            // cannot falsely complete the poll. Once the fingerprint changes
+            // (or the account first appears) we render a loading shell and
+            // fire the data fetch (fd). A cancel/failure never writes this
+            // account so the fingerprint never changes and no ghost card
+            // appears; the poll stops after ~5 min (the login browser's own
+            // context deadline).
+            function dsLoginPoll(name, preFingerprint) {
                 var tries = 0;
                 var maxTries = 250; // ~5 min at 1.2s
                 function tick() {
@@ -1610,18 +1639,24 @@
                         .then(function (r) { return r.json(); })
                         .then(function (r) {
                             if (!r || !r.success) { schedule(); return; }
-                            // Wait for the config to be (re)written: the
-                            // revision must differ from the pre-login value.
-                            if (r.revision === preRev) { schedule(); return; }
                             var arr = r.data || [];
+                            var fp = "";
                             var hit = false;
                             arr.forEach(function (c) {
-                                if (c.name === name) hit = true;
+                                if (c.name === name) {
+                                    hit = true;
+                                    fp = c.fingerprint || "";
+                                }
                             });
-                            if (hit) {
+                            // Complete only when the account is present AND
+                            // its fingerprint differs from the pre-login
+                            // value (new account => preFingerprint "" => any
+                            // non-empty fingerprint completes; re-login =>
+                            // rotated token => fingerprint changes).
+                            if (hit && fp !== preFingerprint) {
                                 dsRenderShells(arr);
                                 fd();
-                                return; // stop polling once the new save lands
+                                return;
                             }
                             schedule();
                         })

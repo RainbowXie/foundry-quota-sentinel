@@ -1,7 +1,9 @@
 package web
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -29,12 +31,30 @@ type Account struct {
 type DeepSeekAccount struct {
 	Name  string
 	Token string
+	// Fingerprint is a non-credential hash of Token (sha256, first 16
+	// hex chars). The sidebar compares fingerprints to detect that THIS
+	// account's credential was (re)saved, without ever seeing the token.
+	// A global config revision cannot do this: an unrelated save (window
+	// size, another provider) would flip a file-mtime revision and
+	// falsely complete a re-login poll.
+	Fingerprint string
 }
 
 type OllamaAccount struct {
 	Name      string
 	Cookie    string
 	UserAgent string
+}
+
+// DeepSeekFingerprint returns a non-credential hash of a DeepSeek token
+// (sha256, first 16 hex chars). The sidebar compares fingerprints to
+// detect that THIS account's credential was (re)saved — a global config
+// revision cannot do that because an unrelated save (window size,
+// another provider) would flip a file-mtime revision and falsely
+// complete a re-login poll.
+func DeepSeekFingerprint(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:8])
 }
 
 type Server struct {
@@ -49,13 +69,6 @@ type Server struct {
 	deepseek       *quota.DeepSeekQuerier
 	onWinSize      func(w, h int)
 	onDelete       func(provider, name string) error
-	// deepseekRevision reports a non-credential config revision (e.g.
-	// the config file's mtime) so the sidebar can detect that a login
-	// subprocess wrote a NEW config without comparing tokens. A re-login
-	// for an account that already exists must be detected by revision
-	// change, not by name presence, or the poll stops on the stale
-	// config and the new token only shows up on the 30s interval.
-	deepseekRevision func() int64
 	// spawnDeepSeekLogin launches the login-deepseek subprocess. The
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
@@ -78,11 +91,6 @@ func (s *Server) SetAccountsProvider(fn func() []Account) { s.accountsFn = fn }
 
 // SetDeepSeekProvider 设置动态 DeepSeek 账户来源，每次请求实时读取。
 func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn }
-
-// SetDeepSeekRevision sets the non-credential config revision source
-// used by /api/deepseek/accounts and /api/deepseek/login so the sidebar
-// can detect a re-login save by revision change rather than name match.
-func (s *Server) SetDeepSeekRevision(fn func() int64) { s.deepseekRevision = fn }
 
 // SetOllamaProvider 设置动态 Ollama 账户来源，每次请求实时读取。
 func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn }
@@ -112,16 +120,6 @@ func (s *Server) curOllama() []OllamaAccount {
 		return s.ollamaFn()
 	}
 	return s.ollamaAccounts
-}
-
-// deepSeekRevision returns the non-credential config revision, or 0
-// when no provider is wired (e.g. in tests that do not exercise
-// revision-aware polling).
-func (s *Server) deepSeekRevision() int64 {
-	if s.deepseekRevision != nil {
-		return s.deepseekRevision()
-	}
-	return 0
 }
 
 func (s *Server) Start(addr string) error {
@@ -222,29 +220,33 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	// /api/deepseek/accounts returns the config-saved DeepSeek accounts
-	// as loading card shells without any remote fetch, plus a non-
-	// credential config revision. The sidebar polls this after a login
-	// so a new card appears the moment the account is written to config,
-	// independent of the (slow) FetchSummary/FetchUsage round trips. A
-	// cancelled or failed login never writes the account, so no ghost
-	// card can appear here. The revision lets a re-login for an account
-	// that already exists be detected by the NEW save, not by name.
+	// as loading card shells without any remote fetch, each carrying a
+	// per-account, non-credential fingerprint of its token. The sidebar
+	// polls this after a login so a new card appears the moment the
+	// account is written to config, independent of the (slow)
+	// FetchSummary/FetchUsage round trips. A cancelled or failed login
+	// never writes the account, so no ghost card can appear. The
+	// fingerprint lets a re-login for an account that already exists be
+	// detected by the NEW save of THIS account — a global config
+	// revision cannot do that because an unrelated save (window size,
+	// another provider) would flip it and falsely complete the poll.
 	mux.HandleFunc("/api/deepseek/accounts", func(w http.ResponseWriter, r *http.Request) {
 		type shell struct {
-			Name    string `json:"name"`
-			Pending bool   `json:"pending"`
+			Name        string `json:"name"`
+			Pending     bool   `json:"pending"`
+			Fingerprint string `json:"fingerprint"`
 		}
 		accs := s.curDeepSeek()
 		shells := make([]shell, 0, len(accs))
 		for _, a := range accs {
-			shells = append(shells, shell{Name: a.Name, Pending: true})
+			fp := a.Fingerprint
+			if fp == "" && a.Token != "" {
+				fp = DeepSeekFingerprint(a.Token)
+			}
+			shells = append(shells, shell{Name: a.Name, Pending: true, Fingerprint: fp})
 		}
 		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
-		writeJSON(w, http.StatusOK, map[string]any{
-			"success":  true,
-			"data":     shells,
-			"revision": s.deepSeekRevision(),
-		})
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
 	})
 
 	mux.HandleFunc("/api/deepseek", func(w http.ResponseWriter, r *http.Request) {
@@ -290,12 +292,6 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("/api/deepseek/login", func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
-		// Capture the config revision BEFORE spawning the login
-		// subprocess. The sidebar holds this pre-login revision and
-		// polls /api/deepseek/accounts until the revision changes, so a
-		// re-login for an account that already exists is detected by
-		// the new save rather than by a stale name match.
-		preRev := s.deepSeekRevision()
 		spawn := s.spawnDeepSeekLogin
 		if spawn == nil {
 			spawn = func(n string) error {
@@ -311,17 +307,10 @@ func (s *Server) Handler() http.Handler {
 			}
 		}
 		if err := spawn(name); err != nil {
-			writeJSON(w, 200, map[string]any{
-				"success":  false,
-				"revision": preRev,
-				"error":    err.Error(),
-			})
+			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
 			return
 		}
-		writeJSON(w, 200, map[string]any{
-			"success":  true,
-			"revision": preRev,
-		})
+		writeJSON(w, 200, map[string]any{"success": true})
 	})
 
 	mux.HandleFunc("/api/opencode/login", func(w http.ResponseWriter, r *http.Request) {

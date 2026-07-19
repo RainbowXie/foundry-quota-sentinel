@@ -112,7 +112,11 @@ func deepseekFromConfig(conf *config.Config) []web.DeepSeekAccount {
 		if a.Token == "" {
 			continue
 		}
-		out = append(out, web.DeepSeekAccount{Name: a.Name, Token: a.Token})
+		out = append(out, web.DeepSeekAccount{
+			Name:        a.Name,
+			Token:       a.Token,
+			Fingerprint: web.DeepSeekFingerprint(a.Token),
+		})
 	}
 	return out
 }
@@ -189,7 +193,6 @@ func startSidebar() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
-	srv.SetDeepSeekRevision(config.Revision)
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
@@ -357,7 +360,6 @@ func cmdServe() {
 	srv := web.NewServer(accountsFromConfig(cfg))
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
-	srv.SetDeepSeekRevision(config.Revision)
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
