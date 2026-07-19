@@ -1567,15 +1567,14 @@
             }
             function dsDoLogin(name) {
                 // Capture the target account's pre-login GENERATION from
-                // /api/deepseek/accounts BEFORE starting the login. A token
-                // fingerprint cannot detect a same-token re-login (DeepSeek
-                // may return the same long-lived token while Cookie/WebStore
-                // is refreshed), so the poll would wait 5 minutes and never
-                // refresh. Generation bumps on every successful login save
-                // regardless of the token value, and is untouched by window-
-                // size / other-provider saves, so only a real save of THIS
-                // account completes the poll. A fingerprint is kept for
-                // display diagnostics but completion keys off generation.
+                // /api/deepseek/accounts BEFORE starting the login. A
+                // token-derived signal cannot detect a same-token re-login
+                // (DeepSeek may return the same long-lived token while
+                // Cookie/WebStore is refreshed), so the poll would wait 5
+                // minutes and never refresh. Generation bumps on every
+                // successful login save regardless of the token value, and
+                // is untouched by window-size / other-provider saves, so
+                // only a real save of THIS account completes the poll.
                 fetch("/api/deepseek/accounts")
                     .then(function (r) { return r.json(); })
                     .then(function (acctR) {
@@ -1644,10 +1643,10 @@
             // dsLoginPoll watches /api/deepseek/accounts after a login is
             // kicked off. Completion is detected by the TARGET account's
             // per-account GENERATION changing from the pre-login value —
-            // NOT by name presence, a global revision, or a token
-            // fingerprint. A same-token re-login still bumps generation, so
-            // it completes. A window-size save or another provider's save
-            // does not change this account's generation, so it cannot
+            // NOT by name presence or a global revision. A same-token
+            // re-login still bumps generation, so it completes. A
+            // window-size save or another provider's save does not
+            // change this account's generation, so it cannot
             // falsely complete the poll. Once the generation changes (or
             // the account first appears) we render a loading shell and fire
             // the data fetch (fd). A cancel/failure never writes this

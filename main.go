@@ -113,10 +113,9 @@ func deepseekFromConfig(conf *config.Config) []web.DeepSeekAccount {
 			continue
 		}
 		out = append(out, web.DeepSeekAccount{
-			Name:        a.Name,
-			Token:       a.Token,
-			Fingerprint: web.DeepSeekFingerprint(a.Token),
-			Generation:  a.Generation,
+			Name:       a.Name,
+			Token:      a.Token,
+			Generation: a.Generation,
 		})
 	}
 	return out

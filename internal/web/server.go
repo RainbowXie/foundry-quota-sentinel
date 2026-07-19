@@ -1,9 +1,7 @@
 package web
 
 import (
-	"crypto/sha256"
 	"embed"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -31,21 +29,14 @@ type Account struct {
 type DeepSeekAccount struct {
 	Name  string
 	Token string
-	// Fingerprint is a non-credential hash of Token (sha256, first 16
-	// hex chars). The sidebar compares fingerprints to detect that THIS
-	// account's credential was (re)saved, without ever seeing the token.
-	// A global config revision cannot do this: an unrelated save (window
-	// size, another provider) would flip a file-mtime revision and
-	// falsely complete a re-login poll.
-	Fingerprint string
 	// Generation is a non-sensitive, per-account login counter bumped on
-	// every successful login save. A fingerprint of the token CANNOT
-	// detect a same-token re-login (DeepSeek may return the same
-	// long-lived token while Cookie/WebStore is refreshed), so the poll
-	// would wait 5 minutes and never refresh. Generation moves on every
-	// real login save regardless of token value, and is untouched by
-	// window-size / other-provider saves, so only a real save of THIS
-	// account completes the poll.
+	// every successful login save. A token-derived signal cannot detect a
+	// same-token re-login (DeepSeek may return the same long-lived token
+	// while Cookie/WebStore is refreshed), so the poll would wait 5
+	// minutes and never refresh. Generation moves on every real login save
+	// regardless of token value, and is untouched by window-size /
+	// other-provider saves, so only a real save of THIS account completes
+	// the poll.
 	Generation int
 }
 
@@ -53,17 +44,6 @@ type OllamaAccount struct {
 	Name      string
 	Cookie    string
 	UserAgent string
-}
-
-// DeepSeekFingerprint returns a non-credential hash of a DeepSeek token
-// (sha256, first 16 hex chars). The sidebar compares fingerprints to
-// detect that THIS account's credential was (re)saved — a global config
-// revision cannot do that because an unrelated save (window size,
-// another provider) would flip a file-mtime revision and falsely
-// complete a re-login poll.
-func DeepSeekFingerprint(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:8])
 }
 
 type Server struct {
@@ -230,30 +210,24 @@ func (s *Server) Handler() http.Handler {
 
 	// /api/deepseek/accounts returns the config-saved DeepSeek accounts
 	// as loading card shells without any remote fetch, each carrying a
-	// per-account, non-credential fingerprint of its token. The sidebar
-	// polls this after a login so a new card appears the moment the
-	// account is written to config, independent of the (slow)
-	// FetchSummary/FetchUsage round trips. A cancelled or failed login
-	// never writes the account, so no ghost card can appear. The
-	// fingerprint lets a re-login for an account that already exists be
-	// detected by the NEW save of THIS account — a global config
-	// revision cannot do that because an unrelated save (window size,
-	// another provider) would flip it and falsely complete the poll.
+	// per-account, non-sensitive login Generation. The sidebar polls
+	// this after a login so a new card appears the moment the account is
+	// written to config, independent of the (slow) FetchSummary/FetchUsage
+	// round trips. A cancelled or failed login never writes the account,
+	// so no ghost card can appear. Generation lets a re-login for an
+	// account that already exists be detected by the NEW save of THIS
+	// account — including a same-token re-login. The response exposes no
+	// credential, only an integer counter.
 	mux.HandleFunc("/api/deepseek/accounts", func(w http.ResponseWriter, r *http.Request) {
 		type shell struct {
-			Name        string `json:"name"`
-			Pending     bool   `json:"pending"`
-			Fingerprint string `json:"fingerprint"`
-			Generation  int    `json:"generation"`
+			Name       string `json:"name"`
+			Pending    bool   `json:"pending"`
+			Generation int    `json:"generation"`
 		}
 		accs := s.curDeepSeek()
 		shells := make([]shell, 0, len(accs))
 		for _, a := range accs {
-			fp := a.Fingerprint
-			if fp == "" && a.Token != "" {
-				fp = DeepSeekFingerprint(a.Token)
-			}
-			shells = append(shells, shell{Name: a.Name, Pending: true, Fingerprint: fp, Generation: a.Generation})
+			shells = append(shells, shell{Name: a.Name, Pending: true, Generation: a.Generation})
 		}
 		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})

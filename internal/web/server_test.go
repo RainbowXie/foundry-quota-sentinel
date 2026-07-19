@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,7 +146,7 @@ func TestDeepSeekAccountsEndpointEmptyWhenNoAccounts(t *testing.T) {
 
 // TestDeepSeekLoginSucceedsWithoutRevision proves /api/deepseek/login
 // no longer carries a global config revision: the completion signal is
-// the per-account fingerprint from /api/deepseek/accounts, which is
+// the per-account generation from /api/deepseek/accounts, which is
 // immune to unrelated config saves (window size, other providers).
 func TestDeepSeekLoginSucceedsWithoutRevision(t *testing.T) {
 	srv := NewServer(nil)
@@ -169,7 +170,7 @@ func TestDeepSeekLoginSucceedsWithoutRevision(t *testing.T) {
 		t.Fatalf("response = %#v, want success=true", got)
 	}
 	if got.Revision != nil {
-		t.Fatalf("login must not return a global revision (per-account fingerprint used instead), got %v", *got.Revision)
+		t.Fatalf("login must not return a global revision (per-account generation used instead), got %v", *got.Revision)
 	}
 }
 
@@ -196,126 +197,6 @@ func TestDeepSeekLoginReportsSpawnFailure(t *testing.T) {
 	}
 	if got.Success || got.Error == "" {
 		t.Fatalf("response = %#v, want success=false with error", got)
-	}
-}
-
-// TestDeepSeekAccountsEndpointReportsPerAccountFingerprint proves the
-// accounts endpoint exposes a per-account, non-credential fingerprint
-// (a hash of the saved token) rather than a global config revision.
-// A global revision (file mtime) flips on ANY config save — window
-// size, another provider, an unrelated account — so a re-login poll
-// for an existing account could falsely complete on the first poll.
-// The fingerprint is scoped to THIS account's credential, so only a
-// real save of THIS account changes it.
-func TestDeepSeekAccountsEndpointReportsPerAccountFingerprint(t *testing.T) {
-	srv := NewServer(nil)
-	srv.SetDeepSeekProvider(func() []DeepSeekAccount {
-		return []DeepSeekAccount{{Name: "work", Token: "tok-A"}}
-	})
-
-	r := httptest.NewRequest(http.MethodGet, "/api/deepseek/accounts", nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, r)
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
-	}
-	var got struct {
-		Success bool `json:"success"`
-		Data    []struct {
-			Name        string `json:"name"`
-			Fingerprint string `json:"fingerprint"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-		t.Fatal(err)
-	}
-	if !got.Success || len(got.Data) != 1 {
-		t.Fatalf("response = %#v", got)
-	}
-	if got.Data[0].Fingerprint == "" {
-		t.Fatal("account shell must carry a non-empty per-account fingerprint")
-	}
-}
-
-// TestDeepSeekFingerprintIsStableAcrossUnrelatedConfigSaves proves the
-// per-account fingerprint does NOT change when an unrelated config save
-// happens (e.g. window size). This is the regression that a global
-// mtime revision had: SaveWindowSize rewrote config.json, the revision
-// flipped, and a re-login poll for an existing account falsely
-// completed before the new token was saved. The fingerprint must be a
-// function of THIS account's token only.
-func TestDeepSeekFingerprintIsStableAcrossUnrelatedConfigSaves(t *testing.T) {
-	srv := NewServer(nil)
-	tok := "tok-stable"
-	srv.SetDeepSeekProvider(func() []DeepSeekAccount {
-		return []DeepSeekAccount{{Name: "work", Token: tok}}
-	})
-
-	fingerprint := func() string {
-		r := httptest.NewRequest(http.MethodGet, "/api/deepseek/accounts", nil)
-		w := httptest.NewRecorder()
-		srv.Handler().ServeHTTP(w, r)
-		var got struct {
-			Data []struct {
-				Name        string `json:"name"`
-				Fingerprint string `json:"fingerprint"`
-			} `json:"data"`
-		}
-		_ = json.NewDecoder(w.Body).Decode(&got)
-		if len(got.Data) != 1 {
-			t.Fatal("expected one account")
-		}
-		return got.Data[0].Fingerprint
-	}
-
-	before := fingerprint()
-	// Simulate an unrelated save: a different token for a DIFFERENT
-	// account, or a window-size save. The 'work' account's token is
-	// unchanged, so its fingerprint must be unchanged.
-	tok = "tok-stable" // unchanged
-	after := fingerprint()
-	if before == "" {
-		t.Fatal("fingerprint must be non-empty")
-	}
-	if before != after {
-		t.Fatalf("fingerprint changed across an unrelated save: %q -> %q", before, after)
-	}
-}
-
-// TestDeepSeekFingerprintChangesOnTokenRotation proves the per-account
-// fingerprint DOES change when THIS account's token is rotated (a real
-// re-login). Without that, the poll would never detect completion.
-func TestDeepSeekFingerprintChangesOnTokenRotation(t *testing.T) {
-	srv := NewServer(nil)
-	tok := "tok-old"
-	srv.SetDeepSeekProvider(func() []DeepSeekAccount {
-		return []DeepSeekAccount{{Name: "work", Token: tok}}
-	})
-
-	fingerprint := func() string {
-		r := httptest.NewRequest(http.MethodGet, "/api/deepseek/accounts", nil)
-		w := httptest.NewRecorder()
-		srv.Handler().ServeHTTP(w, r)
-		var got struct {
-			Data []struct {
-				Fingerprint string `json:"fingerprint"`
-			} `json:"data"`
-		}
-		_ = json.NewDecoder(w.Body).Decode(&got)
-		if len(got.Data) != 1 {
-			t.Fatal("expected one account")
-		}
-		return got.Data[0].Fingerprint
-	}
-
-	old := fingerprint()
-	tok = "tok-new-rotated"
-	new := fingerprint()
-	if old == "" || new == "" {
-		t.Fatal("fingerprints must be non-empty")
-	}
-	if old == new {
-		t.Fatal("fingerprint must change when the account token is rotated")
 	}
 }
 
@@ -350,5 +231,28 @@ func TestDeepSeekAccountsReportsGeneration(t *testing.T) {
 	}
 	if !got.Success || len(got.Data) != 1 || got.Data[0].Generation != 3 {
 		t.Fatalf("response = %#v, want generation=3", got)
+	}
+}
+
+// TestDeepSeekAccountsEndpointHasNoFingerprint proves the accounts
+// response no longer carries a token fingerprint. A fingerprint is a
+// derived credential marker that cannot represent login completion
+// (same-token re-login does not change it); generation fully replaces
+// it. The API must not leak a fingerprint key at all.
+func TestDeepSeekAccountsEndpointHasNoFingerprint(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetDeepSeekProvider(func() []DeepSeekAccount {
+		return []DeepSeekAccount{{Name: "work", Token: "tok", Generation: 2}}
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/deepseek/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "fingerprint") {
+		t.Fatalf("accounts response must not contain a fingerprint key: %s", body)
 	}
 }

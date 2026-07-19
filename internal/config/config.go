@@ -22,7 +22,7 @@ type DeepSeekAccount struct {
 	// even when the returned token is identical to the old one — DeepSeek
 	// can return the same long-lived token while the Cookie/WebStore is
 	// refreshed). The sidebar compares generations to detect completion
-	// without ever reading the token. A fingerprint of the token cannot
+	// without ever reading the token. A token-derived signal cannot
 	// detect a same-token re-login. Window-size and other-provider saves
 	// do not touch this account's generation, so they cannot falsely
 	// complete a re-login poll.
