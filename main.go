@@ -116,6 +116,7 @@ func deepseekFromConfig(conf *config.Config) []web.DeepSeekAccount {
 			Name:        a.Name,
 			Token:       a.Token,
 			Fingerprint: web.DeepSeekFingerprint(a.Token),
+			Generation:  a.Generation,
 		})
 	}
 	return out

@@ -318,3 +318,37 @@ func TestDeepSeekFingerprintChangesOnTokenRotation(t *testing.T) {
 		t.Fatal("fingerprint must change when the account token is rotated")
 	}
 }
+
+// TestDeepSeekAccountsReportsGeneration proves the accounts endpoint
+// exposes a per-account, non-sensitive login generation. A token
+// fingerprint cannot detect a same-token re-login (DeepSeek can return
+// the same long-lived token while the Cookie/WebStore is refreshed),
+// so the poll would wait the full 5 minutes and never refresh. The
+// generation bumps on every successful login save, independent of the
+// token value, so a same-token re-login still completes.
+func TestDeepSeekAccountsReportsGeneration(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetDeepSeekProvider(func() []DeepSeekAccount {
+		return []DeepSeekAccount{{Name: "work", Token: "tok", Generation: 3}}
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/deepseek/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name       string `json:"name"`
+			Generation int    `json:"generation"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 1 || got.Data[0].Generation != 3 {
+		t.Fatalf("response = %#v, want generation=3", got)
+	}
+}

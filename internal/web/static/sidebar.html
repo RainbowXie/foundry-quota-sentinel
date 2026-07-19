@@ -1566,21 +1566,44 @@
                 }
             }
             function dsDoLogin(name) {
-                // Capture the target account's pre-login fingerprint from
-                // /api/deepseek/accounts BEFORE starting the login. The
-                // fingerprint is a non-credential hash of THIS account's
-                // token, so only a real save of THIS account changes it —
-                // a window-size save or another provider's save does not.
-                // A global config revision cannot do this: any config write
-                // would flip it and falsely complete a re-login poll.
+                // Capture the target account's pre-login GENERATION from
+                // /api/deepseek/accounts BEFORE starting the login. A token
+                // fingerprint cannot detect a same-token re-login (DeepSeek
+                // may return the same long-lived token while Cookie/WebStore
+                // is refreshed), so the poll would wait 5 minutes and never
+                // refresh. Generation bumps on every successful login save
+                // regardless of the token value, and is untouched by window-
+                // size / other-provider saves, so only a real save of THIS
+                // account completes the poll. A fingerprint is kept for
+                // display diagnostics but completion keys off generation.
                 fetch("/api/deepseek/accounts")
                     .then(function (r) { return r.json(); })
                     .then(function (acctR) {
-                        var preFingerprint = "";
-                        if (acctR && acctR.success) {
-                            (acctR.data || []).forEach(function (c) {
-                                if (c.name === name) preFingerprint = c.fingerprint || "";
-                            });
+                        // If the accounts endpoint reports failure, DO NOT
+                        // start the login: we cannot establish a pre-login
+                        // generation baseline, so a poll could not tell a
+                        // real completion from a stale state. Surface the
+                        // error instead.
+                        if (!acctR || !acctR.success) {
+                            var box = document.getElementById("dsCards");
+                            if (box) {
+                                box.innerHTML =
+                                    '<div class=er>账户状态不可用，登录未启动</div>';
+                            }
+                            return;
+                        }
+                        var preGeneration = -1;
+                        var found = false;
+                        (acctR.data || []).forEach(function (c) {
+                            if (c.name === name) {
+                                found = true;
+                                preGeneration = c.generation || 0;
+                            }
+                        });
+                        // preGeneration -1 means the account does not exist
+                        // yet; a new login (generation becomes 1) completes.
+                        if (!found) {
+                            preGeneration = -1;
                         }
                         return fetch(
                             "/api/deepseek/login" +
@@ -1589,11 +1612,11 @@
                             .then(function (r) { return r.json(); })
                             .then(function (r) {
                                 // Handle spawn failure: the login subprocess
-                                // could not start, so no fingerprint change
+                                // could not start, so no generation change
                                 // will ever come. Surface the error instead
                                 // of polling forever. Do NOT fall back to a
-                                // poll with an empty pre-fingerprint: that
-                                // would let the first poll falsely complete.
+                                // poll with an empty baseline: that would
+                                // let the first poll falsely complete.
                                 if (!r || !r.success) {
                                     var box = document.getElementById("dsCards");
                                     if (box) {
@@ -1604,13 +1627,13 @@
                                     }
                                     return;
                                 }
-                                dsLoginPoll(name, preFingerprint);
+                                dsLoginPoll(name, preGeneration);
                             });
                     })
                     .catch(function () {
                         // Network/accounts fetch failure is a real error;
-                        // surface it rather than polling with an empty
-                        // pre-fingerprint that would false-complete.
+                        // surface it rather than starting a login without a
+                        // baseline that would false-complete.
                         var box = document.getElementById("dsCards");
                         if (box) {
                             box.innerHTML =
@@ -1620,18 +1643,18 @@
             }
             // dsLoginPoll watches /api/deepseek/accounts after a login is
             // kicked off. Completion is detected by the TARGET account's
-            // per-account fingerprint CHANGING from the pre-login value —
-            // NOT by name presence, and NOT by a global config revision. A
-            // re-login for an existing account must be detected by the new
-            // save of THIS account; an unrelated save (window size, another
-            // provider) does not change this account's fingerprint, so it
-            // cannot falsely complete the poll. Once the fingerprint changes
-            // (or the account first appears) we render a loading shell and
-            // fire the data fetch (fd). A cancel/failure never writes this
-            // account so the fingerprint never changes and no ghost card
+            // per-account GENERATION changing from the pre-login value —
+            // NOT by name presence, a global revision, or a token
+            // fingerprint. A same-token re-login still bumps generation, so
+            // it completes. A window-size save or another provider's save
+            // does not change this account's generation, so it cannot
+            // falsely complete the poll. Once the generation changes (or
+            // the account first appears) we render a loading shell and fire
+            // the data fetch (fd). A cancel/failure never writes this
+            // account so the generation never changes and no ghost card
             // appears; the poll stops after ~5 min (the login browser's own
             // context deadline).
-            function dsLoginPoll(name, preFingerprint) {
+            function dsLoginPoll(name, preGeneration) {
                 var tries = 0;
                 var maxTries = 250; // ~5 min at 1.2s
                 function tick() {
@@ -1640,20 +1663,20 @@
                         .then(function (r) {
                             if (!r || !r.success) { schedule(); return; }
                             var arr = r.data || [];
-                            var fp = "";
+                            var gen = -1;
                             var hit = false;
                             arr.forEach(function (c) {
                                 if (c.name === name) {
                                     hit = true;
-                                    fp = c.fingerprint || "";
+                                    gen = c.generation || 0;
                                 }
                             });
                             // Complete only when the account is present AND
-                            // its fingerprint differs from the pre-login
-                            // value (new account => preFingerprint "" => any
-                            // non-empty fingerprint completes; re-login =>
-                            // rotated token => fingerprint changes).
-                            if (hit && fp !== preFingerprint) {
+                            // its generation differs from the pre-login
+                            // value. A new account had preGeneration -1, so
+                            // any generation >= 1 completes; a re-login bumps
+                            // generation even when the token is unchanged.
+                            if (hit && gen !== preGeneration) {
                                 dsRenderShells(arr);
                                 fd();
                                 return;

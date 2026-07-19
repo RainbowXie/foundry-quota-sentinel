@@ -17,6 +17,16 @@ type DeepSeekAccount struct {
 	Name     string `json:"name"`
 	Token    string `json:"token"`               // platform.deepseek.com 网页 Bearer token（供卡片调接口）
 	WebStore string `json:"web_store,omitempty"` // 登录时 local/sessionStorage 快照 JSON {"l":{},"s":{}}，打开账户页时原样回放以恢复登录态
+	// Generation is a non-sensitive, per-account success-login counter.
+	// UpsertDeepSeekAccount bumps it on every overwrite (a real re-login,
+	// even when the returned token is identical to the old one — DeepSeek
+	// can return the same long-lived token while the Cookie/WebStore is
+	// refreshed). The sidebar compares generations to detect completion
+	// without ever reading the token. A fingerprint of the token cannot
+	// detect a same-token re-login. Window-size and other-provider saves
+	// do not touch this account's generation, so they cannot falsely
+	// complete a re-login poll.
+	Generation int `json:"generation,omitempty"`
 }
 
 type OllamaAccount struct {
@@ -149,13 +159,22 @@ func (c *Config) ProfileNames() []string {
 	return names
 }
 
-// UpsertDeepSeekAccount 按 Name 覆盖或追加一个 DeepSeek 账户。
+// UpsertDeepSeekAccount 按 Name 覆盖或追加一个 DeepSeek 账户。覆盖已
+// 存在账号时把 Generation 递增（一次真实重登录，即使返回的 token 与旧
+// 值完全相同——DeepSeek 可能返回同一长期 token 但 Cookie/WebStore 已刷新）；
+// 新账号 Generation 从 1 起。这样侧边栏按 generation 比较即可检测完成，
+// 无需读取 token。
 func (c *Config) UpsertDeepSeekAccount(a DeepSeekAccount) {
 	for i := range c.DeepSeekAccounts {
 		if c.DeepSeekAccounts[i].Name == a.Name {
+			gen := c.DeepSeekAccounts[i].Generation + 1
+			a.Generation = gen
 			c.DeepSeekAccounts[i] = a
 			return
 		}
+	}
+	if a.Generation == 0 {
+		a.Generation = 1
 	}
 	c.DeepSeekAccounts = append(c.DeepSeekAccounts, a)
 }

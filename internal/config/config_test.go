@@ -60,3 +60,40 @@ func TestDeleteOllamaAccountReturnsErrorForUnknownName(t *testing.T) {
 		t.Errorf("accounts = %#v, want %#v", got, want)
 	}
 }
+
+// TestUpsertDeepSeekAccountBumpsGenerationOnSameTokenRelogin proofs a
+// same-token re-login still bumps Generation. DeepSeek may return the
+// same long-lived token while Cookie/WebStore is refreshed; a token
+// fingerprint would not change, so a completion poll would wait 5
+// minutes and never refresh. Generation must move on every overwrite
+// regardless of token value.
+func TestUpsertDeepSeekAccountBumpsGenerationOnSameTokenRelogin(t *testing.T) {
+	cfg := Config{}
+	cfg.UpsertDeepSeekAccount(DeepSeekAccount{Name: "work", Token: "tok-same"})
+	g1 := cfg.DeepSeekAccounts[0].Generation
+	if g1 == 0 {
+		t.Fatal("first generation must be non-zero")
+	}
+	// Same token, re-login.
+	cfg.UpsertDeepSeekAccount(DeepSeekAccount{Name: "work", Token: "tok-same"})
+	g2 := cfg.DeepSeekAccounts[0].Generation
+	if g2 != g1+1 {
+		t.Fatalf("same-token re-login must bump generation: %d -> %d", g1, g2)
+	}
+}
+
+// TestUpsertDeepSeekAccountGenerationStableAcrossUnrelatedSave proofs
+// an unrelated config field change (window size) does NOT change THIS
+// account's generation, so a generation-based poll does not falsely
+// complete on a window-size save.
+func TestUpsertDeepSeekAccountGenerationStableAcrossUnrelatedSave(t *testing.T) {
+	cfg := Config{}
+	cfg.UpsertDeepSeekAccount(DeepSeekAccount{Name: "work", Token: "tok"})
+	gen := cfg.DeepSeekAccounts[0].Generation
+	// Simulate SaveWindowSize: rewrites config but never touches
+	// DeepSeekAccounts.
+	cfg.WindowW = 999
+	if cfg.DeepSeekAccounts[0].Generation != gen {
+		t.Fatalf("unrelated save must not change generation: %d -> %d", gen, cfg.DeepSeekAccounts[0].Generation)
+	}
+}

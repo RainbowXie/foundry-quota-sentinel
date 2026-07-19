@@ -37,25 +37,27 @@ func TestSidebarDeepSeekLoginDoesNotGuessWithFixedTimeout(t *testing.T) {
 	}
 }
 
-// TestSidebarDeepSeekLoginDetectsReLoginByFingerprint proves the
+// TestSidebarDeepSeekLoginDetectsReLoginByGeneration proves the
 // DeepSeek login completion poll keys off the TARGET account's
-// per-account fingerprint, not a global config revision. A global
-// revision (file mtime) flips on any config save — window size,
-// another provider — so a re-login for an existing account falsely
-// completes on the first poll. The fingerprint is scoped to this
-// account's credential, so only a real save of THIS account changes
-// it. The login fetch catch must surface an error, not fall back to
-// dsLoginPoll(name, 0) (which reintroduces the false-completion).
-func TestSidebarDeepSeekLoginDetectsReLoginByFingerprint(t *testing.T) {
+// per-account GENERATION, not a token fingerprint or a global config
+// revision. DeepSeek may return the same long-lived token on a re-login
+// (Cookie/WebStore refreshed), so a fingerprint would not change and
+// the poll would wait 5 minutes without refreshing. Generation bumps
+// on every successful login save regardless of token value, and is
+// untouched by window-size / other-provider saves. The login must not
+// start when the accounts endpoint reports success=false (no baseline
+// could be established). The login fetch catch must surface an error,
+// not fall back to a poll with an empty baseline.
+func TestSidebarDeepSeekLoginDetectsReLoginByGeneration(t *testing.T) {
 	html, err := webAssets.ReadFile("static/sidebar.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(html), "fingerprint") {
-		t.Fatal("DeepSeek login must capture and compare a per-account fingerprint to detect re-login")
+	if !strings.Contains(string(html), "generation") {
+		t.Fatal("DeepSeek login must capture and compare a per-account generation to detect re-login")
 	}
-	if !strings.Contains(string(html), "preFingerprint") {
-		t.Fatal("DeepSeek login poll must hold a pre-login fingerprint and wait for it to change")
+	if !strings.Contains(string(html), "preGeneration") {
+		t.Fatal("DeepSeek login poll must hold a pre-login generation and wait for it to change")
 	}
 	if strings.Contains(string(html), "dsLoginPoll(name, 0)") {
 		t.Fatal("DeepSeek login fetch catch must surface an error, not fall back to dsLoginPoll(name, 0)")
@@ -65,5 +67,8 @@ func TestSidebarDeepSeekLoginDetectsReLoginByFingerprint(t *testing.T) {
 	}
 	if !strings.Contains(string(html), ".success") {
 		t.Fatal("DeepSeek login must check the login response success flag (handle spawn failure)")
+	}
+	if !strings.Contains(string(html), "账户状态不可用，登录未启动") {
+		t.Fatal("DeepSeek login must NOT start when /api/deepseek/accounts reports success=false")
 	}
 }

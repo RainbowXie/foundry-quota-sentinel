@@ -38,6 +38,15 @@ type DeepSeekAccount struct {
 	// size, another provider) would flip a file-mtime revision and
 	// falsely complete a re-login poll.
 	Fingerprint string
+	// Generation is a non-sensitive, per-account login counter bumped on
+	// every successful login save. A fingerprint of the token CANNOT
+	// detect a same-token re-login (DeepSeek may return the same
+	// long-lived token while Cookie/WebStore is refreshed), so the poll
+	// would wait 5 minutes and never refresh. Generation moves on every
+	// real login save regardless of token value, and is untouched by
+	// window-size / other-provider saves, so only a real save of THIS
+	// account completes the poll.
+	Generation int
 }
 
 type OllamaAccount struct {
@@ -235,6 +244,7 @@ func (s *Server) Handler() http.Handler {
 			Name        string `json:"name"`
 			Pending     bool   `json:"pending"`
 			Fingerprint string `json:"fingerprint"`
+			Generation  int    `json:"generation"`
 		}
 		accs := s.curDeepSeek()
 		shells := make([]shell, 0, len(accs))
@@ -243,7 +253,7 @@ func (s *Server) Handler() http.Handler {
 			if fp == "" && a.Token != "" {
 				fp = DeepSeekFingerprint(a.Token)
 			}
-			shells = append(shells, shell{Name: a.Name, Pending: true, Fingerprint: fp})
+			shells = append(shells, shell{Name: a.Name, Pending: true, Fingerprint: fp, Generation: a.Generation})
 		}
 		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
