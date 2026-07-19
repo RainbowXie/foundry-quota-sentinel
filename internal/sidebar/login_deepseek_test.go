@@ -86,17 +86,25 @@ func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error {
 	c.mu.Unlock()
 	return nil
 }
-func (c *fakeDeepSeekCDP) SetCookies(_ context.Context, cookies []browserauth.Cookie) error {
+
+// SetCookiesBestEffort mirrors the shared best-effort injector: each
+// rejected cookie is recorded by name and skipped, the rest are
+// injected, and the result reports counts. A single failure must not
+// abort the page flow.
+func (c *fakeDeepSeekCDP) SetCookiesBestEffort(_ context.Context, cookies []browserauth.Cookie) browserauth.CookieInjectionResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	var result browserauth.CookieInjectionResult
 	for _, cookie := range cookies {
 		if c.rejectCookieNames != nil && c.rejectCookieNames[cookie.Name] {
 			c.setCookieErrs = append(c.setCookieErrs, cookie.Name)
+			result.Failed = append(result.Failed, cookie.Name)
 			continue
 		}
 		c.setCookies = append(c.setCookies, cookie)
+		result.Injected++
 	}
-	return nil
+	return result
 }
 func (c *fakeDeepSeekCDP) Close() error {
 	c.closed = true

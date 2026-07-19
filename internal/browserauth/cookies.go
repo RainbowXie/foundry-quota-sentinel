@@ -117,62 +117,95 @@ func (c *Client) BrowserUserAgent(ctx context.Context) (string, error) {
 	return result.UserAgent, nil
 }
 
-// SetCookies installs cookies through Storage.setCookies. Each cookie must
-// pass validateCookie; a cookie whose name or value is unsafe is dropped
-// before any network call so partial injection can never leak bad data into
-// a session.
+// SetCookies installs cookies through Storage.setCookies using the
+// protocol's {cookies:[...]} envelope. Each cookie must pass
+// validateCookie; the call is rejected if any entry is unsafe so
+// partial injection can never leak bad data into a session.
 //
-// Injection is per-cookie and degrades rather than aborts: a single cookie
-// that Chrome rejects (e.g. a __Host- cookie that was captured with a Domain)
-// is logged by name and skipped, and the remaining cookies are still
-// injected. The account-page browser must stay open until the user closes
-// it, so a non-fatal cookie failure must not bubble up as a flow error.
-// The returned error is non-nil only when no cookie could be injected at all
-// and at least one was attempted — that is the case where the saved
-// credential is genuinely unusable and the caller should surface an error
-// instead of opening an unauthenticated page.
+// The call is strict: a single rejected cookie aborts the batch and
+// returns an error. OpenCode and Ollama rely on this all-or-nothing
+// behaviour for their account-page flows. DeepSeek, whose replayed
+// cookie set is best-effort over a captured snapshot, uses
+// SetCookiesBestEffort instead so one non-injectable cookie does not
+// flash-close the page.
 func (c *Client) SetCookies(ctx context.Context, cookies []Cookie) error {
-	safe := make([]Cookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		if err := validateCookie(cookie); err != nil {
+			return err
+		}
+	}
+	envelope := make([]map[string]any, 0, len(cookies))
+	for _, cookie := range cookies {
+		envelope = append(envelope, cookieParam(cookie))
+	}
+	if _, err := c.Call(ctx, "Storage.setCookies", map[string]any{"cookies": envelope}); err != nil {
+		return fmt.Errorf("注入 cookie 失败: %w", err)
+	}
+	return nil
+}
+
+// SetCookiesBestEffort injects cookies one Storage.setCookies call at a
+// time using the {cookies:[...]} envelope, degrading rather than
+// aborting. A cookie Chrome rejects (e.g. a __Host- cookie captured
+// with a Domain, which Storage.setCookies refuses) is logged by name
+// and value length and skipped; the remaining cookies are still set.
+// The account-page browser must stay open until the user closes it, so
+// a non-fatal cookie failure must not bubble up as a flow error.
+//
+// CookieInjectionResult reports how many cookies were injected and
+// which names failed, by name only — no value is ever logged. The
+// caller decides whether an all-failed result is fatal.
+type CookieInjectionResult struct {
+	Injected int
+	Failed   []string
+}
+
+func (c *Client) SetCookiesBestEffort(ctx context.Context, cookies []Cookie) CookieInjectionResult {
+	var result CookieInjectionResult
 	for _, cookie := range cookies {
 		if err := validateCookie(cookie); err != nil {
 			log.Printf("browserauth: 跳过 cookie %q（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+			result.Failed = append(result.Failed, cookie.Name)
 			continue
 		}
-		safe = append(safe, cookie)
-	}
-	if len(safe) == 0 {
-		if len(cookies) == 0 {
-			return nil
-		}
-		return fmt.Errorf("无可注入的 cookie（共 %d 个全部被过滤）", len(cookies))
-	}
-	injected := 0
-	for _, cookie := range safe {
-		// __Host- prefixed cookies must not carry a Domain; Chrome
-		// rejects them and the whole replay would otherwise fail. The
-		// cookie is host-scoped to the page's own origin.
-		domain := cookie.Domain
-		if strings.HasPrefix(cookie.Name, "__Host-") {
-			domain = ""
-		}
-		params := map[string]any{
-			"name":     cookie.Name,
-			"value":    cookie.Value,
-			"domain":   domain,
-			"path":     cookie.Path,
-			"secure":   cookie.Secure,
-			"httpOnly": cookie.HTTPOnly,
-		}
-		if _, err := c.Call(ctx, "Storage.setCookies", []map[string]any{params}); err != nil {
+		if _, err := c.Call(ctx, "Storage.setCookies", map[string]any{
+			"cookies": []map[string]any{cookieParam(cookie)},
+		}); err != nil {
 			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+			result.Failed = append(result.Failed, cookie.Name)
 			continue
 		}
-		injected++
+		result.Injected++
 	}
-	if injected == 0 {
-		return fmt.Errorf("cookie 注入全部失败（共 %d 个）", len(safe))
+	return result
+}
+
+// cookieParam builds the Storage.setCookies CookieParam for one cookie.
+// __Host- prefixed cookies must not carry a Domain and must be scoped
+// to an https URL instead; Chrome rejects a __Host- cookie that sets a
+// domain. Non-host cookies keep their captured Domain.
+func cookieParam(cookie Cookie) map[string]any {
+	domain := cookie.Domain
+	url := ""
+	if strings.HasPrefix(cookie.Name, "__Host-") {
+		domain = ""
+		url = "https://" + strings.TrimPrefix(cookie.Domain, ".")
 	}
-	return nil
+	params := map[string]any{
+		"name":     cookie.Name,
+		"value":    cookie.Value,
+		"secure":   cookie.Secure,
+		"httpOnly": cookie.HTTPOnly,
+	}
+	if domain != "" {
+		params["domain"] = domain
+	} else if url != "" {
+		params["url"] = url
+	}
+	if cookie.Path != "" {
+		params["path"] = cookie.Path
+	}
+	return params
 }
 
 // SetUserAgent applies Emulation.setUserAgentOverride. An empty value

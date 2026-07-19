@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -117,7 +118,11 @@ type deepSeekCDP interface {
 	Evaluate(ctx context.Context, expression string) (json.RawMessage, error)
 	AddScriptOnNewDocument(ctx context.Context, script string) error
 	Navigate(ctx context.Context, pageURL string, allowedHosts ...string) error
-	SetCookies(ctx context.Context, cookies []browserauth.Cookie) error
+	// SetCookiesBestEffort injects cookies one at a time, degrading
+	// rather than aborting on a single rejection. DeepSeek's replayed
+	// cookie set is best-effort over a captured snapshot, so one
+	// non-injectable cookie must not flash-close the account page.
+	SetCookiesBestEffort(ctx context.Context, cookies []browserauth.Cookie) browserauth.CookieInjectionResult
 	Close() error
 }
 
@@ -184,8 +189,8 @@ func (c *sharedDeepSeekClient) AddScriptOnNewDocument(ctx context.Context, scrip
 func (c *sharedDeepSeekClient) Navigate(ctx context.Context, pageURL string, allowedHosts ...string) error {
 	return c.Page().Navigate(ctx, pageURL, allowedHosts...)
 }
-func (c *sharedDeepSeekClient) SetCookies(ctx context.Context, cookies []browserauth.Cookie) error {
-	return c.Browser().SetCookies(ctx, cookies)
+func (c *sharedDeepSeekClient) SetCookiesBestEffort(ctx context.Context, cookies []browserauth.Cookie) browserauth.CookieInjectionResult {
+	return c.Browser().SetCookiesBestEffort(ctx, cookies)
 }
 
 // RunDeepSeekLogin launches the shared browser, collects Bearer candidates
@@ -397,9 +402,15 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	}
 	defer cdp.Close()
 	if len(cookies) > 0 {
-		if err := cdp.SetCookies(ctx, cookies); err != nil {
-			return fmt.Errorf("恢复 DeepSeek 登录 cookie 失败: %w", err)
+		// Best-effort: a single non-injectable cookie (e.g. a __Host-
+		// cookie Chrome refuses) must not abort the page. We log the
+		// failed names and continue; an all-failed replay still
+		// surfaces an error so the page does not open unauthenticated.
+		result := cdp.SetCookiesBestEffort(ctx, cookies)
+		if result.Injected == 0 {
+			return fmt.Errorf("恢复 DeepSeek 登录 cookie 失败：全部 %d 个注入失败（%d 个被过滤）", len(cookies), len(result.Failed))
 		}
+		log.Printf("deepseek: 账户页 cookie 回放完成，注入 %d 个，失败 %d 个（仅记名称）", result.Injected, len(result.Failed))
 	}
 	if script != "" {
 		if err := cdp.AddScriptOnNewDocument(ctx, script); err != nil {

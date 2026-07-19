@@ -33,6 +33,10 @@ type fakeDevToolsServer struct {
 	// model a per-cookie injection failure (e.g. a __Host- cookie
 	// Chrome refuses because it carries a Domain).
 	rejectStorageCookieName string
+	// setCookiesBadShape is set when a Storage.setCookies call used a
+	// bare array instead of {cookies:[...]}; tests assert the protocol
+	// shape is never wrong.
+	setCookiesBadShape bool
 }
 
 func newFakeDevToolsServer(t *testing.T) *fakeDevToolsServer {
@@ -128,23 +132,49 @@ func (f *fakeDevToolsServer) handleConnection(conn *websocket.Conn, methods *[]s
 				})
 			}
 		case "Storage.setCookies":
-			if f.rejectStorageCookieName != "" {
-				var params []map[string]json.RawMessage
-				_ = json.Unmarshal(msg["params"], &params)
-				if len(params) > 0 {
-					var name string
-					_ = json.Unmarshal(params[0]["name"], &name)
-					if name == f.rejectStorageCookieName {
-						_ = conn.WriteJSON(map[string]any{
-							"id": id,
-							"error": map[string]any{
-								"code":    32000,
-								"message": "failed to set cookie " + name,
-							},
-						})
-						continue
-					}
+			// Enforce the real CDP shape: params must be {cookies:[...]}.
+			// A bare array (the old bug) is a protocol error, mirroring
+			// Chrome rejecting the call.
+			var envelope struct {
+				Cookies []map[string]json.RawMessage `json:"cookies"`
+			}
+			if err := json.Unmarshal(msg["params"], &envelope); err != nil || envelope.Cookies == nil {
+				f.mu.Lock()
+				f.setCookiesBadShape = true
+				f.mu.Unlock()
+				_ = conn.WriteJSON(map[string]any{
+					"id": id,
+					"error": map[string]any{
+						"code":    -32602,
+						"message": "Storage.setCookies requires {cookies:[...]}",
+					},
+				})
+				continue
+			}
+			reject := false
+			for _, ck := range envelope.Cookies {
+				var name, domain, url string
+				_ = json.Unmarshal(ck["name"], &name)
+				_ = json.Unmarshal(ck["domain"], &domain)
+				_ = json.Unmarshal(ck["url"], &url)
+				// __Host- cookies must not carry a domain and must be
+				// scoped via url (https). Chrome rejects otherwise.
+				if strings.HasPrefix(name, "__Host-") && (domain != "" || url == "") {
+					reject = true
 				}
+				if f.rejectStorageCookieName != "" && name == f.rejectStorageCookieName {
+					reject = true
+				}
+			}
+			if reject {
+				_ = conn.WriteJSON(map[string]any{
+					"id": id,
+					"error": map[string]any{
+						"code":    32000,
+						"message": "failed to set cookie",
+					},
+				})
+				continue
 			}
 			_ = conn.WriteJSON(map[string]any{"id": id, "result": map[string]any{}})
 		default:
@@ -211,16 +241,15 @@ func TestClientRejectsZeroPort(t *testing.T) {
 	}
 }
 
-// TestSetCookiesToleratesPerCookieFailure proves Storage.setCookies
-// injection must NOT abort the whole batch when a single cookie is
-// rejected by the browser (e.g. a __Host- cookie carrying a Domain).
-// The good cookie is still injected; the rejected one is logged and
-// skipped. The previous code returned the first setCookies error,
-// which made the DeepSeek account-page browser flash closed.
-func TestSetCookiesToleratesPerCookieFailure(t *testing.T) {
+// TestSetCookiesUsesCookieEnvelopeShape proves Storage.setCookies is
+// called with the protocol's {cookies:[...]} envelope, not a bare
+// array. The bare-array form is rejected by Chrome (the fake server
+// flags it via setCookiesBadShape), and was the root cause of the
+// DeepSeek account-page browser flash-close: every replay failed, the
+// flow aborted, and the defer closed the browser.
+func TestSetCookiesUsesCookieEnvelopeShape(t *testing.T) {
 	server := newFakeDevToolsServer(t)
 	defer server.Close()
-	server.rejectStorageCookieName = "__Host-bad"
 	client, err := Connect(context.Background(), server.DebugAddress())
 	if err != nil {
 		t.Fatal(err)
@@ -228,29 +257,23 @@ func TestSetCookiesToleratesPerCookieFailure(t *testing.T) {
 	defer client.Close()
 
 	cookies := []Cookie{
-		{Name: "__Host-bad", Value: "x", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
 		{Name: "session", Value: "good", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
 	}
 	if err := client.Browser().SetCookies(context.Background(), cookies); err != nil {
-		t.Fatalf("SetCookies aborted on a single bad cookie: %v", err)
+		t.Fatalf("SetCookies failed with correct envelope: %v", err)
 	}
-	seen := server.MethodsSeen("browser")
-	count := 0
-	for _, m := range seen {
-		if m == "Storage.setCookies" {
-			count++
-		}
-	}
-	if count != 2 {
-		t.Fatalf("expected both cookies attempted, saw %d Storage.setCookies calls", count)
+	server.mu.Lock()
+	bad := server.setCookiesBadShape
+	server.mu.Unlock()
+	if bad {
+		t.Fatal("SetCookies used a bare array instead of {cookies:[...]}")
 	}
 }
 
 // TestSetCookiesStripsDomainForHostScopedCookies proves a __Host-
-// prefixed cookie is injected without a Domain. Chrome rejects
-// __Host- cookies that carry a Domain attribute, so replaying the
-// captured Domain verbatim fails the whole injection. The saved
-// credential's Domain must be dropped for __Host- names.
+// prefixed cookie is scoped via an https url and carries NO domain.
+// Chrome rejects __Host- cookies that set a domain; replaying the
+// captured Domain verbatim failed the whole injection.
 func TestSetCookiesStripsDomainForHostScopedCookies(t *testing.T) {
 	server := newFakeDevToolsServer(t)
 	defer server.Close()
