@@ -1570,8 +1570,70 @@
                     "/api/deepseek/login" +
                         (name ? "?name=" + encodeURIComponent(name) : ""),
                 ).then(function () {
-                    setTimeout(fd, 1500);
+                    dsLoginPoll(name);
                 });
+            }
+            // dsLoginPoll watches the fast /api/deepseek/accounts endpoint
+            // after a login is kicked off. The login subprocess writes the
+            // account to config only on real success; a cancel or failure
+            // never writes it, so no ghost card can appear. The moment the
+            // account shows up in config we render a loading shell and fire
+            // the data fetch (fd). We never guess the login is done with a
+            // fixed setTimeout; we observe config completion instead. The
+            // poll stops once the account appears or after a 5-minute
+            // timeout (the login browser's own context deadline).
+            function dsLoginPoll(name) {
+                var tries = 0;
+                var maxTries = 250; // ~5 min at 1.2s
+                var seen = false;
+                function tick() {
+                    fetch("/api/deepseek/accounts")
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r || !r.success) { schedule(); return; }
+                            var arr = r.data || [];
+                            var hit = false;
+                            arr.forEach(function (c) {
+                                if (c.name === name) hit = true;
+                            });
+                            if (hit && !seen) {
+                                seen = true;
+                                dsRenderShells(arr);
+                                fd();
+                                return; // stop polling once observed
+                            }
+                            schedule();
+                        })
+                        .catch(function () { schedule(); });
+                }
+                function schedule() {
+                    tries++;
+                    if (tries >= maxTries) return;
+                    setTimeout(tick, 1200);
+                }
+                tick();
+            }
+            // dsRenderShells draws loading card shells for every account in
+            // config so the new card is visible immediately, before the
+            // remote data fetch (fd) has returned. fd() overwrites this once
+            // data arrives.
+            function dsRenderShells(arr) {
+                var box = document.getElementById("dsCards");
+                if (!arr.length) { return; }
+                var h = "";
+                arr.forEach(function (c) {
+                    h +=
+                        '<div class=bc data-prov=deepseek data-name="' +
+                        qesc(c.name) +
+                        '">';
+                    h +=
+                        "<div class=bc-r><span class=ctype>DeepSeek</span><span class=cname>" +
+                        qesc(c.name) +
+                        "</span></div>";
+                    h += '<div class=emp>加载中…</div>';
+                    h += "</div>";
+                });
+                box.innerHTML = h;
             }
             function ocDoLogin(name) {
                 fetch(

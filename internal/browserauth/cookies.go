@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 )
@@ -117,28 +118,59 @@ func (c *Client) BrowserUserAgent(ctx context.Context) (string, error) {
 }
 
 // SetCookies installs cookies through Storage.setCookies. Each cookie must
-// pass validateCookie; the call is rejected if any entry is unsafe so
-// partial injection can never leak bad data into a session.
+// pass validateCookie; a cookie whose name or value is unsafe is dropped
+// before any network call so partial injection can never leak bad data into
+// a session.
+//
+// Injection is per-cookie and degrades rather than aborts: a single cookie
+// that Chrome rejects (e.g. a __Host- cookie that was captured with a Domain)
+// is logged by name and skipped, and the remaining cookies are still
+// injected. The account-page browser must stay open until the user closes
+// it, so a non-fatal cookie failure must not bubble up as a flow error.
+// The returned error is non-nil only when no cookie could be injected at all
+// and at least one was attempted — that is the case where the saved
+// credential is genuinely unusable and the caller should surface an error
+// instead of opening an unauthenticated page.
 func (c *Client) SetCookies(ctx context.Context, cookies []Cookie) error {
+	safe := make([]Cookie, 0, len(cookies))
 	for _, cookie := range cookies {
 		if err := validateCookie(cookie); err != nil {
-			return err
+			log.Printf("browserauth: 跳过 cookie %q（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+			continue
 		}
+		safe = append(safe, cookie)
 	}
-	for _, cookie := range cookies {
-		secure := cookie.Secure
-		httpOnly := cookie.HTTPOnly
+	if len(safe) == 0 {
+		if len(cookies) == 0 {
+			return nil
+		}
+		return fmt.Errorf("无可注入的 cookie（共 %d 个全部被过滤）", len(cookies))
+	}
+	injected := 0
+	for _, cookie := range safe {
+		// __Host- prefixed cookies must not carry a Domain; Chrome
+		// rejects them and the whole replay would otherwise fail. The
+		// cookie is host-scoped to the page's own origin.
+		domain := cookie.Domain
+		if strings.HasPrefix(cookie.Name, "__Host-") {
+			domain = ""
+		}
 		params := map[string]any{
 			"name":     cookie.Name,
 			"value":    cookie.Value,
-			"domain":   cookie.Domain,
+			"domain":   domain,
 			"path":     cookie.Path,
-			"secure":   secure,
-			"httpOnly": httpOnly,
+			"secure":   cookie.Secure,
+			"httpOnly": cookie.HTTPOnly,
 		}
 		if _, err := c.Call(ctx, "Storage.setCookies", []map[string]any{params}); err != nil {
-			return fmt.Errorf("注入 cookie 失败: %w", err)
+			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+			continue
 		}
+		injected++
+	}
+	if injected == 0 {
+		return fmt.Errorf("cookie 注入全部失败（共 %d 个）", len(safe))
 	}
 	return nil
 }

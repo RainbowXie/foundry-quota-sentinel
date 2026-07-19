@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"foundry-quota-sentinel/internal/browserauth"
 )
@@ -14,11 +16,21 @@ type fakeDeepSeekBrowser struct {
 	exited  bool
 	closed  bool
 	onClose func()
+	// waitBlocks makes Wait block until waitRelease is signaled, so a
+	// test can prove runDeepSeekPage stays open until the user closes
+	// the window rather than returning immediately.
+	waitBlocks  bool
+	waitRelease chan struct{}
 }
 
 func (b *fakeDeepSeekBrowser) CDP(context.Context) (deepSeekCDP, error) { return b.cdp, nil }
 func (b *fakeDeepSeekBrowser) Exited() bool                             { return b.exited }
-func (b *fakeDeepSeekBrowser) Wait() error                              { return nil }
+func (b *fakeDeepSeekBrowser) Wait() error {
+	if b.waitBlocks {
+		<-b.waitRelease
+	}
+	return nil
+}
 func (b *fakeDeepSeekBrowser) Close() error {
 	b.closed = true
 	b.exited = true
@@ -35,6 +47,18 @@ type fakeDeepSeekCDP struct {
 	closed         bool
 	setCookies     []browserauth.Cookie
 	browserCookies []browserauth.Cookie
+	// rejectCookieNames makes SetCookies model a per-cookie injection
+	// failure (e.g. a __Host- cookie rejected by Storage.setCookies).
+	// Rejected names are dropped from setCookies and reported as a
+	// per-cookie error so tests can exercise the degrade path.
+	rejectCookieNames map[string]bool
+	// setCookieErrs collects the per-cookie failures a tolerant
+	// SetCookies would log but skip.
+	setCookieErrs []string
+	navigated     bool
+	// mu guards the shared mutable fields below when a test drives
+	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
+	mu sync.Mutex
 }
 
 func (c *fakeDeepSeekCDP) EnableNetwork(context.Context) error { return nil }
@@ -56,14 +80,39 @@ func (c *fakeDeepSeekCDP) Evaluate(context.Context, string) (json.RawMessage, er
 	return json.RawMessage(`{"result":{"value":` + string(raw) + `}}`), nil
 }
 func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error { return nil }
-func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error    { return nil }
+func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error {
+	c.mu.Lock()
+	c.navigated = true
+	c.mu.Unlock()
+	return nil
+}
 func (c *fakeDeepSeekCDP) SetCookies(_ context.Context, cookies []browserauth.Cookie) error {
-	c.setCookies = append([]browserauth.Cookie(nil), cookies...)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, cookie := range cookies {
+		if c.rejectCookieNames != nil && c.rejectCookieNames[cookie.Name] {
+			c.setCookieErrs = append(c.setCookieErrs, cookie.Name)
+			continue
+		}
+		c.setCookies = append(c.setCookies, cookie)
+	}
 	return nil
 }
 func (c *fakeDeepSeekCDP) Close() error {
 	c.closed = true
 	return nil
+}
+
+// navigatedSnapshot returns a race-safe copy of the navigated flag and
+// the injected/failed cookie slices for test assertions when
+// runDeepSeekPage is driven in a separate goroutine.
+func (c *fakeDeepSeekCDP) navigatedSnapshot() (bool, []browserauth.Cookie, []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	nav := c.navigated
+	cookies := append([]browserauth.Cookie(nil), c.setCookies...)
+	errs := append([]string(nil), c.setCookieErrs...)
+	return nav, cookies, errs
 }
 
 func newFakeDeepSeekBrowser(onClose func()) *fakeDeepSeekBrowser {
@@ -255,6 +304,122 @@ func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 	}
 	if len(cdp.setCookies) != 1 || cdp.setCookies[0].Name != "session" {
 		t.Fatalf("restored cookies = %#v", cdp.setCookies)
+	}
+	if !cdp.navigated {
+		t.Fatal("page was not navigated to the account URL")
+	}
+	if browser.closed {
+		t.Fatal("browser was closed instead of staying open for the user")
+	}
+}
+
+// TestRunDeepSeekPageSurvivesSingleBadCookie proves a single
+// non-injectable cookie (e.g. a __Host- cookie Chrome refuses because
+// it carries a Domain) must NOT abort the whole account-page flow.
+// The previous code returned the first SetCookies error and the defer
+// closed the browser — the visible symptom was the account-page
+// browser flashing closed. The good cookie must still be injected,
+// navigation must run, and the browser must stay open until the user
+// closes it.
+func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:           deepSeekUsageURL,
+		rejectCookieNames: map[string]bool{"__Host-bad": true},
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+
+	webStore := `{"l":{},"s":{},"c":[` +
+		`{"name":"__Host-bad","value":"x","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true},` +
+		`{"name":"session","value":"good","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true}` +
+		`]}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("account page aborted on a single bad cookie: %v", err)
+	}
+	if browser.closed {
+		t.Fatal("browser was closed after a non-fatal cookie failure (flash-close regression)")
+	}
+	if !cdp.navigated {
+		t.Fatal("navigation did not run after a non-fatal cookie failure")
+	}
+	if len(cdp.setCookies) != 1 || cdp.setCookies[0].Name != "session" {
+		t.Fatalf("good cookie was not injected, setCookies = %#v", cdp.setCookies)
+	}
+	if len(cdp.setCookieErrs) != 1 || cdp.setCookieErrs[0] != "__Host-bad" {
+		t.Fatalf("bad cookie should be reported but skipped, errs = %#v", cdp.setCookieErrs)
+	}
+}
+
+// TestRunDeepSeekPageStorageOnlySurvivesNoCookies proves an account
+// whose saved WebStore has no cookie envelope (only localStorage /
+// sessionStorage) still opens the page and keeps the browser alive.
+// The cookie-replay step must be a no-op, not an error.
+func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+
+	// No "c" key at all — an older saved account.
+	webStore := `{"l":{"token":"storage-only"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("storage-only account page failed: %v", err)
+	}
+	if browser.closed {
+		t.Fatal("storage-only account browser was closed instead of staying open")
+	}
+	if !cdp.navigated {
+		t.Fatal("storage-only account was not navigated")
+	}
+	if len(cdp.setCookies) != 0 {
+		t.Fatalf("expected no cookie injection, got %#v", cdp.setCookies)
+	}
+}
+
+// TestRunDeepSeekPageStaysOpenAfterNavigation proves the account-page
+// browser blocks on browser.Wait (the user closing the window) rather
+// than returning immediately and being reaped. This is the regression
+// guard for the flash-close: Wait must be the final step.
+func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+
+	webStore := `{"l":{},"s":{}}`
+	done := make(chan error, 1)
+	go func() { done <- RunDeepSeekPage(deepSeekUsageURL, webStore) }()
+	select {
+	case err := <-done:
+		t.Fatalf("RunDeepSeekPage returned before the user closed the window: %v", err)
+	case <-time.After(50 * time.Millisecond):
+		// expected: still blocked on Wait
+	}
+	nav, _, _ := cdp.navigatedSnapshot()
+	if !nav {
+		t.Fatal("navigation did not run")
+	}
+	browser.waitRelease <- struct{}{}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunDeepSeekPage returned error after user close: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("RunDeepSeekPage did not return after the user closed the window")
 	}
 }
 

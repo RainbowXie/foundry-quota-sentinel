@@ -195,6 +195,26 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, map[string]any{"success": true, "data": d})
 	})
 
+	// /api/deepseek/accounts returns the config-saved DeepSeek accounts
+	// as loading card shells without any remote fetch. The sidebar polls
+	// this after a login so a new card appears the moment the account is
+	// written to config, independent of the (slow) FetchSummary/FetchUsage
+	// round trips. A cancelled or failed login never writes the account,
+	// so no ghost card can appear here.
+	mux.HandleFunc("/api/deepseek/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type shell struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		}
+		accs := s.curDeepSeek()
+		shells := make([]shell, 0, len(accs))
+		for _, a := range accs {
+			shells = append(shells, shell{Name: a.Name, Pending: true})
+		}
+		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
+	})
+
 	mux.HandleFunc("/api/deepseek", func(w http.ResponseWriter, r *http.Request) {
 		type card struct {
 			Name    string                     `json:"name"`

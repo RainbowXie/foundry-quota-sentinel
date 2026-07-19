@@ -27,6 +27,12 @@ type fakeDevToolsServer struct {
 	mu             sync.Mutex
 	pageMethods    []string
 	browserMethods []string
+
+	// rejectStorageCookieName makes Storage.setCookies return a
+	// protocol error for the cookie with this name. Tests use it to
+	// model a per-cookie injection failure (e.g. a __Host- cookie
+	// Chrome refuses because it carries a Domain).
+	rejectStorageCookieName string
 }
 
 func newFakeDevToolsServer(t *testing.T) *fakeDevToolsServer {
@@ -121,6 +127,26 @@ func (f *fakeDevToolsServer) handleConnection(conn *websocket.Conn, methods *[]s
 					"params": map[string]any{"headers": map[string]string{"authorization": "Bearer test"}},
 				})
 			}
+		case "Storage.setCookies":
+			if f.rejectStorageCookieName != "" {
+				var params []map[string]json.RawMessage
+				_ = json.Unmarshal(msg["params"], &params)
+				if len(params) > 0 {
+					var name string
+					_ = json.Unmarshal(params[0]["name"], &name)
+					if name == f.rejectStorageCookieName {
+						_ = conn.WriteJSON(map[string]any{
+							"id": id,
+							"error": map[string]any{
+								"code":    32000,
+								"message": "failed to set cookie " + name,
+							},
+						})
+						continue
+					}
+				}
+			}
+			_ = conn.WriteJSON(map[string]any{"id": id, "result": map[string]any{}})
 		default:
 			_ = conn.WriteJSON(map[string]any{
 				"id":     id,
@@ -182,5 +208,62 @@ func TestClientRejectsZeroPort(t *testing.T) {
 	_, err := Connect(context.Background(), "127.0.0.1:0")
 	if err == nil {
 		t.Fatal("Connect accepted zero port")
+	}
+}
+
+// TestSetCookiesToleratesPerCookieFailure proves Storage.setCookies
+// injection must NOT abort the whole batch when a single cookie is
+// rejected by the browser (e.g. a __Host- cookie carrying a Domain).
+// The good cookie is still injected; the rejected one is logged and
+// skipped. The previous code returned the first setCookies error,
+// which made the DeepSeek account-page browser flash closed.
+func TestSetCookiesToleratesPerCookieFailure(t *testing.T) {
+	server := newFakeDevToolsServer(t)
+	defer server.Close()
+	server.rejectStorageCookieName = "__Host-bad"
+	client, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	cookies := []Cookie{
+		{Name: "__Host-bad", Value: "x", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+		{Name: "session", Value: "good", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+	}
+	if err := client.Browser().SetCookies(context.Background(), cookies); err != nil {
+		t.Fatalf("SetCookies aborted on a single bad cookie: %v", err)
+	}
+	seen := server.MethodsSeen("browser")
+	count := 0
+	for _, m := range seen {
+		if m == "Storage.setCookies" {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Fatalf("expected both cookies attempted, saw %d Storage.setCookies calls", count)
+	}
+}
+
+// TestSetCookiesStripsDomainForHostScopedCookies proves a __Host-
+// prefixed cookie is injected without a Domain. Chrome rejects
+// __Host- cookies that carry a Domain attribute, so replaying the
+// captured Domain verbatim fails the whole injection. The saved
+// credential's Domain must be dropped for __Host- names.
+func TestSetCookiesStripsDomainForHostScopedCookies(t *testing.T) {
+	server := newFakeDevToolsServer(t)
+	defer server.Close()
+	client, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	cookies := []Cookie{
+		{Name: "__Host-session", Value: "v", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+	}
+	if err := client.Browser().SetCookies(context.Background(), cookies); err != nil {
+		t.Fatalf("SetCookies failed for __Host- cookie: %v", err)
 	}
 }
