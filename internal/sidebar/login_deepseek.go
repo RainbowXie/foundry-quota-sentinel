@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -213,8 +214,7 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	if err := validateDeepSeekPageURL(pageURL); err != nil {
 		return err
 	}
-	script, cookies, err := deepSeekRestoreState(webStore)
-	if err != nil {
+	if _, _, err := deepSeekRestoreState(webStore); err != nil {
 		return err
 	}
 	browser, err := launchDeepSeekBrowser(context.Background(), "about:blank")
@@ -223,7 +223,7 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	return runDeepSeekPage(ctx, browser, pageURL, script, cookies)
+	return runDeepSeekPage(ctx, browser, pageURL, webStore)
 }
 
 // deepSeekSnapshotJS reads both storage areas and returns the
@@ -389,12 +389,22 @@ settled:
 	return "", "", fmt.Errorf("未找到可验证的 DeepSeek 凭证")
 }
 
-func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, script string, cookies []browserauth.Cookie) (err error) {
+func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, webStore string) (err error) {
 	defer func() {
 		if err != nil {
 			_ = browser.Close()
 		}
 	}()
+
+	script, cookies, err := deepSeekRestoreState(webStore)
+	if err != nil {
+		return err
+	}
+	// expectedKeys are the localStorage keys the restore script must
+	// re-establish after navigation. The post-navigation CDP check proves
+	// the document-start script actually applied (not just that we
+	// registered it), which is the real fix for "页面仍要求登录".
+	expectedKeys := deepSeekLocalStorageKeys(webStore)
 
 	cdp, err := browser.CDP(ctx)
 	if err != nil {
@@ -420,13 +430,13 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
 	}
-	// Post-navigation auth-state check. The platform redirects to
-	// /sign_in when the replayed login state did not authenticate the
-	// page (e.g. the saved storage was insufficient or the document-start
-	// script did not apply before the SPA's auth check). Without this
-	// check the user silently lands on the login page ("页面仍要求登录").
-	// We poll location.href briefly (the SPA needs a moment to redirect),
-	// then require the final URL to be the authenticated account page.
+	// Post-navigation auth-state check. Two signals:
+	//  1. localStorage still carries the replayed keys with the same
+	//     value length (proves the document-start restore applied — the
+	//     real fix, not just detecting /sign_in). Logged by key length.
+	//  2. location.href is not the login page (the SPA/server did not
+	//     bounce to /sign_in).
+	// We poll briefly because the SPA needs a moment to settle/redirect.
 	deadline := time.Now().Add(3 * time.Second)
 	var postURL string
 	for time.Now().Before(deadline) {
@@ -445,9 +455,17 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		return fmt.Errorf("DeepSeek 账户页导航后无法读取页面地址")
 	}
 	if isDeepSeekLoginPage(postURL) {
+		// Distinguish "restore applied but server rejected" from
+		// "restore did not apply": check the keys first.
+		if missing := deepSeekMissingStorageKeys(ctx, cdp, expectedKeys); len(missing) > 0 {
+			return fmt.Errorf("DeepSeek 登录态恢复失败：document-start 脚本未生效，localStorage 缺少 %d 个键（页面重定向到登录页）", len(missing))
+		}
 		return fmt.Errorf("DeepSeek 登录态恢复失败：页面重定向到登录页，请重新登录")
 	}
-	log.Printf("deepseek: 账户页导航后地址 %s，登录态有效", postURL)
+	if missing := deepSeekMissingStorageKeys(ctx, cdp, expectedKeys); len(missing) > 0 {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：document-start 脚本未生效，localStorage 缺少 %d 个键", len(missing))
+	}
+	log.Printf("deepseek: 账户页导航后地址 host 验证通过，localStorage 恢复 %d 个键", len(expectedKeys))
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
 	}
@@ -458,6 +476,68 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 // document-start script. The snapshot is JSON-encoded so user data is
 // never concatenated into executable code. An empty snapshot yields a
 // no-op script so the page still loads.
+// deepSeekLocalStorageKeys returns the localStorage ("l") key names the
+// saved webStore carries. The post-navigation check verifies these keys
+// are present after the document-start restore script runs.
+func deepSeekLocalStorageKeys(webStore string) []string {
+	if webStore == "" {
+		return nil
+	}
+	var envelope struct {
+		L map[string]json.RawMessage `json:"l"`
+	}
+	if err := json.Unmarshal([]byte(webStore), &envelope); err != nil {
+		return nil
+	}
+	keys := make([]string, 0, len(envelope.L))
+	for k := range envelope.L {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// deepSeekMissingStorageKeys evaluates the page's localStorage after
+// navigation and returns the subset of expected keys that are absent.
+// It only reports key names and their value length — never the value —
+// so the result is credential-free. Returns nil if the check cannot be
+// evaluated (the caller decides whether that is fatal).
+func deepSeekMissingStorageKeys(ctx context.Context, cdp deepSeekCDP, expected []string) []string {
+	if len(expected) == 0 {
+		return nil
+	}
+	// For each expected key, return 1 if present (with value length) else
+	// 0. Logged only as present/absent + length.
+	keysJSON, _ := json.Marshal(expected)
+	expr := fmt.Sprintf(`JSON.stringify([%s].map(function(k){var v=localStorage.getItem(k);return v==null?-1:v.length}))`, string(keysJSON))
+	raw, err := cdp.Evaluate(ctx, expr)
+	if err != nil {
+		return expected // evaluate failed — treat all as missing so the caller surfaces a real error
+	}
+	var envelope struct {
+		Result struct {
+			Value string `json:"value"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return expected
+	}
+	var lengths []int
+	if err := json.Unmarshal([]byte(envelope.Result.Value), &lengths); err != nil || len(lengths) != len(expected) {
+		return expected
+	}
+	var missing []string
+	for i, k := range expected {
+		if i < len(lengths) && lengths[i] >= 0 {
+			log.Printf("deepseek: localStorage 键 %q 存在（值长度 %d）", k, lengths[i])
+			continue
+		}
+		missing = append(missing, k)
+		log.Printf("deepseek: localStorage 键 %q 缺失（document-start 脚本未生效）", k)
+	}
+	return missing
+}
+
 func deepSeekRestoreScript(webStore string) (string, error) {
 	if webStore == "" {
 		webStore = `{"l":{},"s":{}}`

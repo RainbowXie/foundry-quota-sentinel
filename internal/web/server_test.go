@@ -256,3 +256,66 @@ func TestDeepSeekAccountsEndpointHasNoFingerprint(t *testing.T) {
 		t.Fatalf("accounts response must not contain a fingerprint key: %s", body)
 	}
 }
+
+// TestOpenEndpointReportsRuntimeSubprocessFailure proves /api/open does
+// NOT return success the moment the subprocess is spawned. The old
+// fire-and-forget handler returned success even when the open-page
+// subprocess failed at runtime (cookie rejected, DeepSeek restore
+// failed), so the user saw "no reaction". The handler now waits a short
+// bootstrap window; if the subprocess exits within it, the failure is
+// surfaced.
+func TestOpenEndpointReportsRuntimeSubprocessFailure(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(string, string) (func() error, error) {
+		return func() error { return errors.New("deepseek: 登录态恢复失败：页面重定向到登录页") }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=deepseek&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success || got.Error == "" {
+		t.Fatalf("response = %#v, want success=false with a runtime error", got)
+	}
+	if !strings.Contains(got.Error, "登录态恢复失败") {
+		t.Fatalf("error must surface the subprocess runtime failure: %q", got.Error)
+	}
+}
+
+// TestOpenEndpointSucceedsWhenSubprocessStaysOpen proves /api/open
+// returns success once the subprocess survives the bootstrap window
+// (the page opened and is now blocking on browser.Wait). This guards
+// against the handler waiting forever or reporting failure for a
+// healthy long-running page.
+func TestOpenEndpointSucceedsWhenSubprocessStaysOpen(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(string, string) (func() error, error) {
+		// Never returns within the bootstrap window.
+		return func() error { select {} }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=ollama&name=home", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success {
+		t.Fatal("a long-running open-page subprocess must report success after the bootstrap window")
+	}
+}

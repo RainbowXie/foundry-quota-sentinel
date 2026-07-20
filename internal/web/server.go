@@ -62,6 +62,14 @@ type Server struct {
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
 	spawnDeepSeekLogin func(name string) error
+	// spawnOpenPage launches the "open-page <provider> <name>"
+	// subprocess and returns a wait function that reports its exit. The
+	// default uses os.Executable + exec.Command with a captured stderr;
+	// the handler waits a short bootstrap window so an early subprocess
+	// failure (cookie rejected, deepseek restore failed) is surfaced to
+	// the sidebar instead of an immediate "success". Tests inject a
+	// fast-failing wait to prove /api/open reports runtime failure.
+	spawnOpenPage func(provider, name string) (wait func() error, err error)
 }
 
 func NewServer(accounts []Account) *Server {
@@ -335,6 +343,9 @@ func (s *Server) Handler() http.Handler {
 	})
 
 	// /api/open 拉起一个子进程，弹出 app 内窗口展示该账户对应服务商页面（注入登录态）。
+	// 旧实现 cmd.Start() 后立即返回 success：子进程在浏览器启动前失败（如 OpenCode cookie
+	// 被拒、DeepSeek 登录态恢复失败）时前端无任何反馈。现在用一个短引导窗口观察子进程是否
+	// 提前退出；3 秒内退出则把失败上报给侧边栏。窗口结束后认为页面已启动并返回 success。
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
@@ -342,17 +353,41 @@ func (s *Server) Handler() http.Handler {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
-		exe, err := os.Executable()
+		spawn := s.spawnOpenPage
+		if spawn == nil {
+			spawn = func(p, n string) (func() error, error) {
+				exe, err := os.Executable()
+				if err != nil {
+					return nil, err
+				}
+				cmd := exec.Command(exe, "open-page", p, n)
+				if err := cmd.Start(); err != nil {
+					return nil, err
+				}
+				return cmd.Wait, nil
+			}
+		}
+		wait, err := spawn(provider, name)
 		if err != nil {
 			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
 			return
 		}
-		cmd := exec.Command(exe, "open-page", provider, name)
-		if err := cmd.Start(); err != nil {
-			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
-			return
+		waitErr := make(chan error, 1)
+		go func() { waitErr <- wait() }()
+		select {
+		case err := <-waitErr:
+			// Subprocess exited within the bootstrap window — surface the
+			// failure so the sidebar is not left silent.
+			msg := "账户页子进程已退出"
+			if err != nil {
+				msg = err.Error()
+			}
+			writeJSON(w, 200, map[string]any{"success": false, "error": msg})
+		case <-time.After(3 * time.Second):
+			// Still running — the page opened; let it stay open until
+			// the user closes the browser.
+			writeJSON(w, 200, map[string]any{"success": true})
 		}
-		writeJSON(w, 200, map[string]any{"success": true})
 	})
 
 	// /api/delete 删除某个账户（前端右键菜单二次确认后调用）。

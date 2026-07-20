@@ -56,6 +56,12 @@ type fakeDeepSeekCDP struct {
 	// SetCookies would log but skip.
 	setCookieErrs []string
 	navigated     bool
+	// localStorageLengths models the post-navigation localStorage key
+	// probe: one entry per expected key (the restore verification reads
+	// them in order). -1 means the key is absent; >=0 is the value
+	// length. nil defaults to "all present" so existing success-path
+	// page tests keep passing.
+	localStorageLengths []int
 	// mu guards the shared mutable fields below when a test drives
 	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
 	mu sync.Mutex
@@ -69,7 +75,26 @@ func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	return c.pageURL, nil
 }
 func (c *fakeDeepSeekCDP) Events() <-chan browserauth.Event { return c.events }
-func (c *fakeDeepSeekCDP) Evaluate(context.Context, string) (json.RawMessage, error) {
+func (c *fakeDeepSeekCDP) Evaluate(ctx context.Context, expression string) (json.RawMessage, error) {
+	// Post-navigation localStorage key probe (runDeepSeekPage's restore
+	// verification). The expression produces a JSON array of value
+	// lengths (or -1 if absent). Tests set localStorageLengths to model
+	// which expected keys are present after the document-start script.
+	if strings.Contains(expression, "localStorage.getItem") {
+		c.mu.Lock()
+		lens := append([]int(nil), c.localStorageLengths...)
+		c.mu.Unlock()
+		if lens == nil {
+			// Default: every expected key present with length 1.
+			lens = []int{1}
+		}
+		// The production expression wraps the array in JSON.stringify,
+		// so result.value is a STRING like "[1]". Mirror that here so
+		// the helper parses it back into []int.
+		inner, _ := json.Marshal(lens)
+		stringified, _ := json.Marshal(string(inner))
+		return json.RawMessage(`{"result":{"value":` + string(stringified) + `}}`), nil
+	}
 	if c.snapshotValue == "" {
 		return json.RawMessage(`{"result":{"value":"{\"l\":{\"k\":\"candidate_abcdefghijklmnopqrstuvwxyz\"},\"s\":{}}"}}`), nil
 	}
@@ -411,6 +436,31 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 	}
 	if len(cdp.setCookies) != 0 {
 		t.Fatalf("expected no cookie injection, got %#v", cdp.setCookies)
+	}
+}
+
+// TestRunDeepSeekPageFailsWhenRestoreDidNotApply proves the real fix:
+// runDeepSeekPage verifies via CDP that the document-start restore
+// script actually re-established the saved localStorage keys after
+// navigation. If a key is absent (the script did not run, or the page
+// cleared storage), the page is NOT silently left in a half-state — a
+// clear "document-start 脚本未生效" error surfaces. This is more than
+// just detecting a /sign_in redirect: it proves the restore happened.
+func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL, // URL is fine — not the login page
+		localStorageLengths: []int{-1},        // but the restored key is ABSENT
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when the restored localStorage key is absent (document-start script did not apply)")
 	}
 }
 
