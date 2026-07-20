@@ -436,13 +436,20 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	// Wait for the SPA to settle before judging the auth state. The
 	// platform may client-redirect (e.g. to /sign_in) a moment after the
 	// document loads; reading location.href once right after Navigate
-	// races that redirect. We poll location.href and require it to STAY
-	// stable across two consecutive polls (no further navigation), then
-	// check localStorage. This is the "wait for URL/redirect to stabilize"
-	// the fix needs.
+	// races that redirect. We poll location.href until it stops changing
+	// (within a deadline), then RE-APPLY the restore script on the loaded
+	// page. The re-apply is the real fix for "页面仍要求登录": a single
+	// document-start setItem can be lost if the SPA clears/overwrites
+	// localStorage during boot. Re-applying after the SPA has booted
+	// puts the saved userToken back, so the auth check sees it.
 	postURL, settleErr := deepSeekWaitForURLStable(ctx, cdp, 5*time.Second, 200*time.Millisecond)
 	if settleErr != nil {
 		return settleErr
+	}
+	if script != "" {
+		if _, err := cdp.Evaluate(ctx, script); err != nil {
+			return fmt.Errorf("重新应用 DeepSeek 登录态脚本失败: %w", err)
+		}
 	}
 	if isDeepSeekLoginPage(postURL) {
 		// Distinguish "restore applied but the SPA/server rejected it"
@@ -541,6 +548,19 @@ func deepSeekExpectedStorageEntries(webStore string) []deepSeekStorageEntry {
 	return entries
 }
 
+// deepSeekStorageProbeExpr builds the CDP Runtime.evaluate expression
+// that probes a set of localStorage keys and returns, per key,
+// [1, valueLength] when present or [-1, -1] when absent, wrapped in
+// JSON.stringify so Runtime.evaluate's returnByValue delivers a JSON
+// string. The keys array is mapped directly (not wrapped in an extra
+// array — that bug iterated a single nested-array element and produced
+// one entry regardless of the key count). Exposed for a test that
+// validates the generated expression's structure.
+func deepSeekStorageProbeExpr(keys []string) string {
+	keysJSON, _ := json.Marshal(keys)
+	return fmt.Sprintf(`JSON.stringify(%s.map(function(k){var v=localStorage.getItem(k);return v==null?[-1,-1]:[1,v.length]}))`, string(keysJSON))
+}
+
 // deepSeekStorageMismatch evaluates the page's localStorage after
 // navigation and returns the expected entries that are absent or whose
 // live value length differs from the saved snapshot. Credential-free:
@@ -553,8 +573,10 @@ func deepSeekStorageMismatch(ctx context.Context, cdp deepSeekCDP, expected []de
 	for i, e := range expected {
 		keys[i] = e.key
 	}
-	keysJSON, _ := json.Marshal(keys)
-	expr := fmt.Sprintf(`JSON.stringify([%s].map(function(k){var v=localStorage.getItem(k);return v==null?[-1,-1]:[1,v.length]}))`, string(keysJSON))
+	// keysJSON is itself a JSON array like ["k1","k2"]; map over it
+	// directly (NOT wrapped in another array — that would iterate a
+	// single nested-array element and return one entry for all keys).
+	expr := deepSeekStorageProbeExpr(keys)
 	raw, err := cdp.Evaluate(ctx, expr)
 	if err != nil {
 		return expected // evaluate failed — treat all as mismatch so the caller surfaces a real error

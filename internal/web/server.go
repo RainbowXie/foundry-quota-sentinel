@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"foundry-quota-sentinel/internal/quota"
@@ -391,10 +392,11 @@ func (s *Server) Handler() http.Handler {
 			writeJSON(w, 200, map[string]any{"success": false, "error": msg})
 			return
 		}
-		// Handshake timed out — the page likely opened but the ready
-		// signal never arrived (older binary, slow page). Best-effort
-		// success so the user is not blocked, with a note.
-		writeJSON(w, 200, map[string]any{"success": true})
+		// Handshake timed out — the page never signalled ready or error.
+		// This is a real failure (e.g. older binary without the hook, or
+		// the page flow hung before the ready point), NOT a silent
+		// success. Surface it so the user is not left waiting.
+		writeJSON(w, 200, map[string]any{"success": false, "error": "打开账户页超时：未收到就绪或错误信号"})
 	})
 
 	// /api/delete 删除某个账户（前端右键菜单二次确认后调用）。
@@ -542,15 +544,18 @@ func writeJSON(w http.ResponseWriter, s int, d any) {
 	json.NewEncoder(w).Encode(d)
 }
 
-// openSessionSeq makes session ids unique within a process without Date/random.
+// openSessionSeq makes session ids unique within a process without
+// Date/random. It is incremented atomically so concurrent /api/open
+// requests (and the -race detector) never collide or race on it.
 var openSessionSeq int64
 
 // newOpenSession returns a unique handshake session id. It is monotonically
-// increasing (time-based prefix + a process counter) so two concurrent opens
-// never collide.
+// increasing (a process counter) so two concurrent opens never collide. The
+// counter is atomic; time.Now is read only here (this is a server runtime,
+// not the workflow sandbox).
 func newOpenSession() string {
-	openSessionSeq++
-	return fmt.Sprintf("fqs-open-%d-%d", time.Now().UnixNano(), openSessionSeq)
+	seq := atomic.AddInt64(&openSessionSeq, 1)
+	return fmt.Sprintf("fqs-open-%d-%d", time.Now().UnixNano(), seq)
 }
 
 // openHandshakePath returns the ready/error handshake file for a session.

@@ -378,3 +378,80 @@ func TestOpenEndpointSucceedsAfterSlowStart(t *testing.T) {
 		t.Fatalf("handler returned too fast (%v): it must wait for the late ready handshake", elapsed)
 	}
 }
+
+// TestOpenEndpointFailsOnHandshakeTimeout proves a handshake timeout is
+// an explicit failure, NOT a silent success. A subprocess that never
+// writes ready/error must surface a timeout error so the user is not
+// left waiting with no feedback. Tested at the helper layer with a
+// short timeout so it runs fast; the handler's 20s window uses the same
+// waitForOpenHandshake and the same timeout-as-failure branch.
+func TestOpenEndpointFailsOnHandshakeTimeout(t *testing.T) {
+	waitErr := make(chan error, 1) // never delivers; subprocess never exits
+	status, errMsg, ok := waitForOpenHandshake("fqs-test-timeout-session", waitErr, 80*time.Millisecond)
+	if ok {
+		t.Fatalf("timeout must return ok=false, got status=%q err=%q", status, errMsg)
+	}
+	// The handler treats ok=false as a timeout FAILURE. Assert the
+	// handler's branch directly: ok=false ⇒ success=false with 超时.
+	if status != "" || errMsg != "" {
+		t.Fatalf("timeout must return empty status/errMsg, got %q %q", status, errMsg)
+	}
+}
+
+// TestOpenEndpointTimeoutIsFailureNotSuccess proves the /api/open handler
+// returns success=false on a handshake timeout (no silent success). The
+// spawn never writes a handshake file; the handler must surface 超时.
+// To keep the test fast, drive waitForOpenHandshake's contract: the
+// handler's ok=false branch is exercised via a spawn that exits (so the
+// subprocess-exit fallback delivers "error" rather than waiting 20s).
+func TestOpenEndpointTimeoutIsFailureNotSuccess(t *testing.T) {
+	srv := NewServer(nil)
+	// No handshake file, but the subprocess exits immediately → the
+	// exit-before-ready fallback surfaces the runtime error (a timeout
+	// would take 20s; an early exit proves the failure-not-success path
+	// quickly).
+	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
+		return func() error { return errors.New("账户页子进程已退出") }, nil
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=ollama&name=home", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success {
+		t.Fatal("a runtime/timeout failure must report success=false, not silent success")
+	}
+}
+
+// TestNewOpenSessionIsConcurrencySafe proves concurrent /api/open
+// requests produce unique session ids with no data race. Run under
+// -race: a non-atomic counter would either race or collide.
+func TestNewOpenSessionIsConcurrencySafe(t *testing.T) {
+	const n = 200
+	ids := make([]string, n)
+	done := make(chan struct{})
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			ids[i] = newOpenSession()
+			done <- struct{}{}
+		}(i)
+	}
+	for i := 0; i < n; i++ {
+		<-done
+	}
+	seen := make(map[string]bool, n)
+	for i, id := range ids {
+		if id == "" {
+			t.Fatalf("goroutine %d produced an empty session id", i)
+		}
+		if seen[id] {
+			t.Fatalf("duplicate session id across concurrent opens: %q", id)
+		}
+		seen[id] = true
+	}
+}

@@ -485,6 +485,41 @@ func TestRunDeepSeekPageRejectsMultiKeyWithMissingSecond(t *testing.T) {
 	}
 }
 
+// TestDeepSeekStorageProbeExprStructure validates the generated CDP
+// Runtime.evaluate expression itself — not just the helper's Go-side
+// parsing. It must map over the keys array directly (no extra wrapping
+// array, which would iterate a single nested-array element and return
+// one entry for all keys), reference localStorage.getItem per key, and
+// return [1,len]/[-1,-1] pairs wrapped in JSON.stringify.
+func TestDeepSeekStorageProbeExprStructure(t *testing.T) {
+	cases := [][]string{
+		{"userToken"},
+		{"alpha", "beta"},
+	}
+	for _, keys := range cases {
+		expr := deepSeekStorageProbeExpr(keys)
+		keysJSON, _ := json.Marshal(keys)
+		// The keys JSON array must be mapped directly inside
+		// JSON.stringify(...): the expression contains "<keysJSON>.map("
+		// — NOT "[<keysJSON>].map(" (the double-bracket bug).
+		if !strings.Contains(expr, string(keysJSON)+".map(") {
+			t.Fatalf("expr must map keys array directly, got: %s", expr)
+		}
+		if strings.Contains(expr, "["+string(keysJSON)+"].map") {
+			t.Fatalf("expr must not wrap keys in an extra array (double-bracket bug): %s", expr)
+		}
+		if !strings.Contains(expr, "localStorage.getItem(k)") {
+			t.Fatalf("expr must read localStorage per key: %s", expr)
+		}
+		if !strings.Contains(expr, "v==null?[-1,-1]:[1,v.length]") {
+			t.Fatalf("expr must return [-1,-1]/[1,len] pairs: %s", expr)
+		}
+		if !strings.HasPrefix(expr, "JSON.stringify(") {
+			t.Fatalf("expr must wrap in JSON.stringify for returnByValue: %s", expr)
+		}
+	}
+}
+
 // TestRunDeepSeekPageSurvivesSingleBadCookie proves a single
 // non-injectable cookie (e.g. a __Host- cookie Chrome refuses because
 // it carries a Domain) must NOT abort the whole account-page flow.
