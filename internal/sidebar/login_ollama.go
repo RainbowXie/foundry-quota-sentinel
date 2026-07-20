@@ -234,6 +234,7 @@ func runOllamaPage(ctx context.Context, browser ollamaLoginBrowser, pageURL stri
 	if err := cdp.Navigate(ctx, pageURL); err != nil {
 		return fmt.Errorf("打开 Ollama 账户页失败: %w", err)
 	}
+	signalOpenPageReady()
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("Ollama 账户页浏览器异常退出: %w", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -62,14 +63,13 @@ type Server struct {
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
 	spawnDeepSeekLogin func(name string) error
-	// spawnOpenPage launches the "open-page <provider> <name>"
-	// subprocess and returns a wait function that reports its exit. The
-	// default uses os.Executable + exec.Command with a captured stderr;
-	// the handler waits a short bootstrap window so an early subprocess
-	// failure (cookie rejected, deepseek restore failed) is surfaced to
-	// the sidebar instead of an immediate "success". Tests inject a
-	// fast-failing wait to prove /api/open reports runtime failure.
-	spawnOpenPage func(provider, name string) (wait func() error, err error)
+	// spawnOpenPage launches the "open-page <provider> <name>" subprocess
+	// with FQS_OPEN_SESSION=<session> in its environment, then returns a
+	// function that reports the subprocess exit. The handler does NOT
+	// guess with a fixed timeout: it waits on an explicit ready/error
+	// handshake file the subprocess writes once the page is ready (or on
+	// failure). Tests inject a spawn that drives the handshake file.
+	spawnOpenPage func(provider, name, session string) (wait func() error, err error)
 }
 
 func NewServer(accounts []Account) *Server {
@@ -344,8 +344,9 @@ func (s *Server) Handler() http.Handler {
 
 	// /api/open 拉起一个子进程，弹出 app 内窗口展示该账户对应服务商页面（注入登录态）。
 	// 旧实现 cmd.Start() 后立即返回 success：子进程在浏览器启动前失败（如 OpenCode cookie
-	// 被拒、DeepSeek 登录态恢复失败）时前端无任何反馈。现在用一个短引导窗口观察子进程是否
-	// 提前退出；3 秒内退出则把失败上报给侧边栏。窗口结束后认为页面已启动并返回 success。
+	// 被拒、DeepSeek 登录态恢复失败）时前端无任何反馈。现在用显式 ready/error 握手：子进程
+	// 在页面就绪（导航+状态检查通过）后写握手文件 ready，在失败退出前写 error。/api/open
+	// 等待握手文件（含子进程提前退出的兜底），而非任意固定秒数。
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
@@ -353,41 +354,47 @@ func (s *Server) Handler() http.Handler {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
+		session := newOpenSession()
 		spawn := s.spawnOpenPage
 		if spawn == nil {
-			spawn = func(p, n string) (func() error, error) {
+			spawn = func(p, n, sess string) (func() error, error) {
 				exe, err := os.Executable()
 				if err != nil {
 					return nil, err
 				}
 				cmd := exec.Command(exe, "open-page", p, n)
+				cmd.Env = append(os.Environ(), "FQS_OPEN_SESSION="+sess)
 				if err := cmd.Start(); err != nil {
 					return nil, err
 				}
 				return cmd.Wait, nil
 			}
 		}
-		wait, err := spawn(provider, name)
+		wait, err := spawn(provider, name, session)
 		if err != nil {
 			writeJSON(w, 200, map[string]any{"success": false, "error": err.Error()})
 			return
 		}
 		waitErr := make(chan error, 1)
 		go func() { waitErr <- wait() }()
-		select {
-		case err := <-waitErr:
-			// Subprocess exited within the bootstrap window — surface the
-			// failure so the sidebar is not left silent.
-			msg := "账户页子进程已退出"
-			if err != nil {
-				msg = err.Error()
+		status, errMsg, ok := waitForOpenHandshake(session, waitErr, 20*time.Second)
+		_ = os.Remove(openHandshakePath(session))
+		if ok && status == "ready" {
+			writeJSON(w, 200, map[string]any{"success": true})
+			return
+		}
+		if ok && status == "error" {
+			msg := errMsg
+			if msg == "" {
+				msg = "账户页子进程报告失败"
 			}
 			writeJSON(w, 200, map[string]any{"success": false, "error": msg})
-		case <-time.After(3 * time.Second):
-			// Still running — the page opened; let it stay open until
-			// the user closes the browser.
-			writeJSON(w, 200, map[string]any{"success": true})
+			return
 		}
+		// Handshake timed out — the page likely opened but the ready
+		// signal never arrived (older binary, slow page). Best-effort
+		// success so the user is not blocked, with a note.
+		writeJSON(w, 200, map[string]any{"success": true})
 	})
 
 	// /api/delete 删除某个账户（前端右键菜单二次确认后调用）。
@@ -533,4 +540,68 @@ func writeJSON(w http.ResponseWriter, s int, d any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(s)
 	json.NewEncoder(w).Encode(d)
+}
+
+// openSessionSeq makes session ids unique within a process without Date/random.
+var openSessionSeq int64
+
+// newOpenSession returns a unique handshake session id. It is monotonically
+// increasing (time-based prefix + a process counter) so two concurrent opens
+// never collide.
+func newOpenSession() string {
+	openSessionSeq++
+	return fmt.Sprintf("fqs-open-%d-%d", time.Now().UnixNano(), openSessionSeq)
+}
+
+// openHandshakePath returns the ready/error handshake file for a session.
+// The open-page subprocess writes it; /api/open reads it.
+func openHandshakePath(session string) string {
+	return filepath.Join(os.TempDir(), session+".json")
+}
+
+// WriteOpenHandshake writes a ready/error handshake record for a session. The
+// open-page CLI calls it from the sidebar.OpenPageReady hook (ready) or on
+// failure exit (error). status is "ready" or "error"; errMsg carries a
+// credential-free error message for the "error" case.
+func WriteOpenHandshake(session, status, errMsg string) {
+	if session == "" {
+		return
+	}
+	path := openHandshakePath(session)
+	data, _ := json.Marshal(map[string]any{"status": status, "error": errMsg})
+	_ = os.WriteFile(path, data, 0o600)
+}
+
+// waitForOpenHandshake polls the session handshake file until it appears
+// (ready/error) or the deadline passes. If the subprocess exits (waitErr
+// delivers) before a handshake, that is treated as an error so a runtime
+// failure (cookie rejected, restore failed) is surfaced — not swallowed.
+// Returns (status, errMsg, ok). ok=false means the handshake timed out.
+func waitForOpenHandshake(session string, waitErr <-chan error, timeout time.Duration) (status, errMsg string, ok bool) {
+	path := openHandshakePath(session)
+	deadline := time.Now().Add(timeout)
+	for {
+		if data, err := os.ReadFile(path); err == nil {
+			var h struct {
+				Status string `json:"status"`
+				Error  string `json:"error"`
+			}
+			if json.Unmarshal(data, &h) == nil && h.Status != "" {
+				return h.Status, h.Error, true
+			}
+		}
+		select {
+		case err := <-waitErr:
+			// Subprocess exited before ready — surface the runtime failure.
+			msg := "账户页子进程已退出"
+			if err != nil {
+				msg = err.Error()
+			}
+			return "error", msg, true
+		case <-time.After(100 * time.Millisecond):
+		}
+		if time.Now().After(deadline) {
+			return "", "", false
+		}
+	}
 }

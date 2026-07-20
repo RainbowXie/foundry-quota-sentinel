@@ -261,12 +261,12 @@ func TestDeepSeekAccountsEndpointHasNoFingerprint(t *testing.T) {
 // NOT return success the moment the subprocess is spawned. The old
 // fire-and-forget handler returned success even when the open-page
 // subprocess failed at runtime (cookie rejected, DeepSeek restore
-// failed), so the user saw "no reaction". The handler now waits a short
-// bootstrap window; if the subprocess exits within it, the failure is
-// surfaced.
+// failed), so the user saw "no reaction". The handler now waits on an
+// explicit ready/error handshake; if the subprocess exits before
+// writing "ready", the runtime failure is surfaced.
 func TestOpenEndpointReportsRuntimeSubprocessFailure(t *testing.T) {
 	srv := NewServer(nil)
-	srv.spawnOpenPage = func(string, string) (func() error, error) {
+	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
 		return func() error { return errors.New("deepseek: 登录态恢复失败：页面重定向到登录页") }, nil
 	}
 
@@ -291,15 +291,15 @@ func TestOpenEndpointReportsRuntimeSubprocessFailure(t *testing.T) {
 	}
 }
 
-// TestOpenEndpointSucceedsWhenSubprocessStaysOpen proves /api/open
-// returns success once the subprocess survives the bootstrap window
-// (the page opened and is now blocking on browser.Wait). This guards
-// against the handler waiting forever or reporting failure for a
-// healthy long-running page.
-func TestOpenEndpointSucceedsWhenSubprocessStaysOpen(t *testing.T) {
+// TestOpenEndpointSucceedsOnReadyHandshake proves /api/open returns
+// success once the subprocess writes the explicit "ready" handshake —
+// not after an arbitrary timeout. A long-running page (blocking on
+// browser.Wait) writes "ready" right after the post-navigation check;
+// the handler returns success the moment it reads it.
+func TestOpenEndpointSucceedsOnReadyHandshake(t *testing.T) {
 	srv := NewServer(nil)
-	srv.spawnOpenPage = func(string, string) (func() error, error) {
-		// Never returns within the bootstrap window.
+	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+		WriteOpenHandshake(session, "ready", "")
 		return func() error { select {} }, nil
 	}
 
@@ -316,6 +316,65 @@ func TestOpenEndpointSucceedsWhenSubprocessStaysOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !got.Success {
-		t.Fatal("a long-running open-page subprocess must report success after the bootstrap window")
+		t.Fatal("a ready handshake must report success immediately, not after a fixed window")
+	}
+}
+
+// TestOpenEndpointReportsErrorHandshake proves /api/open surfaces an
+// explicit "error" handshake from the subprocess (e.g. DeepSeek restore
+// detected a redirect and wrote error before the page flow exited).
+func TestOpenEndpointReportsErrorHandshake(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+		WriteOpenHandshake(session, "error", "DeepSeek 登录态恢复失败：document-start 脚本未生效")
+		return func() error { select {} }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=deepseek&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success || !strings.Contains(got.Error, "document-start 脚本未生效") {
+		t.Fatalf("response = %#v, want success=false surfacing the error handshake", got)
+	}
+}
+
+// TestOpenEndpointSucceedsAfterSlowStart proves /api/open waits for a
+// late "ready" handshake (a slow page that takes a moment to open + run
+// its post-navigation auth check) rather than a fixed 3s window that
+// would falsely time out a healthy slow page.
+func TestOpenEndpointSucceedsAfterSlowStart(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+		// Simulate a slow page: write ready after a short delay.
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			WriteOpenHandshake(session, "ready", "")
+		}()
+		return func() error { select {} }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=opencode&name=work", nil)
+	w := httptest.NewRecorder()
+	start := time.Now()
+	srv.Handler().ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	var got struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success {
+		t.Fatal("a slow-starting page must report success once the ready handshake arrives")
+	}
+	if elapsed < 250*time.Millisecond {
+		t.Fatalf("handler returned too fast (%v): it must wait for the late ready handshake", elapsed)
 	}
 }

@@ -455,17 +455,31 @@ func cmdOpenPage() {
 		os.Exit(1)
 	}
 	provider, name := os.Args[2], strings.TrimSpace(os.Args[3])
+	// When launched by /api/open, FQS_OPEN_SESSION names a handshake file.
+	// We write "ready" once the page is opened + auth-state-checked, or
+	// "error" if the page flow fails before that. This lets /api/open
+	// observe the page actually opened (or a runtime failure) instead of
+	// guessing with a fixed timeout.
+	session := os.Getenv("FQS_OPEN_SESSION")
+	if session != "" {
+		sidebar.OpenPageReady = func() { web.WriteOpenHandshake(session, "ready", "") }
+	}
+	pageErr := func(msg string) {
+		fmt.Fprintln(os.Stderr, msg)
+		if session != "" {
+			web.WriteOpenHandshake(session, "error", msg)
+		}
+		os.Exit(1)
+	}
 	switch provider {
 	case "opencode":
 		p, ok := cfg.Profiles[name]
 		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
-			fmt.Fprintf(os.Stderr, "OpenCode 账户 %q 不存在或缺少凭证\n", name)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("OpenCode 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://opencode.ai/workspace/" + p.WorkspaceID + "/go"
 		if err := sidebar.RunOpenCodePage(url, p.Cookie); err != nil {
-			fmt.Fprintf(os.Stderr, "OpenCode 账户页浏览器不可用: %v\n", err)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))
 		}
 	case "deepseek":
 		var acc *config.DeepSeekAccount
@@ -476,13 +490,11 @@ func cmdOpenPage() {
 			}
 		}
 		if acc == nil || acc.Token == "" {
-			fmt.Fprintf(os.Stderr, "DeepSeek 账户 %q 不存在或缺少凭证\n", name)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("DeepSeek 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://platform.deepseek.com/usage"
 		if err := sidebar.RunDeepSeekPage(url, acc.WebStore); err != nil {
-			fmt.Fprintf(os.Stderr, "DeepSeek 账户页浏览器不可用: %v\n", err)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("DeepSeek 账户页浏览器不可用: %v", err))
 		}
 	case "ollama":
 		var acc *config.OllamaAccount
@@ -493,17 +505,14 @@ func cmdOpenPage() {
 			}
 		}
 		if acc == nil || acc.Cookie == "" {
-			fmt.Fprintf(os.Stderr, "Ollama 账户 %q 不存在或缺少凭证\n", name)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("Ollama 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://ollama.com/settings"
 		if err := sidebar.RunOllamaPage(url, acc.Cookie, acc.UserAgent); err != nil {
-			fmt.Fprintf(os.Stderr, "Ollama 账户页浏览器不可用: %v\n", err)
-			os.Exit(1)
+			pageErr(fmt.Sprintf("Ollama 账户页浏览器不可用: %v", err))
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "未知 provider: %s（应为 opencode、deepseek 或 ollama）\n", provider)
-		os.Exit(1)
+		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek 或 ollama）", provider))
 	}
 }
 

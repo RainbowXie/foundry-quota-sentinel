@@ -238,6 +238,7 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL 
 	if err := cdp.Navigate(ctx, pageURL); err != nil {
 		return fmt.Errorf("打开 OpenCode 账户页失败: %w", err)
 	}
+	signalOpenPageReady()
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("OpenCode 账户页浏览器异常退出: %w", err)
 	}

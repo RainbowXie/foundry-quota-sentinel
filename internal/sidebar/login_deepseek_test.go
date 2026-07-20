@@ -62,6 +62,14 @@ type fakeDeepSeekCDP struct {
 	// length. nil defaults to "all present" so existing success-path
 	// page tests keep passing.
 	localStorageLengths []int
+	// delayedRedirectURL/delayedRedirectAt model a SPA that redirects
+	// a moment after the document loads: PageURL returns pageURL for
+	// the first delayedRedirectAt reads, then returns
+	// delayedRedirectURL. This proves the URL-stability wait catches a
+	// delayed redirect a single read would miss.
+	delayedRedirectURL string
+	delayedRedirectAt  int
+	pageURLReads       int
 	// mu guards the shared mutable fields below when a test drives
 	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
 	mu sync.Mutex
@@ -72,26 +80,42 @@ func (c *fakeDeepSeekCDP) BrowserCookies(context.Context) ([]browserauth.Cookie,
 	return append([]browserauth.Cookie(nil), c.browserCookies...), nil
 }
 func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
-	return c.pageURL, nil
+	c.mu.Lock()
+	c.pageURLReads++
+	reads := c.pageURLReads
+	url := c.pageURL
+	if c.delayedRedirectURL != "" && reads > c.delayedRedirectAt {
+		url = c.delayedRedirectURL
+	}
+	c.mu.Unlock()
+	return url, nil
 }
 func (c *fakeDeepSeekCDP) Events() <-chan browserauth.Event { return c.events }
 func (c *fakeDeepSeekCDP) Evaluate(ctx context.Context, expression string) (json.RawMessage, error) {
 	// Post-navigation localStorage key probe (runDeepSeekPage's restore
-	// verification). The expression produces a JSON array of value
-	// lengths (or -1 if absent). Tests set localStorageLengths to model
-	// which expected keys are present after the document-start script.
+	// verification). The production expression returns a JSON array of
+	// [present, valueLength] pairs ([-1,-1] when absent). Tests set
+	// localStorageLengths to the value lengths per expected key; -1 means
+	// absent. A nil default means "every expected key present, length 1".
 	if strings.Contains(expression, "localStorage.getItem") {
 		c.mu.Lock()
 		lens := append([]int(nil), c.localStorageLengths...)
 		c.mu.Unlock()
 		if lens == nil {
-			// Default: every expected key present with length 1.
 			lens = []int{1}
 		}
+		pairs := make([][2]int, len(lens))
+		for i, n := range lens {
+			if n < 0 {
+				pairs[i] = [2]int{-1, -1}
+			} else {
+				pairs[i] = [2]int{1, n}
+			}
+		}
 		// The production expression wraps the array in JSON.stringify,
-		// so result.value is a STRING like "[1]". Mirror that here so
-		// the helper parses it back into []int.
-		inner, _ := json.Marshal(lens)
+		// so result.value is a STRING like "[[1,12]]". Mirror that so
+		// the helper parses it back into [][2]int.
+		inner, _ := json.Marshal(pairs)
 		stringified, _ := json.Marshal(string(inner))
 		return json.RawMessage(`{"result":{"value":` + string(stringified) + `}}`), nil
 	}
@@ -356,7 +380,10 @@ func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
 	defer func() { launchDeepSeekBrowser = originalLaunch }()
 
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekLoginURL} // post-nav = sign_in
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekLoginURL, // post-nav = sign_in
+		localStorageLengths: []int{len("x")},  // userToken restored (length matches), but server still bounced
+	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
@@ -364,6 +391,97 @@ func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must error when the post-navigation URL is the login page (restore failed)")
+	}
+}
+
+// TestRunDeepSeekPageDetectsValueLengthMismatch proves the restore
+// verification compares the LIVE localStorage value length to the saved
+// snapshot, not just presence. A SPA that silently overwrites a restored
+// key with a different-length value must be caught (the page would not
+// recognise the credential). This is the real fix beyond /sign_in
+// detection: a half-applied or overwritten restore surfaces a clear
+// error instead of a silent unauthenticated page.
+func TestRunDeepSeekPageDetectsValueLengthMismatch(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("wrong")}, // present but wrong length
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	// Saved userToken value "x" (length 1); live is "wrong" (length 4).
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when a restored localStorage value length mismatches the saved snapshot")
+	}
+}
+
+// TestRunDeepSeekPageWaitsForDelayedRedirect proves the URL-stability
+// wait catches a SPA that redirects to /sign_in AFTER the first
+// post-navigation URL read. The fake returns the account URL first,
+// then the login URL on a later poll, so a single read would have
+// passed; the stability wait must see the redirect and error.
+func TestRunDeepSeekPageWaitsForDelayedRedirect(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("x")},
+		delayedRedirectURL:  deepSeekLoginURL,
+		delayedRedirectAt:   1, // first read = account URL, second read = sign_in
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must wait for URL stability and catch a delayed redirect to /sign_in")
+	}
+}
+
+// TestRunDeepSeekPageAcceptsMultiKeyRestore proves the storage
+// verification checks every saved localStorage key, not just the
+// first. Two keys with matching lengths must pass; a missing second
+// key must fail.
+func TestRunDeepSeekPageAcceptsMultiKeyRestore(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("alpha-token"), len("beta-value")},
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"alpha":"alpha-token","beta":"beta-value"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("multi-key restore with matching lengths must succeed: %v", err)
+	}
+}
+
+func TestRunDeepSeekPageRejectsMultiKeyWithMissingSecond(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("alpha-token"), -1}, // second key absent
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"alpha":"alpha-token","beta":"beta-value"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when the second of multiple restored keys is absent")
 	}
 }
 
@@ -417,7 +535,7 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
 	defer func() { launchDeepSeekBrowser = originalLaunch }()
 
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
