@@ -72,3 +72,24 @@ func TestSidebarDeepSeekLoginDetectsReLoginByGeneration(t *testing.T) {
 		t.Fatal("DeepSeek login must NOT start when /api/deepseek/accounts reports success=false")
 	}
 }
+
+// TestSidebarOpenPageHandlesResponse proves the "open account page"
+// action does not fire-and-forget /api/open. A spawn failure (or a
+// future subprocess-exit signal) must be surfaced to the user; the
+// previous code ignored the response entirely, so an OpenCode page
+// that failed before the browser launched (e.g. a rejected cookie)
+// showed "no reaction". The handler must read the response and surface
+// success=false.
+func TestSidebarOpenPageHandlesResponse(t *testing.T) {
+	html, err := webAssets.ReadFile("static/sidebar.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The open-page fetch must inspect the JSON response, not just fire.
+	if !strings.Contains(string(html), "openPage") {
+		t.Fatal("open-account-page action must route through a named openPage handler that checks the response")
+	}
+	if !strings.Contains(string(html), "openPageError") {
+		t.Fatal("open-account-page must surface a spawn failure via an openPageError path")
+	}
+}

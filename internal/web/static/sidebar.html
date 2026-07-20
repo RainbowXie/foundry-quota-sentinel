@@ -1833,14 +1833,44 @@
                 });
                 openItem.addEventListener("click", function () {
                     if (!cur.prov) return;
-                    fetch(
-                        "/api/open?provider=" +
-                            encodeURIComponent(cur.prov) +
-                            "&name=" +
-                            encodeURIComponent(cur.name),
-                    );
+                    openPage(cur.prov, cur.name);
                     hide();
                 });
+                // openPage opens the account page and surfaces spawn
+                // failures. The previous fire-and-forget fetch hid a
+                // subprocess that failed before the browser launched
+                // (e.g. a rejected OpenCode cookie) — the user saw "no
+                // reaction". The response is read and success=false is
+                // surfaced via openPageError.
+                function openPage(prov, name) {
+                    fetch(
+                        "/api/open?provider=" +
+                            encodeURIComponent(prov) +
+                            "&name=" +
+                            encodeURIComponent(name),
+                    )
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r || !r.success) {
+                                openPageError((r && r.error) || "无法打开账户页");
+                            }
+                        })
+                        .catch(function () { openPageError("无法打开账户页"); });
+                }
+                function openPageError(msg) {
+                    var box = document.getElementById("dsCards");
+                    // Show in any active provider panel area; dsCards is
+                    // always present and scrollable. Keep it transient.
+                    if (!box) {
+                        alert(msg);
+                        return;
+                    }
+                    var note = document.createElement("div");
+                    note.className = "er";
+                    note.textContent = msg;
+                    box.appendChild(note);
+                    setTimeout(function () { note.remove(); }, 4000);
+                }
                 /* 删除账户：二次确认 */
                 var cm = document.getElementById("confirmModal");
                 var ctext = document.getElementById("confirmText");

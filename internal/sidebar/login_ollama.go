@@ -111,7 +111,12 @@ func (c *sharedOllamaClient) SetUserAgent(ctx context.Context, userAgent string)
 	if userAgent == "" {
 		return nil
 	}
-	return c.Browser().SetUserAgent(ctx, userAgent)
+	// Emulation.setUserAgentOverride is a per-target (page) domain
+	// command; the browser endpoint returns "method not found". Sending
+	// it to the browser endpoint aborts the account page (the error
+	// bubbles to runOllamaPage and the defer reaps the browser = the
+	// flash-close users see). Replay through the page endpoint.
+	return c.Page().SetUserAgent(ctx, userAgent)
 }
 
 func (c *sharedOllamaClient) Navigate(ctx context.Context, pageURL string) error {

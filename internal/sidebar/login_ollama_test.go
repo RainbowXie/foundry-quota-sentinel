@@ -129,6 +129,26 @@ func TestRunOllamaPageInjectsSessionBeforeNavigation(t *testing.T) {
 	}
 }
 
+// TestRunOllamaPageAppliesUserAgentBeforeNavigation proves the saved
+// User-Agent is replayed on the page endpoint before navigation, in
+// order: set-cookie, set-user-agent, navigate, wait. A User-Agent sent
+// to the browser endpoint (Emulation is page-scoped) aborts the page;
+// this guards the page-endpoint fix.
+func TestRunOllamaPageAppliesUserAgentBeforeNavigation(t *testing.T) {
+	browser := newFakeOllamaBrowser(nil)
+	cookies, err := ollamaSavedCookies("__Secure-session=saved")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runOllamaPage(context.Background(), browser, "https://ollama.com/settings", cookies, "test-ua"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"set-cookie", "set-user-agent", "navigate", "wait"}
+	if !reflect.DeepEqual(browser.operations, want) {
+		t.Fatalf("operations = %#v, want %#v", browser.operations, want)
+	}
+}
+
 func TestOllamaSessionCookieHeaderIncludesCloudflareCookies(t *testing.T) {
 	got := ollamaSessionCookieHeader([]browserauth.Cookie{
 		{Name: "aid", Value: "tracking", Domain: "ollama.com", Secure: true, HTTPOnly: true},

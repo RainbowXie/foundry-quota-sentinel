@@ -129,6 +129,57 @@ func TestOpenCodeSavedCookiesAcceptsBase64Padding(t *testing.T) {
 	}
 }
 
+// TestOpenCodeSavedCookiesAcceptsFullCookieOctetCharset proves the
+// saved-cookie parser accepts the full RFC 6265 cookie-octet set
+// (excluding CRLF, ';', '"', '\\', and whitespace, which stay
+// rejected). Real opencode.ai session cookies carry characters the old
+// narrow regex rejected (e.g. /, ~, *, !, (, ), #, $, &, <, >, ?, [, ]),
+// which made RunOpenCodePage fail BEFORE the browser launched; /api/open
+// swallowed the subprocess error, so the user saw "no reaction".
+func TestOpenCodeSavedCookiesAcceptsFullCookieOctetCharset(t *testing.T) {
+	cases := []string{
+		"session=abc/def", // '/' (base64 standard, JWT separators)
+		"session=a~b",     // '~'
+		"session=a*b",     // '*'
+		"session=a!b",     // '!'
+		"session=a(b)c",   // '(' ')' (URL-safe tokens)
+		"session=a#b$c&d", // '#', '$', '&'
+		"session=a?b<c>d", // '?', '<', '>'
+		"session=a[b]c",   // '[', ']'
+		"session=a^b|c",   // '^', '|'
+		"session=a`b",     // '`'
+		"session=a{b}c",   // '{', '}'
+		"session=a'b",     // '\''
+	}
+	for _, c := range cases {
+		cookies, err := openCodeSavedCookies(c)
+		if err != nil {
+			t.Fatalf("openCodeSavedCookies(%q) rejected a valid cookie-octet: %v", c, err)
+		}
+		if len(cookies) != 1 {
+			t.Fatalf("openCodeSavedCookies(%q) = %d cookies, want 1", c, len(cookies))
+		}
+	}
+}
+
+// TestOpenCodeSavedCookiesStillRejectsUnsafeSep proves the widened
+// charset does NOT relax the safety boundary: CRLF, ';', '"', '\\',
+// and whitespace in a value are still rejected.
+func TestOpenCodeSavedCookiesStillRejectsUnsafeSep(t *testing.T) {
+	for _, c := range []string{
+		"session=a;b",
+		"session=a\r\nb",
+		"session=a\nb",
+		`session=a"b`,
+		`session=a\ b`,
+		"session=a b",
+	} {
+		if _, err := openCodeSavedCookies(c); err == nil {
+			t.Fatalf("openCodeSavedCookies(%q) accepted an unsafe value", c)
+		}
+	}
+}
+
 // TestCookieDomainMatchesAcceptsSubdomain proves the host filter used
 // by both capture and injection accepts a direct subdomain of the
 // policy host.

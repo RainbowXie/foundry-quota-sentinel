@@ -420,6 +420,34 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
 	}
+	// Post-navigation auth-state check. The platform redirects to
+	// /sign_in when the replayed login state did not authenticate the
+	// page (e.g. the saved storage was insufficient or the document-start
+	// script did not apply before the SPA's auth check). Without this
+	// check the user silently lands on the login page ("页面仍要求登录").
+	// We poll location.href briefly (the SPA needs a moment to redirect),
+	// then require the final URL to be the authenticated account page.
+	deadline := time.Now().Add(3 * time.Second)
+	var postURL string
+	for time.Now().Before(deadline) {
+		u, err := cdp.PageURL(ctx, deepSeekHost)
+		if err == nil && u != "" && !strings.HasSuffix(u, "about:blank") {
+			postURL = u
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("DeepSeek 账户页状态检查超时: %w", ctx.Err())
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	if postURL == "" {
+		return fmt.Errorf("DeepSeek 账户页导航后无法读取页面地址")
+	}
+	if isDeepSeekLoginPage(postURL) {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：页面重定向到登录页，请重新登录")
+	}
+	log.Printf("deepseek: 账户页导航后地址 %s，登录态有效", postURL)
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
 	}

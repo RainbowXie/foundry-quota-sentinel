@@ -321,6 +321,27 @@ func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 	}
 }
 
+// TestRunDeepSeekPageDetectsLoginRedirect proves that when the replayed
+// login state does NOT authenticate the page and the platform redirects
+// to /sign_in, runDeepSeekPage surfaces a clear error instead of silently
+// leaving the user on a login page. The user's symptom was "页面仍要求
+// 登录" with no feedback. The post-navigation location must be checked:
+// a /sign_in URL after navigate means the restore failed.
+func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekLoginURL} // post-nav = sign_in
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when the post-navigation URL is the login page (restore failed)")
+	}
+}
+
 // TestRunDeepSeekPageSurvivesSingleBadCookie proves a single
 // non-injectable cookie (e.g. a __Host- cookie Chrome refuses because
 // it carries a Domain) must NOT abort the whole account-page flow.

@@ -94,7 +94,7 @@ func (f *fakeDevToolsServer) servePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	f.handleConnection(conn, &f.pageMethods, true)
+	f.handleConnection(conn, &f.pageMethods, true, false)
 }
 
 func (f *fakeDevToolsServer) serveBrowser(w http.ResponseWriter, r *http.Request) {
@@ -103,10 +103,10 @@ func (f *fakeDevToolsServer) serveBrowser(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer conn.Close()
-	f.handleConnection(conn, &f.browserMethods, false)
+	f.handleConnection(conn, &f.browserMethods, false, true)
 }
 
-func (f *fakeDevToolsServer) handleConnection(conn *websocket.Conn, methods *[]string, emitEvent bool) {
+func (f *fakeDevToolsServer) handleConnection(conn *websocket.Conn, methods *[]string, emitEvent bool, isBrowser bool) {
 	for {
 		var msg map[string]json.RawMessage
 		if err := conn.ReadJSON(&msg); err != nil {
@@ -120,6 +120,22 @@ func (f *fakeDevToolsServer) handleConnection(conn *websocket.Conn, methods *[]s
 		*methods = append(*methods, method)
 		f.mu.Unlock()
 		switch method {
+		case "Emulation.setUserAgentOverride":
+			// Emulation is a per-target (page) domain. The browser
+			// endpoint returns "method not found", mirroring Chrome.
+			// This guards Ollama replaying the saved User-Agent through
+			// the wrong endpoint and flash-closing the page.
+			if isBrowser {
+				_ = conn.WriteJSON(map[string]any{
+					"id": id,
+					"error": map[string]any{
+						"code":    -32601,
+						"message": "Emulation.setUserAgentOverride is page-scoped; not available on the browser endpoint",
+					},
+				})
+				continue
+			}
+			_ = conn.WriteJSON(map[string]any{"id": id, "result": map[string]any{}})
 		case "Runtime.evaluate":
 			_ = conn.WriteJSON(map[string]any{
 				"id":     id,
@@ -238,6 +254,37 @@ func TestClientRejectsZeroPort(t *testing.T) {
 	_, err := Connect(context.Background(), "127.0.0.1:0")
 	if err == nil {
 		t.Fatal("Connect accepted zero port")
+	}
+}
+
+// TestSetUserAgentFailsOnBrowserEndpoint proves Emulation.setUserAgentOverride
+// is a per-target (page) domain: the browser endpoint returns "method not
+// found". A provider that replays a saved User-Agent through Browser()
+// flash-closes the account page (the error bubbles to runXPage and the
+// defer reaps the browser). The page endpoint accepts the call.
+func TestSetUserAgentFailsOnBrowserEndpoint(t *testing.T) {
+	server := newFakeDevToolsServer(t)
+	defer server.Close()
+	client, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if err := client.Browser().SetUserAgent(context.Background(), "UA"); err == nil {
+		t.Fatal("Browser().SetUserAgent must fail: Emulation is page-scoped")
+	}
+}
+
+func TestSetUserAgentSucceedsOnPageEndpoint(t *testing.T) {
+	server := newFakeDevToolsServer(t)
+	defer server.Close()
+	client, err := Connect(context.Background(), server.DebugAddress())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if err := client.Page().SetUserAgent(context.Background(), "UA"); err != nil {
+		t.Fatalf("Page().SetUserAgent must succeed: %v", err)
 	}
 }
 

@@ -284,12 +284,16 @@ func openCodeCookieValueSafe(cookie browserauth.Cookie) bool {
 // because those would let an attacker forge the cookie line.
 var openCodeCookieNameRe = regexp.MustCompile(`^[A-Za-z0-9._\-%+:@]+$`)
 
-// openCodeCookieValueRe is the character set allowed in a cookie
-// value. `=` is permitted because base64 padding is common in real
-// session cookies. `;`, CR, LF, whitespace, quotes, backslash, and
-// any other control character are rejected because they would let
-// an attacker forge a header or smuggle a second cookie.
-var openCodeCookieValueRe = regexp.MustCompile(`^[A-Za-z0-9._\-%+:@=]+$`)
+// openCodeCookieValueRe is the character set allowed in a cookie value.
+// It follows RFC 6265 cookie-octet (%x21 / %x23-2B / %x2D-3A / %x3C-5B /
+// %x5D-7E) plus `=` (base64 padding, common in real session cookies). The
+// previous narrow set rejected characters real opencode.ai session
+// cookies carry (e.g. /, ~, *, !, (, ), #, $, &, <, >, ?, [, ]), so
+// RunOpenCodePage failed BEFORE the browser launched and /api/open
+// swallowed the error — the user saw "no reaction". `;`, CR, LF,
+// whitespace, `"` and `\` stay rejected because they would let an
+// attacker forge a header or smuggle a second cookie.
+var openCodeCookieValueRe = regexp.MustCompile(`^[\x21\x23-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E=]+$`)
 
 // openCodeSavedCookies parses a persisted "name=value; name=value"
 // header into a list of secure cookies for the opencode.ai origin.
