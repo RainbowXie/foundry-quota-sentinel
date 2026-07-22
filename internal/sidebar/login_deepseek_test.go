@@ -70,6 +70,16 @@ type fakeDeepSeekCDP struct {
 	delayedRedirectURL string
 	delayedRedirectAt  int
 	pageURLReads       int
+	// renavURL/renavAfterNavigate model the auth-timing fix: the FIRST
+	// navigation lands on pageURL (e.g. /sign_in because the SPA's auth
+	// check ran before the document-start restore committed), then
+	// runDeepSeekPage re-navigates; after renavAfterNavigate navigations
+	// PageURL returns renavURL (the authenticated account page). This
+	// proves the re-navigate path that re-applies storage before the SPA
+	// auth check on the fresh document.
+	renavURL           string
+	renavAfterNavigate int
+	navigateCount      int
 	// mu guards the shared mutable fields below when a test drives
 	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
 	mu sync.Mutex
@@ -86,6 +96,12 @@ func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	url := c.pageURL
 	if c.delayedRedirectURL != "" && reads > c.delayedRedirectAt {
 		url = c.delayedRedirectURL
+	}
+	// After enough re-navigations, the fresh document's document-start
+	// restore runs before the SPA auth check → the page stays on the
+	// authenticated account URL.
+	if c.renavURL != "" && c.navigateCount >= c.renavAfterNavigate {
+		url = c.renavURL
 	}
 	c.mu.Unlock()
 	return url, nil
@@ -132,6 +148,7 @@ func (c *fakeDeepSeekCDP) AddScriptOnNewDocument(context.Context, string) error 
 func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error {
 	c.mu.Lock()
 	c.navigated = true
+	c.navigateCount++
 	c.mu.Unlock()
 	return nil
 }
@@ -482,6 +499,63 @@ func TestRunDeepSeekPageRejectsMultiKeyWithMissingSecond(t *testing.T) {
 	webStore := `{"l":{"alpha":"alpha-token","beta":"beta-value"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must error when the second of multiple restored keys is absent")
+	}
+}
+
+// TestRunDeepSeekPageRenavigatesToAuthenticate proves the real auth-
+// timing fix: when the first navigation redirects to /sign_in (the
+// SPA's auth check ran before the document-start restore committed), a
+// same-page setItem is NOT treated as success. runDeepSeekPage must
+// RE-NAVIGATE so the document-start restore runs before the SPA's auth
+// check on the fresh document, then verify the FINAL URL is the
+// authenticated account page. The old impl (setItem + length match on
+// the same page) would have either errored on /sign_in or falsely
+// "succeeded" — it never re-navigated, so a redirect-after-restore
+// stayed a login page.
+func TestRunDeepSeekPageRenavigatesToAuthenticate(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekLoginURL, // first navigation lands on sign_in
+		renavURL:            deepSeekUsageURL, // after re-navigate, stays on usage
+		renavAfterNavigate:  2,                // usage from the 2nd navigation onward
+		localStorageLengths: []int{len("x")},
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("re-navigate must recover an auth-check race and open the page: %v", err)
+	}
+	if cdp.navigateCount < 2 {
+		t.Fatalf("runDeepSeekPage must re-navigate at least once (count=%d) when the first navigation is unauthenticated", cdp.navigateCount)
+	}
+}
+
+// TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess proves a
+// same-page setItem that only makes the storage length match is NOT
+// success when the page is still the login page. The success condition
+// requires BOTH the final URL is the account page AND the keys match.
+// Here the URL stays /sign_in forever (no renavURL); even though the
+// lengths match, the page must error, not succeed.
+func TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	defer func() { launchDeepSeekBrowser = originalLaunch }()
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekLoginURL, // stuck on sign_in
+		localStorageLengths: []int{len("x")},  // lengths "match" but page is login
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must NOT treat a same-page length match as success when the URL is the login page")
 	}
 }
 
