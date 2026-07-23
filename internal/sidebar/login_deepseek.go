@@ -445,12 +445,23 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	// check runs on the fresh document, and we verify the FINAL state is
 	// the authenticated usage page (not just that a same-page setItem
 	// made the length match).
-	finalURL, authErr := deepSeekEnsureAuthenticated(ctx, cdp, pageURL, expectedStorage, 2)
-	if authErr != nil {
+	// Real auth-timing fix for "页面仍要求登录". A stable URL and a
+	// localStorage length match are NOT login success — the SPA may
+	// still be mid-redirect, or a non-auth storage key may have matched
+	// while the userToken was absent. The observable authenticated
+	// signal is a SUCCESSFUL platform API request (Network.response-
+	// Received 200 on the platform host) — the usage page only makes
+	// that call when it accepted the restored userToken. Prerequisite:
+	// the AUTH keys (token-bearing) are present and length-match.
+	authEntries := deepSeekAuthStorageEntries(expectedStorage)
+	if err := cdp.EnableNetwork(ctx); err != nil {
+		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
+	}
+	events := cdp.Events()
+	if authErr := deepSeekEnsureAuthenticated(ctx, cdp, events, pageURL, authEntries, 2); authErr != nil {
 		return authErr
 	}
-	log.Printf("deepseek: 账户页最终停留地址 host 验证通过，localStorage 恢复 %d 个键（长度匹配）", len(expectedStorage))
-	_ = finalURL
+	log.Printf("deepseek: 账户页观测到已认证平台请求，认证键 %d 个已恢复", len(authEntries))
 	signalOpenPageReady()
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
@@ -458,85 +469,103 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	return nil
 }
 
-// deepSeekEnsureAuthenticated verifies the page is on the authenticated
-// account URL with the saved localStorage keys present and matching the
-// saved value lengths. If after a navigation the SPA redirected to
-// /sign_in OR cleared/overwrote the restored storage, it re-navigates
-// (so the document-start restore script runs before the SPA's next auth
-// check) and re-verifies, up to maxRenav times. The success condition
-// is BOTH: final URL is the account page (not /sign_in) AND every saved
-// key's live length matches — a same-page setItem that only makes the
-// length match is NOT treated as login success.
-func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, pageURL string, expected []deepSeekStorageEntry, maxRenav int) (string, error) {
-	for attempt := 0; ; attempt++ {
-		postURL, settleErr := deepSeekWaitForURLStable(ctx, cdp, 5*time.Second, 200*time.Millisecond)
-		if settleErr != nil {
-			return "", settleErr
-		}
-		mismatch := deepSeekStorageMismatch(ctx, cdp, expected)
-		authed := !isDeepSeekLoginPage(postURL) && len(mismatch) == 0
-		if authed {
-			return postURL, nil
-		}
-		if attempt >= maxRenav {
-			// Out of re-navigations: report the concrete failure mode.
-			if isDeepSeekLoginPage(postURL) {
-				if len(mismatch) > 0 {
-					return "", fmt.Errorf("DeepSeek 登录态恢复失败：重导航 %d 次后仍重定向到登录页，localStorage 有 %d 个键缺失或长度不匹配", maxRenav, len(mismatch))
-				}
-				return "", fmt.Errorf("DeepSeek 登录态恢复失败：重导航 %d 次后仍重定向到登录页，请重新登录", maxRenav)
-			}
-			return "", fmt.Errorf("DeepSeek 登录态恢复失败：localStorage 有 %d 个键缺失或长度不匹配（document-start 脚本未在 SPA 鉴权前生效）", len(mismatch))
-		}
-		// Re-navigate so the document-start restore script re-applies
-		// the saved storage before the SPA's auth check on the fresh
-		// document.
-		log.Printf("deepseek: 账户页未认证（URL=%s，缺失/不匹配 %d 个键），重新导航让 document-start 脚本在 SPA 鉴权前生效", postURL, len(mismatch))
-		if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
-			return "", fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
+// deepSeekAuthKeyRe matches localStorage key names that carry the
+// restored credential (e.g. userToken). Only these keys are verified;
+// unrelated storage keys (analytics, UI state) are ignored so a changed
+// unrelated key cannot masquerade as login success.
+var deepSeekAuthKeyRe = regexp.MustCompile(`(?i)token|auth|user`)
+
+// deepSeekAuthStorageEntries narrows the expected storage set to the
+// auth-bearing keys only. A non-auth key changing (or absent) must not
+// be treated as a restore failure or a success signal.
+func deepSeekAuthStorageEntries(all []deepSeekStorageEntry) []deepSeekStorageEntry {
+	out := make([]deepSeekStorageEntry, 0, len(all))
+	for _, e := range all {
+		if deepSeekAuthKeyRe.MatchString(e.key) {
+			out = append(out, e)
 		}
 	}
+	return out
+}
+
+// deepSeekAuthRequestRe matches platform API request URLs the usage page
+// makes once it has accepted the restored userToken. Observing a 200 on
+// such a URL is the real authenticated signal.
+var deepSeekAuthRequestRe = regexp.MustCompile(`https://[a-z0-9.\-]*platform\.deepseek\.com/api/`)
+
+// deepSeekEnsureAuthenticated observes the page until it makes a
+// successful authenticated platform request (Network.responseReceived
+// 200 on a platform API URL), provided the auth storage keys are present
+// and length-match. If that signal does not arrive within a per-
+// navigation window, it re-navigates (so the document-start restore
+// script runs before the SPA's auth check on the fresh document) and
+// re-observes, up to maxRenav times. A stable URL alone is NOT success;
+// only the successful auth request is.
+// deepSeekAuthWaitPerNav is how long deepSeekEnsureAuthenticated waits
+// per navigation for the authenticated platform request before
+// re-navigating. Defaults to 5s in production; tests lower it to keep
+// failure-path tests fast.
+var deepSeekAuthWaitPerNav = 5 * time.Second
+
+func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, pageURL string, authKeys []deepSeekStorageEntry, maxRenav int) error {
+	for attempt := 0; ; attempt++ {
+		if observed := deepSeekWaitForAuthRequest(ctx, cdp, events, authKeys, deepSeekAuthWaitPerNav); observed {
+			return nil
+		}
+		if attempt >= maxRenav {
+			// Distinguish failure modes without logging the full URL.
+			postURL, _ := cdp.PageURL(ctx, deepSeekHost)
+			if isDeepSeekLoginPage(postURL) {
+				return fmt.Errorf("DeepSeek 登录态恢复失败：重导航 %d 次后仍停留在登录页，请重新登录", maxRenav)
+			}
+			if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) > 0 {
+				return fmt.Errorf("DeepSeek 登录态恢复失败：未观测到已认证请求，认证键有 %d 个缺失或长度不匹配", len(mismatch))
+			}
+			return fmt.Errorf("DeepSeek 登录态恢复失败：认证键已恢复但未观测到已认证平台请求")
+		}
+		log.Printf("deepseek: 账户页未观测到已认证平台请求，重新导航让 document-start 脚本在 SPA 鉴权前生效")
+		if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
+			return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
+		}
+	}
+}
+
+// deepSeekWaitForAuthRequest waits, within a deadline, for a
+// Network.responseReceived event whose URL is a platform API URL with a
+// 2xx status, AND for the auth storage keys to be present with matching
+// lengths. The successful auth request is the primary signal; the auth
+// keys are the prerequisite. Returns true if both hold.
+func deepSeekWaitForAuthRequest(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, authKeys []deepSeekStorageEntry, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	authed := false
+	for time.Now().Before(deadline) && !authed {
+		// Drain any responseReceived events that already arrived.
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return false
+			}
+			if rr, isRR := browserauth.DecodeResponseReceivedEvent(ev); isRR {
+				if rr.Status >= 200 && rr.Status < 300 && deepSeekAuthRequestRe.MatchString(rr.URL) {
+					// Prerequisite: auth keys present and length-match.
+					if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) == 0 {
+						log.Printf("deepseek: 观测到已认证平台请求（host 验证通过，状态 %d）", rr.Status)
+						authed = true
+					}
+				}
+			}
+		case <-time.After(100 * time.Millisecond):
+		case <-ctx.Done():
+			return false
+		}
+	}
+	return authed
 }
 
 // deepSeekRestoreScript turns a saved webStore JSON snapshot into a
 // document-start script. The snapshot is JSON-encoded so user data is
 // never concatenated into executable code. An empty snapshot yields a
 // no-op script so the page still loads.
-// deepSeekWaitForURLStable polls location.href until it is non-blank and
-// stays the same across two consecutive polls (within a deadline). The
-// SPA may client-redirect a moment after the document loads; reading the
-// URL once right after Navigate races that redirect and can mis-classify
-// the auth state. Returns the stabilized URL or an error on timeout.
-func deepSeekWaitForURLStable(ctx context.Context, cdp deepSeekCDP, timeout, interval time.Duration) (string, error) {
-	deadline := time.Now().Add(timeout)
-	var prev string
-	stable := 0
-	for time.Now().Before(deadline) {
-		u, err := cdp.PageURL(ctx, deepSeekHost)
-		if err == nil && u != "" && !strings.HasSuffix(u, "about:blank") {
-			if u == prev {
-				stable++
-				if stable >= 1 { // two consecutive identical reads
-					return u, nil
-				}
-			} else {
-				prev = u
-				stable = 0
-			}
-		} else {
-			stable = 0
-		}
-		select {
-		case <-ctx.Done():
-			return "", fmt.Errorf("DeepSeek 账户页状态检查超时: %w", ctx.Err())
-		case <-time.After(interval):
-		}
-	}
-	if prev != "" {
-		return prev, nil
-	}
-	return "", fmt.Errorf("DeepSeek 账户页导航后无法读取页面地址")
-}
 
 // deepSeekStorageEntry is one expected localStorage key plus the length
 // of the value the saved snapshot stored for it. The post-navigation

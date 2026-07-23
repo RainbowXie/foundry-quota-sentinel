@@ -81,3 +81,49 @@ func normaliseHeaders(in map[string]string) map[string]string {
 	}
 	return out
 }
+
+// ResponseReceivedEvent is the decoded form of Network.responseReceived.
+// A coordinator waits for one of these to observe that the page actually
+// made an authenticated request (e.g. the usage page's data fetch
+// returned 200), which is a stronger authenticated signal than a stable
+// URL or a localStorage length match.
+type ResponseReceivedEvent struct {
+	RequestID string
+	URL       string
+	Status    int
+	MimeType  string
+}
+
+// DecodeResponseReceivedEvent returns the typed view of a
+// Network.responseReceived event. The URL and status come from the
+// nested response object; the top-level url is also read as a fallback.
+func DecodeResponseReceivedEvent(event Event) (ResponseReceivedEvent, bool) {
+	if event.Method != "Network.responseReceived" {
+		return ResponseReceivedEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return ResponseReceivedEvent{}, false
+	}
+	var payload struct {
+		RequestID string `json:"requestId"`
+		URL       string `json:"url"`
+		Response  struct {
+			URL      string `json:"url"`
+			Status   int    `json:"status"`
+			MimeType string `json:"mimeType"`
+		} `json:"response"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return ResponseReceivedEvent{}, false
+	}
+	url := payload.Response.URL
+	if url == "" {
+		url = payload.URL
+	}
+	return ResponseReceivedEvent{
+		RequestID: payload.RequestID,
+		URL:       url,
+		Status:    payload.Response.Status,
+		MimeType:  payload.Response.MimeType,
+	}, true
+}

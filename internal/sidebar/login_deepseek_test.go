@@ -3,6 +3,7 @@ package sidebar
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -80,6 +81,10 @@ type fakeDeepSeekCDP struct {
 	renavURL           string
 	renavAfterNavigate int
 	navigateCount      int
+	// onNavigate is invoked after each Navigate with the new navigate
+	// count, so a test can push events onto the channel only after a
+	// re-navigate (modeling the auth-check race fix).
+	onNavigate func(nav int)
 	// mu guards the shared mutable fields below when a test drives
 	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
 	mu sync.Mutex
@@ -149,7 +154,12 @@ func (c *fakeDeepSeekCDP) Navigate(context.Context, string, ...string) error {
 	c.mu.Lock()
 	c.navigated = true
 	c.navigateCount++
+	nav := c.navigateCount
+	hook := c.onNavigate
 	c.mu.Unlock()
+	if hook != nil {
+		hook(nav)
+	}
 	return nil
 }
 
@@ -362,11 +372,40 @@ func TestRunDeepSeekLoginDoesNotAcceptPreLoginStorageCandidates(t *testing.T) {
 	}
 }
 
+// deepSeekAuthResponseEvent builds a Network.responseReceived event the
+// page flow treats as the observable authenticated signal: a 2xx on a
+// platform API URL. Tests inject it on the events channel.
+func deepSeekAuthResponseEvent(status int, url string) browserauth.Event {
+	return browserauth.Event{
+		Method: "Network.responseReceived",
+		Params: json.RawMessage(`{"requestId":"r1","url":"` + url + `","response":{"url":"` + url + `","status":` + strconv.Itoa(status) + `,"mimeType":"application/json"}}`),
+	}
+}
+
+// eventsWithAuth returns a buffered, un-opened events channel pre-loaded
+// with the given events (e.g. a 200 platform API response). Additional
+// events can be pushed after.
+func eventsWithAuth(ev ...browserauth.Event) chan browserauth.Event {
+	ch := make(chan browserauth.Event, 16)
+	for _, e := range ev {
+		ch <- e
+	}
+	return ch
+}
+
+const deepSeekAuthAPIURL = "https://platform.deepseek.com/api/v0/users/current"
+
 func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
@@ -388,18 +427,24 @@ func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 }
 
 // TestRunDeepSeekPageDetectsLoginRedirect proves that when the replayed
-// login state does NOT authenticate the page and the platform redirects
-// to /sign_in, runDeepSeekPage surfaces a clear error instead of silently
-// leaving the user on a login page. The user's symptom was "页面仍要求
-// 登录" with no feedback. The post-navigation location must be checked:
-// a /sign_in URL after navigate means the restore failed.
+// login state does NOT authenticate the page (no successful platform API
+// request observed) and the SPA sits on /sign_in, runDeepSeekPage
+// surfaces a clear error instead of silently leaving the user on a login
+// page. Two same-URL reads and a length match are NOT success; only the
+// observed auth request is. Here no auth request ever arrives.
 func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekLoginURL, // post-nav = sign_in
-		localStorageLengths: []int{len("x")},  // userToken restored (length matches), but server still bounced
+		pageURL:             deepSeekLoginURL,                // stuck on sign_in
+		localStorageLengths: []int{len("x")},                 // auth key length matches, but no auth request
+		events:              make(chan browserauth.Event, 1), // no auth event
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -407,50 +452,61 @@ func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
 	}
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the post-navigation URL is the login page (restore failed)")
+		t.Fatal("runDeepSeekPage must error when no authenticated platform request is observed (page is the login page)")
 	}
 }
 
-// TestRunDeepSeekPageDetectsValueLengthMismatch proves the restore
-// verification compares the LIVE localStorage value length to the saved
-// snapshot, not just presence. A SPA that silently overwrites a restored
-// key with a different-length value must be caught (the page would not
-// recognise the credential). This is the real fix beyond /sign_in
-// detection: a half-applied or overwritten restore surfaces a clear
-// error instead of a silent unauthenticated page.
-func TestRunDeepSeekPageDetectsValueLengthMismatch(t *testing.T) {
+// TestRunDeepSeekPageRejectsAuthRequestWhenAuthKeyMismatch proves the
+// auth request alone is not success: the prerequisite auth-key length
+// match must also hold. A 200 platform response arrives, but the
+// restored userToken length mismatches → the page is NOT treated as
+// authenticated.
+func TestRunDeepSeekPageRejectsAuthRequestWhenAuthKeyMismatch(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
-		localStorageLengths: []int{len("wrong")}, // present but wrong length
+		localStorageLengths: []int{len("wrong")}, // auth key present but wrong length
+		events:              events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	// Saved userToken value "x" (length 1); live is "wrong" (length 4).
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when a restored localStorage value length mismatches the saved snapshot")
+		t.Fatal("a 200 platform request with a mismatched auth key must NOT be treated as authenticated")
 	}
 }
 
-// TestRunDeepSeekPageWaitsForDelayedRedirect proves the URL-stability
-// wait catches a SPA that redirects to /sign_in AFTER the first
-// post-navigation URL read. The fake returns the account URL first,
-// then the login URL on a later poll, so a single read would have
-// passed; the stability wait must see the redirect and error.
-func TestRunDeepSeekPageWaitsForDelayedRedirect(t *testing.T) {
+// TestRunDeepSeekPageRejectsDelayedSigninAfterUsage proves that two
+// consecutive usage-URL reads followed by a delayed jump to /sign_in
+// must NOT be treated as login success. The old two-same-URL logic
+// would have returned success on the two usage reads and missed the
+// redirect. The new signal requires an observed auth request; with no
+// auth request the delayed redirect surfaces as a failure.
+func TestRunDeepSeekPageRejectsDelayedSigninAfterUsage(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekUsageURL,
+		pageURL:             deepSeekUsageURL, // two reads of usage...
 		localStorageLengths: []int{len("x")},
-		delayedRedirectURL:  deepSeekLoginURL,
-		delayedRedirectAt:   1, // first read = account URL, second read = sign_in
+		delayedRedirectURL:  deepSeekLoginURL, // ...then jumps to sign_in
+		delayedRedirectAt:   3,
+		events:              make(chan browserauth.Event, 1), // no auth request
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -458,69 +514,134 @@ func TestRunDeepSeekPageWaitsForDelayedRedirect(t *testing.T) {
 	}
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must wait for URL stability and catch a delayed redirect to /sign_in")
+		t.Fatal("two usage reads then a delayed jump to /sign_in must NOT be treated as login success")
+	}
+}
+
+// TestRunDeepSeekPageIgnoresUnrelatedStorageKeyChange proves only the
+// AUTH keys (token-bearing) are verified. A non-auth key whose live
+// length differs from the snapshot must not fail the restore, provided
+// the auth key matches AND the auth request is observed. This stops a
+// changed analytics/UI key from masquerading as a restore failure or a
+// spurious success.
+func TestRunDeepSeekPageIgnoresUnrelatedStorageKeyChange(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
+
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	// Saved: userToken="x" (auth, len 1), theme="dark" (non-auth, len 4).
+	// Only the AUTH key (userToken) is probed; the non-auth theme key is
+	// not verified, so its live length (whatever it is) is irrelevant.
+	// The fake returns one length per probed auth key.
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("x")}, // userToken matches; theme is not probed
+		events:              events,
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x","theme":"dark"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("a changed non-auth key must not fail the restore when the auth key matches and the auth request is observed: %v", err)
 	}
 }
 
 // TestRunDeepSeekPageAcceptsMultiKeyRestore proves the storage
-// verification checks every saved localStorage key, not just the
-// first. Two keys with matching lengths must pass; a missing second
-// key must fail.
+// verification checks every AUTH key. Two auth keys with matching
+// lengths plus an observed auth request must succeed.
 func TestRunDeepSeekPageAcceptsMultiKeyRestore(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
-		localStorageLengths: []int{len("alpha-token"), len("beta-value")},
+		localStorageLengths: []int{len("alpha-token"), len("user-beta")},
+		events:              events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	webStore := `{"l":{"alpha":"alpha-token","beta":"beta-value"},"s":{}}`
+	// Both keys are auth (user...). Sorted: "user_alpha" < "userToken"?
+	// Use names that sort in the order we give lengths: "aaa" then "zzz"
+	// both token-bearing via "user"/"token". Use explicit token names.
+	webStore := `{"l":{"usertokenA":"alpha-token","usertokenB":"user-beta"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
-		t.Fatalf("multi-key restore with matching lengths must succeed: %v", err)
+		t.Fatalf("multi auth-key restore with matching lengths + auth request must succeed: %v", err)
 	}
 }
 
-func TestRunDeepSeekPageRejectsMultiKeyWithMissingSecond(t *testing.T) {
+// TestRunDeepSeekPageRejectsMultiKeyWithMissingAuthKey proves a missing
+// AUTH key (not a non-auth key) fails the restore even with an auth
+// request observed.
+func TestRunDeepSeekPageRejectsMultiKeyWithMissingAuthKey(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
-		localStorageLengths: []int{len("alpha-token"), -1}, // second key absent
+		localStorageLengths: []int{len("alpha-token"), -1}, // second auth key absent
+		events:              events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	webStore := `{"l":{"alpha":"alpha-token","beta":"beta-value"},"s":{}}`
+	webStore := `{"l":{"usertokenA":"alpha-token","usertokenB":"user-beta"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the second of multiple restored keys is absent")
+		t.Fatal("runDeepSeekPage must error when an auth key is absent even if an auth request was observed")
 	}
 }
 
 // TestRunDeepSeekPageRenavigatesToAuthenticate proves the real auth-
-// timing fix: when the first navigation redirects to /sign_in (the
-// SPA's auth check ran before the document-start restore committed), a
-// same-page setItem is NOT treated as success. runDeepSeekPage must
-// RE-NAVIGATE so the document-start restore runs before the SPA's auth
-// check on the fresh document, then verify the FINAL URL is the
-// authenticated account page. The old impl (setItem + length match on
-// the same page) would have either errored on /sign_in or falsely
-// "succeeded" — it never re-navigated, so a redirect-after-restore
-// stayed a login page.
+// timing fix: when the first navigation never yields an auth request
+// (the SPA's auth check ran before the document-start restore
+// committed), runDeepSeekPage RE-NAVIGATES so the document-start
+// restore runs before the SPA's auth check on the fresh document. The
+// fake delivers the auth request only after a re-navigate.
 func TestRunDeepSeekPageRenavigatesToAuthenticate(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
+	// Buffer holds the auth event; it is delivered only after the second
+	// Navigate. We push it on the channel once navigateCount reaches 2.
+	events := make(chan browserauth.Event, 4)
 	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekLoginURL, // first navigation lands on sign_in
-		renavURL:            deepSeekUsageURL, // after re-navigate, stays on usage
-		renavAfterNavigate:  2,                // usage from the 2nd navigation onward
+		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{len("x")},
+		events:              events,
+		onNavigate: func(nav int) {
+			if nav >= 2 {
+				select {
+				case events <- deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL):
+				default:
+				}
+			}
+		},
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -531,23 +652,28 @@ func TestRunDeepSeekPageRenavigatesToAuthenticate(t *testing.T) {
 		t.Fatalf("re-navigate must recover an auth-check race and open the page: %v", err)
 	}
 	if cdp.navigateCount < 2 {
-		t.Fatalf("runDeepSeekPage must re-navigate at least once (count=%d) when the first navigation is unauthenticated", cdp.navigateCount)
+		t.Fatalf("runDeepSeekPage must re-navigate at least once (count=%d) when the first navigation yields no auth request", cdp.navigateCount)
 	}
 }
 
 // TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess proves a
 // same-page setItem that only makes the storage length match is NOT
-// success when the page is still the login page. The success condition
-// requires BOTH the final URL is the account page AND the keys match.
-// Here the URL stays /sign_in forever (no renavURL); even though the
-// lengths match, the page must error, not succeed.
+// success when no authenticated platform request is observed. The URL
+// stays /sign_in, lengths match, but no auth request arrives → must
+// error, not succeed.
 func TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekLoginURL, // stuck on sign_in
-		localStorageLengths: []int{len("x")},  // lengths "match" but page is login
+		localStorageLengths: []int{len("x")},  // lengths "match" but no auth request
+		events:              make(chan browserauth.Event, 1),
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -555,7 +681,7 @@ func TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess(t *testing.T) {
 	}
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must NOT treat a same-page length match as success when the URL is the login page")
+		t.Fatal("runDeepSeekPage must NOT treat a same-page length match as success when no auth request is observed")
 	}
 }
 
@@ -604,11 +730,18 @@ func TestDeepSeekStorageProbeExprStructure(t *testing.T) {
 // closes it.
 func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
 	cdp := &fakeDeepSeekCDP{
 		pageURL:           deepSeekUsageURL,
 		rejectCookieNames: map[string]bool{"__Host-bad": true},
+		events:            events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -639,12 +772,19 @@ func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 // TestRunDeepSeekPageStorageOnlySurvivesNoCookies proves an account
 // whose saved WebStore has no cookie envelope (only localStorage /
 // sessionStorage) still opens the page and keeps the browser alive.
-// The cookie-replay step must be a no-op, not an error.
+// The cookie-replay step must be a no-op, not an error. The token key
+// matches and an auth request is observed.
 func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}}
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
@@ -667,19 +807,23 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 }
 
 // TestRunDeepSeekPageFailsWhenRestoreDidNotApply proves the real fix:
-// runDeepSeekPage verifies via CDP that the document-start restore
-// script actually re-established the saved localStorage keys after
-// navigation. If a key is absent (the script did not run, or the page
-// cleared storage), the page is NOT silently left in a half-state — a
-// clear "document-start 脚本未生效" error surfaces. This is more than
-// just detecting a /sign_in redirect: it proves the restore happened.
+// runDeepSeekPage does NOT treat the page as authenticated when the
+// auth key is absent, even if a platform request arrives. The auth-key
+// prerequisite (length match) must hold before the auth request counts.
 func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
 	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekUsageURL, // URL is fine — not the login page
-		localStorageLengths: []int{-1},        // but the restored key is ABSENT
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{-1}, // auth key ABSENT
+		events:              events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -687,7 +831,7 @@ func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 	}
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the restored localStorage key is absent (document-start script did not apply)")
+		t.Fatal("runDeepSeekPage must error when the auth key is absent even if a platform request arrives")
 	}
 }
 
@@ -697,9 +841,15 @@ func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 // guard for the flash-close: Wait must be the final step.
 func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
@@ -711,7 +861,7 @@ func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
 	select {
 	case err := <-done:
 		t.Fatalf("RunDeepSeekPage returned before the user closed the window: %v", err)
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(150 * time.Millisecond):
 		// expected: still blocked on Wait
 	}
 	nav, _, _ := cdp.navigatedSnapshot()
