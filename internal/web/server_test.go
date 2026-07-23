@@ -455,3 +455,38 @@ func TestNewOpenSessionIsConcurrencySafe(t *testing.T) {
 		seen[id] = true
 	}
 }
+
+// TestOpenEndpointRealTimeoutBranchInjectable proves the /api/open
+// handler's REAL timeout branch is reachable and returns success=false
+// (not silent success). The handler's timeout is injectable, so a test
+// drives the real handler path with a short timeout and a spawn that
+// never signals ready/error and never exits — the handler must return
+// success=false with the timeout error.
+func TestOpenEndpointRealTimeoutBranchInjectable(t *testing.T) {
+	srv := NewServer(nil)
+	srv.openHandshakeTimeout = 120 * time.Millisecond
+	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
+		return func() error { select {} }, nil
+	}
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=ollama&name=home", nil)
+	w := httptest.NewRecorder()
+	start := time.Now()
+	srv.Handler().ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success {
+		t.Fatal("real timeout branch must return success=false, not silent success")
+	}
+	if !strings.Contains(got.Error, "超时") {
+		t.Fatalf("error must surface the timeout: %q", got.Error)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("injectable timeout must make the test fast (<1s), got %v", elapsed)
+	}
+}

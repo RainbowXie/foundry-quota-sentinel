@@ -71,6 +71,11 @@ type Server struct {
 	// handshake file the subprocess writes once the page is ready (or on
 	// failure). Tests inject a spawn that drives the handshake file.
 	spawnOpenPage func(provider, name, session string) (wait func() error, err error)
+	// openHandshakeTimeout is how long /api/open waits for the ready/error
+	// handshake before returning an explicit timeout failure. Defaults to
+	// 20s in the handler; tests inject a short value to cover the real
+	// timeout branch quickly.
+	openHandshakeTimeout time.Duration
 }
 
 func NewServer(accounts []Account) *Server {
@@ -378,7 +383,11 @@ func (s *Server) Handler() http.Handler {
 		}
 		waitErr := make(chan error, 1)
 		go func() { waitErr <- wait() }()
-		status, errMsg, ok := waitForOpenHandshake(session, waitErr, 20*time.Second)
+		timeout := s.openHandshakeTimeout
+		if timeout <= 0 {
+			timeout = 20 * time.Second
+		}
+		status, errMsg, ok := waitForOpenHandshake(session, waitErr, timeout)
 		_ = os.Remove(openHandshakePath(session))
 		if ok && status == "ready" {
 			writeJSON(w, 200, map[string]any{"success": true})
