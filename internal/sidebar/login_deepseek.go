@@ -413,75 +413,143 @@ settled:
 	return "", "", fmt.Errorf("未找到可验证的 DeepSeek 凭证")
 }
 
-func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, webStore string) (err error) {
-	defer func() {
-		if err != nil {
-			_ = browser.Close()
-		}
-	}()
-
+// runDeepSeekPage opens the Usage page after replaying the saved storage
+// state. Real diagnostic evidence (cmd/diag-deepseek, cmd/diag-deepseek2)
+// proved the SPA overwrites the restored userToken with a short default on
+// first boot, redirecting to /sign_in. The fix (verified by diag2) is:
+//  1. Register the restore script as document-start (runs before SPA boot).
+//  2. Navigate #1 — SPA boots, overwrites userToken, redirects.
+//  3. Re-apply the restore script via Evaluate (post-load) — restores the
+//     saved userToken after the SPA overwrote it.
+//  4. Navigate #2 (reload) — the document-start script re-applies on the
+//     fresh document, and the SPA recognizes the valid token and STAYS on
+//     /usage (does not overwrite).
+//  5. Verify userToken length matches the saved value AND the URL is /usage.
+//
+// On failure the error is returned (for /api/open handshake to surface) but
+// the browser is NOT closed — it stays open until the user manually closes
+// it, preventing the flash-close.
+func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, webStore string) error {
 	script, cookies, err := deepSeekRestoreState(webStore)
 	if err != nil {
 		return err
 	}
-	// expectedStorage are the localStorage entries the restore script
-	// must re-establish after navigation. The post-navigation CDP check
-	// compares each live value's LENGTH to the saved snapshot — proving
-	// the document-start script applied AND the SPA did not silently
-	// overwrite the restored value. This is the real fix for "页面仍要求
-	// 登录": a missing or length-mismatched key is surfaced as an error
-	// rather than a silent half-authenticated page.
-	expectedStorage := deepSeekExpectedStorageEntries(webStore)
+	authEntries := deepSeekAuthStorageEntries(deepSeekExpectedStorageEntries(webStore))
+	if len(authEntries) == 0 {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：缺少 userToken 认证键")
+	}
 
 	cdp, err := browser.CDP(ctx)
 	if err != nil {
 		return fmt.Errorf("连接 DeepSeek 账户页浏览器失败: %w", err)
 	}
 	defer cdp.Close()
+
 	if len(cookies) > 0 {
-		// Best-effort: a single non-injectable cookie (e.g. a __Host-
-		// cookie Chrome refuses) must not abort the page. We log the
-		// failed names and continue; an all-failed replay still
-		// surfaces an error so the page does not open unauthenticated.
 		result := cdp.SetCookiesBestEffort(ctx, cookies)
 		if result.Injected == 0 {
 			return fmt.Errorf("恢复 DeepSeek 登录 cookie 失败：全部 %d 个注入失败（%d 个被过滤）", len(cookies), len(result.Failed))
 		}
-		log.Printf("deepseek: 账户页 cookie 回放完成，注入 %d 个，失败 %d 个（仅记名称）", result.Injected, len(result.Failed))
+		log.Printf("deepseek: 账户页 cookie 回放完成，注入 %d 个，失败 %d 个", result.Injected, len(result.Failed))
 	}
 	if script != "" {
 		if err := cdp.AddScriptOnNewDocument(ctx, script); err != nil {
 			return fmt.Errorf("准备 DeepSeek 登录态脚本失败: %w", err)
 		}
 	}
-	// Enable Network BEFORE the first Navigate so the first window's
-	// requestWillBeSent/responseReceived/loadingFinished are captured.
-	authEntries := deepSeekAuthStorageEntries(expectedStorage)
 	if err := cdp.EnableNetwork(ctx); err != nil {
 		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
 	}
-	events := cdp.Events()
-	// First navigation: capture the real loaderId from Page.navigate.
-	loader, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
-	if err != nil {
+
+	// Navigate #1: SPA boots and may overwrite userToken with a default.
+	log.Printf("deepseek: 账户页首次导航")
+	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
 	}
-	// deepSeekEnsureAuthenticated verifies, per navigation window
-	// (identified by the Page.navigate loaderId), that a protected API
-	// returned 2xx + body code==0, the userToken auth key is present and
-	// length-matched, and the final URL is the usage page. It
-	// re-navigates (with a fresh loaderId) if the window is not
-	// authenticated, so the document-start restore script runs before
-	// the SPA's auth check on the fresh document.
-	if authErr := deepSeekEnsureAuthenticated(ctx, cdp, events, pageURL, authEntries, loader, 2); authErr != nil {
-		return authErr
+	// Wait for SPA to boot and overwrite userToken.
+	deepSeekWaitForSettle(ctx, 3*time.Second)
+
+	// Re-apply the restore script post-load (after SPA boot overwrote
+	// userToken). This puts the saved userToken back into localStorage.
+	if script != "" {
+		log.Printf("deepseek: post-load 重新应用登录态脚本")
+		if _, err := cdp.Evaluate(ctx, script); err != nil {
+			return fmt.Errorf("post-load 重新应用登录态脚本失败: %w", err)
+		}
 	}
-	log.Printf("deepseek: 账户页观测到已认证平台请求，认证键 %d 个已恢复", len(authEntries))
+
+	// Navigate #2 (reload): the document-start script re-applies on the
+	// fresh document, and the SPA recognizes the valid token and stays on
+	// /usage. Verified by cmd/diag-deepseek2.
+	log.Printf("deepseek: 账户页重新导航（reload）")
+	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
+		return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
+	}
+	deepSeekWaitForSettle(ctx, 3*time.Second)
+
+	// Verify: userToken length matches the saved value AND URL is /usage.
+	postURL, _ := cdp.PageURL(ctx, deepSeekHost)
+	log.Printf("deepseek: 最终 URL host=%s path=%s", hostOnly(postURL), pathOnly(postURL))
+	if isDeepSeekLoginPage(postURL) {
+		// Check whether userToken survived.
+		if mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries); len(mismatch) > 0 {
+			return fmt.Errorf("DeepSeek 登录态恢复失败：重新应用并重新导航后页面仍在登录页，userToken 有 %d 个键长度不匹配，请重新登录", len(mismatch))
+		}
+		return fmt.Errorf("DeepSeek 登录态恢复失败：重新应用并重新导航后页面仍在登录页，请重新登录")
+	}
+	if !deepSeekIsUsagePage(postURL) {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：页面未停留在 usage 页")
+	}
+	if mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries); len(mismatch) > 0 {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：页面在 usage 但 userToken 有 %d 个键长度不匹配", len(mismatch))
+	}
+
+	log.Printf("deepseek: 账户页已认证（usage 页，userToken 长度匹配）")
 	signalOpenPageReady()
+	// Browser stays open until the user closes it. On error (returned
+	// above) the browser is also NOT closed — the /api/open handshake
+	// surfaces the error, and the user can see/interact with the page.
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
 	}
 	return nil
+}
+
+// deepSeekWaitForSettle pauses to let the SPA boot/settle after a navigation.
+// In production this gives the SPA time to overwrite localStorage and
+// redirect; in tests it's a no-op (tests control the fake's state directly).
+func deepSeekWaitForSettle(ctx context.Context, d time.Duration) {
+	// Only sleep in real production runs; tests override deepSeekSettleDelay
+	// to 0 via deepSeekSettleDelayOverride.
+	delay := deepSeekSettleDelayOverride
+	if delay == 0 {
+		delay = d
+	}
+	if delay > 0 {
+		select {
+		case <-ctx.Done():
+		case <-time.After(delay):
+		}
+	}
+}
+
+// deepSeekSettleDelayOverride lets tests set the settle delay to 0.
+var deepSeekSettleDelayOverride time.Duration
+
+func hostOnly(u string) string {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return ""
+	}
+	return parsed.Host
+}
+
+func pathOnly(u string) string {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return ""
+	}
+	return parsed.Path
 }
 
 // deepSeekAuthKey is the EXACT localStorage key that carries the restored
