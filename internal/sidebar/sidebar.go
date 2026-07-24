@@ -8,6 +8,8 @@
 //     an unlisted GOOS:                    no-GUI stub (no webview dependency)
 package sidebar
 
+import "sync"
+
 const (
 	panelWidth  = 360
 	panelHeight = 370
@@ -24,27 +26,31 @@ const (
 var OpenPageReady func()
 
 // OpenPageError, when set, is called by a provider's runXPage when the
-// page flow fails (e.g. auth restore failed). The caller installs a hook
-// that writes an error handshake file so the sidebar surfaces the error.
-// After signalling, runXPage blocks on browser.Wait() so the browser
-// stays open until the user manually closes it (no flash-close).
+// page flow fails. signalOpenPageError fires it at most once per process
+// (sync.Once) so a late WriteOpenHandshake cannot leave a stale error
+// file after the user closes the browser.
 var OpenPageError func(err string)
+var openPageErrorOnce sync.Once
 
-// signalOpenPageReady fires OpenPageReady once, nil-safe. The runXPage
-// functions call it right before browser.Wait() so the ready signal
-// reaches the /api/open handler the moment the page is usable.
+// resetOpenPageErrorOnce resets the sync.Once so a new test or a new
+// subprocess invocation can fire signalOpenPageError again.
+func resetOpenPageErrorOnce() {
+	openPageErrorOnce = sync.Once{}
+}
+
+// signalOpenPageReady fires OpenPageReady once, nil-safe.
 func signalOpenPageReady() {
 	if OpenPageReady != nil {
 		OpenPageReady()
 	}
 }
 
-// signalOpenPageError fires OpenPageError once, nil-safe. The runXPage
-// functions call it on auth failure BEFORE blocking on browser.Wait(),
-// so the /api/open handshake surfaces the error while the browser stays
-// open for the user to see/interact with.
+// signalOpenPageError fires OpenPageError at most once (sync.Once),
+// nil-safe. Called on auth failure BEFORE browser.Wait() blocks.
 func signalOpenPageError(err string) {
-	if OpenPageError != nil {
-		OpenPageError(err)
-	}
+	openPageErrorOnce.Do(func() {
+		if OpenPageError != nil {
+			OpenPageError(err)
+		}
+	})
 }

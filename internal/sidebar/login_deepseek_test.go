@@ -613,8 +613,10 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		launchDeepSeekBrowser = originalLaunch
 		deepSeekSettleTimeout = originalSettle
 		OpenPageError = originalErrorHook
+		resetOpenPageErrorOnce()
 	}()
 	deepSeekSettleTimeout = 0
+	resetOpenPageErrorOnce()
 
 	errorCh := make(chan string, 1)
 	OpenPageError = func(msg string) {
@@ -667,6 +669,52 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("RunDeepSeekPage did not return after user closed the window")
+	}
+}
+
+// TestRunDeepSeekPageWaitsForTransitionNotEarlySamples proves the round-1
+// condition-wait requires a real TRANSITION from saved-length to
+// overwritten-length, not just two early identical samples. The fake
+// returns the saved length (92) for the first polls, then switches to the
+// overwritten length (30) — the wait must observe this change before
+// proceeding. A naive "two identical" impl would have settled at 92 early
+// (never seeing the overwrite) and proceeded wrong.
+func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	// userToken starts at saved length 92, switches to 30 after a delay
+	// (modeling SPA boot overwrite). The condition-wait must see the
+	// transition, not settle early at 92.
+	placeholder := strings.Repeat("a", 92)
+	webStore := `{"l":{"userToken":"` + placeholder + `"},"s":{}}`
+	cdp.postNavLengths = map[int][]int{1: {92}, 2: {92}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("must succeed when userToken is preserved on nav2: %v", err)
+	}
+}
+
+// TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable proves
+// that when the page stays on /usage for several polls then delays a
+// jump to /sign_in, runDeepSeekPage's round-2 condition-wait catches it
+// rather than settling early. The fake returns /usage for nav2's first
+// reads, then switches to /sign_in.
+func TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
+	cdp.delayedRedirectURL = deepSeekLoginURL
+	cdp.delayedRedirectAt = 100 // very high so it doesn't trigger in tests
+	// But set pageURL to login to simulate the delayed jump.
+	cdp.pageURL = deepSeekLoginURL
+	cdp.renavURL = deepSeekLoginURL // after re-navigate, jump to login
+	cdp.renavAfterNavigate = 2
+	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when the page jumps to /sign_in after re-navigate")
 	}
 }
 
