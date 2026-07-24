@@ -47,6 +47,31 @@ func (c *Client) Navigate(ctx context.Context, pageURL string, allowedHosts ...s
 	return nil
 }
 
+// NavigateWithLoader sends Page.navigate and returns the navigation's
+// loaderId (from the result). A coordinator uses this loaderId to
+// associate only the requests/responses that belong to THIS navigation,
+// rather than guessing from the first requestWillBeSent.
+func (c *Client) NavigateWithLoader(ctx context.Context, pageURL string, allowedHosts ...string) (string, error) {
+	if err := parseHTTPSURL(pageURL, allowedHosts); err != nil {
+		return "", err
+	}
+	raw, err := c.Call(ctx, "Page.navigate", map[string]any{"url": pageURL})
+	if err != nil {
+		return "", err
+	}
+	var res struct {
+		LoaderID string `json:"loaderId"`
+		Error    string `json:"errorText"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return "", fmt.Errorf("解析 Page.navigate 响应失败: %w", err)
+	}
+	if res.Error != "" {
+		return "", fmt.Errorf("导航失败: %s", res.Error)
+	}
+	return res.LoaderID, nil
+}
+
 // Evaluate runs the given JavaScript on the page and returns the raw
 // DevTools result. Callers that need the typed value should parse it from
 // JSON themselves; the shared package only handles transport.

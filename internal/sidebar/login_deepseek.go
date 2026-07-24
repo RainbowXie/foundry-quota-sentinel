@@ -119,6 +119,10 @@ type deepSeekCDP interface {
 	Evaluate(ctx context.Context, expression string) (json.RawMessage, error)
 	AddScriptOnNewDocument(ctx context.Context, script string) error
 	Navigate(ctx context.Context, pageURL string, allowedHosts ...string) error
+	// NavigateWithLoader sends Page.navigate and returns the navigation's
+	// loaderId, so the coordinator associates only this navigation's
+	// requests/responses (not a guess from the first requestWillBeSent).
+	NavigateWithLoader(ctx context.Context, pageURL string, allowedHosts ...string) (string, error)
 	// SetCookiesBestEffort injects cookies one at a time, degrading
 	// rather than aborting on a single rejection. DeepSeek's replayed
 	// cookie set is best-effort over a captured snapshot, so one
@@ -193,6 +197,9 @@ func (c *sharedDeepSeekClient) AddScriptOnNewDocument(ctx context.Context, scrip
 }
 func (c *sharedDeepSeekClient) Navigate(ctx context.Context, pageURL string, allowedHosts ...string) error {
 	return c.Page().Navigate(ctx, pageURL, allowedHosts...)
+}
+func (c *sharedDeepSeekClient) NavigateWithLoader(ctx context.Context, pageURL string, allowedHosts ...string) (string, error) {
+	return c.Page().NavigateWithLoader(ctx, pageURL, allowedHosts...)
 }
 func (c *sharedDeepSeekClient) SetCookiesBestEffort(ctx context.Context, cookies []browserauth.Cookie) browserauth.CookieInjectionResult {
 	return c.Browser().SetCookiesBestEffort(ctx, cookies)
@@ -447,35 +454,26 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 			return fmt.Errorf("准备 DeepSeek 登录态脚本失败: %w", err)
 		}
 	}
-	if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
-		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
-	}
-	// Real auth-timing fix for "页面仍要求登录". The document-start
-	// restore script runs once per navigation. If the SPA's auth check
-	// reads localStorage BEFORE the script's setItem commits, OR the SPA
-	// clears localStorage during boot so the setItem is lost, the user
-	// sees a login page even though the saved userToken is valid. Setting
-	// the key on the same page AFTER the SPA booted is NOT enough — the
-	// SPA already redirected. The correct fix is to RENAVIGATE when the
-	// post-navigation state is not authenticated: the document-start
-	// script then re-applies the saved storage before the SPA's auth
-	// check runs on the fresh document, and we verify the FINAL state is
-	// the authenticated usage page (not just that a same-page setItem
-	// made the length match).
-	// Real auth-timing fix for "页面仍要求登录". A stable URL and a
-	// localStorage length match are NOT login success — the SPA may
-	// still be mid-redirect, or a non-auth storage key may have matched
-	// while the userToken was absent. The observable authenticated
-	// signal is a SUCCESSFUL platform API request (Network.response-
-	// Received 200 on the platform host) — the usage page only makes
-	// that call when it accepted the restored userToken. Prerequisite:
-	// the AUTH keys (token-bearing) are present and length-match.
+	// Enable Network BEFORE the first Navigate so the first window's
+	// requestWillBeSent/responseReceived/loadingFinished are captured.
 	authEntries := deepSeekAuthStorageEntries(expectedStorage)
 	if err := cdp.EnableNetwork(ctx); err != nil {
 		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
 	}
 	events := cdp.Events()
-	if authErr := deepSeekEnsureAuthenticated(ctx, cdp, events, pageURL, authEntries, 2); authErr != nil {
+	// First navigation: capture the real loaderId from Page.navigate.
+	loader, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
+	if err != nil {
+		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
+	}
+	// deepSeekEnsureAuthenticated verifies, per navigation window
+	// (identified by the Page.navigate loaderId), that a protected API
+	// returned 2xx + body code==0, the userToken auth key is present and
+	// length-matched, and the final URL is the usage page. It
+	// re-navigates (with a fresh loaderId) if the window is not
+	// authenticated, so the document-start restore script runs before
+	// the SPA's auth check on the fresh document.
+	if authErr := deepSeekEnsureAuthenticated(ctx, cdp, events, pageURL, authEntries, loader, 2); authErr != nil {
 		return authErr
 	}
 	log.Printf("deepseek: 账户页观测到已认证平台请求，认证键 %d 个已恢复", len(authEntries))
@@ -539,47 +537,44 @@ func isProtectedAPIURL(u string) bool {
 // with the navigation that issued them via loaderId, instead of draining
 // the event channel. requestWillBeSent sets the current window's
 // loaderId (the first one seen) and records requestId→loaderId; a
-// responseReceived is accepted only if its requestId maps to the current
-// loaderId, so a late response from a previous navigation cannot
-// authenticate the current window.
+// responseReceived is accepted only if its requestId was seen in a
+// requestWillBeSent whose loaderId matches the navigation's loaderId
+// (captured from Page.navigate, not guessed from the first request), so
+// a late response from a previous navigation cannot authenticate the
+// current window.
 type deepSeekNavTracker struct {
-	currentLoader string
-	reqLoaders    map[string]string
+	navLoader  string // the loaderId returned by Page.navigate for this window
+	reqLoaders map[string]string
 }
 
-func newDeepSeekNavTracker() *deepSeekNavTracker {
-	return &deepSeekNavTracker{reqLoaders: map[string]string{}}
+func newDeepSeekNavTracker(loaderID string) *deepSeekNavTracker {
+	return &deepSeekNavTracker{navLoader: loaderID, reqLoaders: map[string]string{}}
 }
 
-// resetWindow clears the per-navigation tracking at the start of a new
-// navigation window. The event channel is NOT drained; events keep
-// flowing but only the current loader's responses count.
-func (t *deepSeekNavTracker) resetWindow() {
-	t.currentLoader = ""
+// resetWindow sets a fresh navigation's loaderId (from Page.navigate) and
+// clears the requestId→loaderId map. The event channel is NOT drained.
+func (t *deepSeekNavTracker) resetWindow(loaderID string) {
+	t.navLoader = loaderID
 	t.reqLoaders = map[string]string{}
 }
 
-// recordRequest associates a requestWillBeSent with its loaderId. The
-// first request seen in a window sets the current loaderId (the main
-// frame's navigation loader).
+// recordRequest associates a requestWillBeSent with its loaderId. Only
+// requests whose loaderId matches the navigation's loaderId are tracked
+// (sub-frames or stale requests from a previous navigation are ignored).
 func (t *deepSeekNavTracker) recordRequest(req browserauth.RequestHeadersEvent) {
-	if req.LoaderID != "" {
-		if t.currentLoader == "" {
-			t.currentLoader = req.LoaderID
-		}
+	if t.navLoader != "" && req.LoaderID == t.navLoader {
 		t.reqLoaders[req.RequestID] = req.LoaderID
 	}
 }
 
 // responseInWindow reports whether a responseReceived belongs to the
-// current navigation window (its requestId maps to the current loaderId).
-// A response whose requestId was never recorded, or belongs to a
-// previous loader, is rejected.
+// current navigation window (its requestId was tracked under the
+// navigation's loaderId).
 func (t *deepSeekNavTracker) responseInWindow(resp browserauth.ResponseReceivedEvent) bool {
-	if t.currentLoader == "" {
+	if t.navLoader == "" {
 		return false
 	}
-	return t.reqLoaders[resp.RequestID] == t.currentLoader
+	return t.reqLoaders[resp.RequestID] == t.navLoader
 }
 
 // deepSeekAuthWaitPerNav is how long each navigation waits for the
@@ -587,21 +582,19 @@ func (t *deepSeekNavTracker) responseInWindow(resp browserauth.ResponseReceivedE
 // production; tests lower it to keep failure-path tests fast.
 var deepSeekAuthWaitPerNav = 5 * time.Second
 
-func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, pageURL string, authKeys []deepSeekStorageEntry, maxRenav int) error {
+func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, pageURL string, authKeys []deepSeekStorageEntry, loaderID string, maxRenav int) error {
 	// The userToken auth key is REQUIRED. No auth keys means there is no
 	// credential to verify — a protected request alone (e.g. from a
 	// cached/previously-authenticated session) must NOT count.
 	if len(authKeys) == 0 {
 		return fmt.Errorf("DeepSeek 登录态恢复失败：缺少 userToken 认证键，无法验证登录态")
 	}
-	tracker := newDeepSeekNavTracker()
+	tracker := newDeepSeekNavTracker(loaderID)
 	for attempt := 0; ; attempt++ {
-		// Start a new navigation window: reset the loaderId/requestId
-		// association. The event channel is NOT drained — events keep
-		// flowing, but only responses whose requestId maps to the
-		// current loaderId count (a late response from a previous
+		// The event channel is NOT drained — events keep flowing, but
+		// only responses whose requestId was tracked under this
+		// navigation's loaderId count (a late response from a previous
 		// navigation has a stale loaderId and is rejected).
-		tracker.resetWindow()
 		if observed := deepSeekWaitForProtectedAuth(ctx, cdp, events, authKeys, tracker, deepSeekAuthWaitPerNav); observed {
 			// Final guard: after the protected request succeeds, the
 			// page must be on the usage page (not just not /sign_in —
@@ -624,9 +617,11 @@ func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-
 			return fmt.Errorf("DeepSeek 登录态恢复失败：认证键已恢复但未观测到受保护接口成功响应")
 		}
 		log.Printf("deepseek: 账户页未观测到受保护接口成功响应，重新导航让 document-start 脚本在 SPA 鉴权前生效")
-		if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
+		nextLoader, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
+		if err != nil {
 			return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
 		}
+		tracker.resetWindow(nextLoader)
 	}
 }
 
@@ -644,16 +639,23 @@ func deepSeekIsUsagePage(u string) bool {
 	return parsed.Path == "/usage" || strings.HasPrefix(parsed.Path, "/usage/")
 }
 
-// deepSeekWaitForProtectedAuth waits, within a deadline, for a
-// Network.responseReceived 2xx on a PROTECTED platform API endpoint
-// (get_user_summary / usage/amount) that belongs to the CURRENT
-// navigation window (its requestId maps to the tracker's current
-// loaderId), AND for the userToken auth key to be present with a matching
-// length, AND for the response body's business code to be 0. Only
-// responses associated with the current loaderId count; a late response
-// from a previous navigation is rejected. Returns true if all hold.
+// deepSeekWaitForProtectedAuth waits, within a deadline, for a protected
+// API request to complete in THIS navigation window. The full sequence
+// for a single requestId must be observed:
+//  1. requestWillBeSent (loaderId == navLoader) — associates requestId.
+//  2. responseReceived (status 2xx, protected URL) — the request returned.
+//  3. loadingFinished (same requestId) — the body is available.
+//
+// Only then is the body read and checked for code==0 (code field MUST
+// exist and equal 0). The userToken auth key must be present and length-
+// matched as the prerequisite. A response/body from a previous
+// navigation (stale loaderId, or never tracked) is rejected. No periodic
+// pump masks the race: events arrive in their real order on the channel.
 func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, authKeys []deepSeekStorageEntry, tracker *deepSeekNavTracker, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
+	// pending tracks requestIds that had a protected 2xx response in this
+	// window, awaiting their loadingFinished before the body is read.
+	pending := make(map[string]bool)
 	authed := false
 	for time.Now().Before(deadline) && !authed {
 		select {
@@ -661,15 +663,15 @@ func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <
 			if !ok {
 				return false
 			}
-			// Track requestWillBeSent to associate requests with the
-			// current navigation's loaderId.
+			// 1. requestWillBeSent: track requests in this window.
 			if req, isReq := browserauth.DecodeRequestHeadersEvent(ev); isReq && ev.Method == "Network.requestWillBeSent" {
 				tracker.recordRequest(req)
 				continue
 			}
+			// 2. responseReceived: protected 2xx in this window.
 			if rr, isRR := browserauth.DecodeResponseReceivedEvent(ev); isRR {
 				if !tracker.responseInWindow(rr) {
-					continue // stale or unknown — not this window's request
+					continue // stale/unknown — not this window's request
 				}
 				if !(rr.Status >= 200 && rr.Status < 300) || !isProtectedAPIURL(rr.URL) {
 					continue
@@ -679,14 +681,19 @@ func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <
 				if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) > 0 {
 					continue
 				}
-				// Business code==0: the protected API returns a JSON body
-				// with a top-level "code" field; 0 means success. A 200
-				// with a non-zero code (e.g. auth-required redirect JSON)
-				// is NOT authenticated.
-				if !deepSeekResponseCodeOK(ctx, cdp, rr.RequestID) {
-					continue
+				pending[rr.RequestID] = true
+				continue
+			}
+			// 3. loadingFinished: body is ready; read it and check code==0.
+			if lf, isLF := browserauth.DecodeLoadingFinishedEvent(ev); isLF {
+				if !pending[lf.RequestID] {
+					continue // not a protected 2xx we are waiting on
 				}
-				log.Printf("deepseek: 观测到受保护接口成功响应（host=platform.deepseek.com，状态 %d，业务 code=0）", rr.Status)
+				delete(pending, lf.RequestID)
+				if !deepSeekResponseCodeOK(ctx, cdp, lf.RequestID) {
+					continue // body missing/unparseable or code != 0
+				}
+				log.Printf("deepseek: 观测到受保护接口成功响应（host=platform.deepseek.com，业务 code=0）")
 				authed = true
 			}
 		case <-time.After(100 * time.Millisecond):
@@ -698,21 +705,28 @@ func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <
 }
 
 // deepSeekResponseCodeOK fetches the response body for a requestId and
-// reports whether its top-level "code" field is 0. A missing/unparseable
-// body or a non-zero code is a failure (the protected endpoint did not
-// return real data). No body content is logged.
+// reports whether its top-level "code" field EXISTS and equals 0. A
+// missing body, an unparseable body, or a body with no "code" field is a
+// failure — the protected endpoint must explicitly return code==0.
 func deepSeekResponseCodeOK(ctx context.Context, cdp deepSeekCDP, requestID string) bool {
 	body, err := cdp.GetResponseBody(ctx, requestID)
 	if err != nil || body == "" {
 		return false
 	}
-	var env struct {
-		Code int `json:"code"`
-	}
-	if err := json.Unmarshal([]byte(body), &env); err != nil {
+	// Decode into a map so the "code" field must be PRESENT.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(body), &raw); err != nil {
 		return false
 	}
-	return env.Code == 0
+	codeBytes, ok := raw["code"]
+	if !ok {
+		return false // code field missing — not a real protected response
+	}
+	var code int
+	if err := json.Unmarshal(codeBytes, &code); err != nil {
+		return false
+	}
+	return code == 0
 }
 
 // deepSeekRestoreScript turns a saved webStore JSON snapshot into a

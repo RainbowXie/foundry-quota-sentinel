@@ -131,3 +131,29 @@ func DecodeResponseReceivedEvent(event Event) (ResponseReceivedEvent, bool) {
 		MimeType:  payload.Response.MimeType,
 	}, true
 }
+
+// LoadingFinishedEvent is the decoded form of Network.loadingFinished.
+// A coordinator waits for this (same requestId) before reading the
+// response body via Network.getResponseBody — the body is only available
+// once loading has finished.
+type LoadingFinishedEvent struct {
+	RequestID string
+}
+
+// DecodeLoadingFinishedEvent returns the typed view of a
+// Network.loadingFinished event.
+func DecodeLoadingFinishedEvent(event Event) (LoadingFinishedEvent, bool) {
+	if event.Method != "Network.loadingFinished" {
+		return LoadingFinishedEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return LoadingFinishedEvent{}, false
+	}
+	var payload struct {
+		RequestID string `json:"requestId"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return LoadingFinishedEvent{}, false
+	}
+	return LoadingFinishedEvent{RequestID: payload.RequestID}, true
+}
