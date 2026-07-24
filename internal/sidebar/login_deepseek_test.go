@@ -527,12 +527,12 @@ const deepSeekAuthAPIURL = "https://platform.deepseek.com/api/v0/users/get_user_
 // nav1 → userToken len 30 (overwritten), nav2 → userToken len 92 (restored).
 func TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	originalSettle := deepSeekSettleDelayOverride
+	originalSettle := deepSeekSettleTimeout
 	defer func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekSettleDelayOverride = originalSettle
+		deepSeekSettleTimeout = originalSettle
 	}()
-	deepSeekSettleDelayOverride = 0
+	deepSeekSettleTimeout = 0
 
 	// The fake models the real diagnostic behavior:
 	// - postNavLengths[1] = [30] → after nav1 SPA overwrites userToken to len 30
@@ -571,7 +571,12 @@ func TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite(t *testing.T) {
 // caused the flash-close. This test FAILS on the old impl (RED).
 func TestRunDeepSeekPageErrorDoesNotCloseBrowser(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	defer func() { launchDeepSeekBrowser = originalLaunch }()
+	originalSettle := deepSeekSettleTimeout
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekSettleTimeout = originalSettle
+	}()
+	deepSeekSettleTimeout = 0
 
 	// SPA overwrites userToken to len 30 on EVERY nav (no re-apply helps).
 	// Page stuck on /sign_in → runDeepSeekPage must error, but browser
@@ -595,22 +600,92 @@ func TestRunDeepSeekPageErrorDoesNotCloseBrowser(t *testing.T) {
 	}
 }
 
+// TestRunDeepSeekPageErrorSignalsThenWaits proves the error→signal→Wait
+// ordering: on auth failure, signalOpenPageError fires BEFORE browser.Wait
+// blocks, so the /api/open handshake receives the error while the browser
+// stays open. The error hook must fire, then Wait must block until the user
+// closes, then the browser is fully reclaimed.
+func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	originalSettle := deepSeekSettleTimeout
+	originalErrorHook := OpenPageError
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekSettleTimeout = originalSettle
+		OpenPageError = originalErrorHook
+	}()
+	deepSeekSettleTimeout = 0
+
+	errorCh := make(chan string, 1)
+	OpenPageError = func(msg string) {
+		select {
+		case errorCh <- msg:
+		default:
+		}
+	}
+
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekLoginURL,
+		postNavLengths:      map[int][]int{1: {30}, 2: {30}},
+		localStorageLengths: []int{92},
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	done := make(chan error, 1)
+	go func() { done <- RunDeepSeekPage(deepSeekUsageURL, webStore) }()
+
+	// Error must be signalled before Wait blocks. Wait for the error
+	// signal on errorCh (channel sync — happens-before guaranteed).
+	select {
+	case <-errorCh:
+		// error signalled
+	case <-time.After(time.Second):
+		t.Fatal("signalOpenPageError must fire before browser.Wait blocks")
+	}
+
+	// Verify still blocked on Wait (not returned yet).
+	select {
+	case err := <-done:
+		t.Fatalf("RunDeepSeekPage returned before user closed window: %v", err)
+	case <-time.After(50 * time.Millisecond):
+		// expected: blocked on Wait
+	}
+	if browser.closed {
+		t.Fatal("browser must NOT be closed while waiting for user")
+	}
+
+	// User closes the window → Wait returns → browser reclaimed.
+	browser.waitRelease <- struct{}{}
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("RunDeepSeekPage must return the auth error after user closes")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("RunDeepSeekPage did not return after user closed the window")
+	}
+}
+
 // dsPageTestSetup is the common setup for runDeepSeekPage tests: saves
 // launch/settle overrides, sets settle to 0 (no sleep in tests), and
 // injects the fake browser. Returns the cdp for configuration.
 func dsPageTestSetup(t *testing.T) (*fakeDeepSeekCDP, *fakeDeepSeekBrowser, func()) {
 	t.Helper()
 	originalLaunch := launchDeepSeekBrowser
-	originalSettle := deepSeekSettleDelayOverride
+	originalSettle := deepSeekSettleTimeout
 	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	deepSeekSettleDelayOverride = 0
+	deepSeekSettleTimeout = 0
 	return cdp, browser, func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekSettleDelayOverride = originalSettle
+		deepSeekSettleTimeout = originalSettle
 	}
 }
 
@@ -752,12 +827,9 @@ func TestRunDeepSeekPageMustReapplyAndRenavigate(t *testing.T) {
 // closes it.
 func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	originalWait := deepSeekAuthWaitPerNav
 	defer func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekAuthWaitPerNav = originalWait
 	}()
-	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
@@ -798,12 +870,9 @@ func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 // matches and an auth request is observed.
 func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	originalWait := deepSeekAuthWaitPerNav
 	defer func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekAuthWaitPerNav = originalWait
 	}()
-	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}}
 	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)
@@ -835,12 +904,9 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 // prerequisite (length match) must hold before the auth request counts.
 func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	originalWait := deepSeekAuthWaitPerNav
 	defer func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekAuthWaitPerNav = originalWait
 	}()
-	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
@@ -863,12 +929,9 @@ func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 // guard for the flash-close: Wait must be the final step.
 func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
-	originalWait := deepSeekAuthWaitPerNav
 	defer func() {
 		launchDeepSeekBrowser = originalLaunch
-		deepSeekAuthWaitPerNav = originalWait
 	}()
-	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("tok")}}
 	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)

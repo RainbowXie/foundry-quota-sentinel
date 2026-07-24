@@ -463,6 +463,7 @@ func cmdOpenPage() {
 	session := os.Getenv("FQS_OPEN_SESSION")
 	if session != "" {
 		sidebar.OpenPageReady = func() { web.WriteOpenHandshake(session, "ready", "") }
+		sidebar.OpenPageError = func(msg string) { web.WriteOpenHandshake(session, "error", msg) }
 	}
 	pageErr := func(msg string) {
 		fmt.Fprintln(os.Stderr, msg)

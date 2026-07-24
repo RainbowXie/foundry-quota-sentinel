@@ -419,16 +419,15 @@ settled:
 // first boot, redirecting to /sign_in. The fix (verified by diag2) is:
 //  1. Register the restore script as document-start (runs before SPA boot).
 //  2. Navigate #1 — SPA boots, overwrites userToken, redirects.
-//  3. Re-apply the restore script via Evaluate (post-load) — restores the
-//     saved userToken after the SPA overwrote it.
-//  4. Navigate #2 (reload) — the document-start script re-applies on the
-//     fresh document, and the SPA recognizes the valid token and STAYS on
-//     /usage (does not overwrite).
-//  5. Verify userToken length matches the saved value AND the URL is /usage.
+//  3. Poll userToken length until it stabilizes (SPA overwrite complete).
+//  4. Re-apply the restore script via Evaluate (post-load).
+//  5. Navigate #2 (reload) — document-start re-applies, SPA stays on /usage.
+//  6. Poll userToken length + URL until they stabilize (auth decision).
+//  7. Verify userToken length matches AND URL is /usage.
 //
-// On failure the error is returned (for /api/open handshake to surface) but
-// the browser is NOT closed — it stays open until the user manually closes
-// it, preventing the flash-close.
+// On failure: signalOpenPageError notifies the /api/open handshake, then
+// browser.Wait() blocks until the user manually closes the browser — no
+// flash-close. On success: signalOpenPageReady, then Wait.
 func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL, webStore string) error {
 	script, cookies, err := deepSeekRestoreState(webStore)
 	if err != nil {
@@ -461,16 +460,16 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
 	}
 
-	// Navigate #1: SPA boots and may overwrite userToken with a default.
+	// Navigate #1: SPA boots and overwrites userToken with a default.
 	log.Printf("deepseek: 账户页首次导航")
 	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
 	}
-	// Wait for SPA to boot and overwrite userToken.
-	deepSeekWaitForSettle(ctx, 3*time.Second)
+	// Condition-wait: poll userToken length until it stabilizes (SPA
+	// overwrite complete). No fixed sleep.
+	deepSeekWaitForStorageStable(ctx, cdp, authEntries, deepSeekSettleTimeout)
 
-	// Re-apply the restore script post-load (after SPA boot overwrote
-	// userToken). This puts the saved userToken back into localStorage.
+	// Re-apply the restore script post-load.
 	if script != "" {
 		log.Printf("deepseek: post-load 重新应用登录态脚本")
 		if _, err := cdp.Evaluate(ctx, script); err != nil {
@@ -478,63 +477,100 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		}
 	}
 
-	// Navigate #2 (reload): the document-start script re-applies on the
-	// fresh document, and the SPA recognizes the valid token and stays on
-	// /usage. Verified by cmd/diag-deepseek2.
+	// Navigate #2 (reload): document-start re-applies, SPA stays on /usage.
 	log.Printf("deepseek: 账户页重新导航（reload）")
 	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
 	}
-	deepSeekWaitForSettle(ctx, 3*time.Second)
+	// Condition-wait: poll URL + userToken length until they stabilize.
+	deepSeekWaitForAuthStable(ctx, cdp, authEntries, deepSeekSettleTimeout)
 
-	// Verify: userToken length matches the saved value AND URL is /usage.
+	// Verify: userToken length matches AND URL is /usage.
 	postURL, _ := cdp.PageURL(ctx, deepSeekHost)
 	log.Printf("deepseek: 最终 URL host=%s path=%s", hostOnly(postURL), pathOnly(postURL))
-	if isDeepSeekLoginPage(postURL) {
-		// Check whether userToken survived.
-		if mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries); len(mismatch) > 0 {
-			return fmt.Errorf("DeepSeek 登录态恢复失败：重新应用并重新导航后页面仍在登录页，userToken 有 %d 个键长度不匹配，请重新登录", len(mismatch))
-		}
-		return fmt.Errorf("DeepSeek 登录态恢复失败：重新应用并重新导航后页面仍在登录页，请重新登录")
-	}
-	if !deepSeekIsUsagePage(postURL) {
-		return fmt.Errorf("DeepSeek 登录态恢复失败：页面未停留在 usage 页")
+	if isDeepSeekLoginPage(postURL) || !deepSeekIsUsagePage(postURL) {
+		mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries)
+		errMsg := fmt.Errorf("DeepSeek 登录态恢复失败：页面未停留在 usage（有 %d 个键不匹配），请重新登录", len(mismatch))
+		signalOpenPageError(errMsg.Error())
+		// Browser stays open — block on Wait, no flash-close.
+		_ = browser.Wait()
+		return errMsg
 	}
 	if mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries); len(mismatch) > 0 {
-		return fmt.Errorf("DeepSeek 登录态恢复失败：页面在 usage 但 userToken 有 %d 个键长度不匹配", len(mismatch))
+		errMsg := fmt.Errorf("DeepSeek 登录态恢复失败：页面在 usage 但 userToken 有 %d 个键长度不匹配", len(mismatch))
+		signalOpenPageError(errMsg.Error())
+		_ = browser.Wait()
+		return errMsg
 	}
 
 	log.Printf("deepseek: 账户页已认证（usage 页，userToken 长度匹配）")
 	signalOpenPageReady()
-	// Browser stays open until the user closes it. On error (returned
-	// above) the browser is also NOT closed — the /api/open handshake
-	// surfaces the error, and the user can see/interact with the page.
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
 	}
 	return nil
 }
 
-// deepSeekWaitForSettle pauses to let the SPA boot/settle after a navigation.
-// In production this gives the SPA time to overwrite localStorage and
-// redirect; in tests it's a no-op (tests control the fake's state directly).
-func deepSeekWaitForSettle(ctx context.Context, d time.Duration) {
-	// Only sleep in real production runs; tests override deepSeekSettleDelay
-	// to 0 via deepSeekSettleDelayOverride.
-	delay := deepSeekSettleDelayOverride
-	if delay == 0 {
-		delay = d
-	}
-	if delay > 0 {
+// deepSeekSettleTimeout is the deadline for condition-wait polling.
+var deepSeekSettleTimeout = 5 * time.Second
+
+// deepSeekSettlePollInterval is the poll interval for condition-waits.
+const deepSeekSettlePollInterval = 200 * time.Millisecond
+
+// deepSeekWaitForStorageStable polls userToken length until it stops
+// changing (SPA overwrite complete) or the deadline passes. Replaces the
+// fixed 3-second sleep with a condition-based wait.
+func deepSeekWaitForStorageStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	var prevLen int = -1
+	stable := 0
+	for time.Now().Before(deadline) && stable < 2 {
+		mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys)
+		curLen := -1
+		if len(mismatch) == 0 {
+			curLen = 0
+		} else if len(mismatch) == len(authKeys) {
+			// All auth keys mismatched — read the live length of the first.
+			curLen = -2 // marker: SPA overwrote/absent
+		}
+		if curLen == prevLen {
+			stable++
+		} else {
+			stable = 0
+			prevLen = curLen
+		}
 		select {
 		case <-ctx.Done():
-		case <-time.After(delay):
+			return
+		case <-time.After(deepSeekSettlePollInterval):
 		}
 	}
 }
 
-// deepSeekSettleDelayOverride lets tests set the settle delay to 0.
-var deepSeekSettleDelayOverride time.Duration
+// deepSeekWaitForAuthStable polls the URL + userToken length until both
+// stabilize (SPA auth decision complete) or the deadline passes.
+func deepSeekWaitForAuthStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	var prevURL string
+	var prevMismatch int = -1
+	stable := 0
+	for time.Now().Before(deadline) && stable < 2 {
+		postURL, _ := cdp.PageURL(ctx, deepSeekHost)
+		mismatch := len(deepSeekStorageMismatch(ctx, cdp, authKeys))
+		if postURL == prevURL && mismatch == prevMismatch {
+			stable++
+		} else {
+			stable = 0
+			prevURL = postURL
+			prevMismatch = mismatch
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(deepSeekSettlePollInterval):
+		}
+	}
+}
 
 func hostOnly(u string) string {
 	parsed, err := url.Parse(u)

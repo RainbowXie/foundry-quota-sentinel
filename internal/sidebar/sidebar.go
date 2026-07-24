@@ -23,11 +23,28 @@ const (
 // a fixed timeout. nil = no handshake (tests / direct CLI use).
 var OpenPageReady func()
 
+// OpenPageError, when set, is called by a provider's runXPage when the
+// page flow fails (e.g. auth restore failed). The caller installs a hook
+// that writes an error handshake file so the sidebar surfaces the error.
+// After signalling, runXPage blocks on browser.Wait() so the browser
+// stays open until the user manually closes it (no flash-close).
+var OpenPageError func(err string)
+
 // signalOpenPageReady fires OpenPageReady once, nil-safe. The runXPage
 // functions call it right before browser.Wait() so the ready signal
 // reaches the /api/open handler the moment the page is usable.
 func signalOpenPageReady() {
 	if OpenPageReady != nil {
 		OpenPageReady()
+	}
+}
+
+// signalOpenPageError fires OpenPageError once, nil-safe. The runXPage
+// functions call it on auth failure BEFORE blocking on browser.Wait(),
+// so the /api/open handshake surfaces the error while the browser stays
+// open for the user to see/interact with.
+func signalOpenPageError(err string) {
+	if OpenPageError != nil {
+		OpenPageError(err)
 	}
 }
