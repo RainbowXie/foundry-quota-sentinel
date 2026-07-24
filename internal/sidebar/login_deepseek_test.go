@@ -382,9 +382,36 @@ func deepSeekAuthResponseEvent(status int, url string) browserauth.Event {
 	}
 }
 
-// eventsWithAuth returns a buffered, un-opened events channel pre-loaded
-// with the given events (e.g. a 200 platform API response). Additional
-// events can be pushed after.
+// authEventPump returns a buffered events channel and starts a goroutine
+// that periodically pushes the given auth event onto it. The page flow
+// drains the channel at the start of each navigation window (to isolate
+// late events from a previous navigation); a periodic pump ensures a
+// fresh event lands AFTER the drain so it is observed this window. The
+// returned stop func must be called (deferred) to stop the goroutine.
+func authEventPump(ev browserauth.Event, interval time.Duration) (chan browserauth.Event, func()) {
+	ch := make(chan browserauth.Event, 32)
+	stop := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				select {
+				case ch <- ev:
+				default:
+				}
+			}
+		}
+	}()
+	return ch, func() { close(stop) }
+}
+
+// eventsWithAuth returns a buffered events channel pre-loaded with the
+// given events (NO pump). Used by tests that need a fixed set of events
+// (e.g. a single stale event that must be drained/ignored).
 func eventsWithAuth(ev ...browserauth.Event) chan browserauth.Event {
 	ch := make(chan browserauth.Event, 16)
 	for _, e := range ev {
@@ -393,7 +420,7 @@ func eventsWithAuth(ev ...browserauth.Event) chan browserauth.Event {
 	return ch
 }
 
-const deepSeekAuthAPIURL = "https://platform.deepseek.com/api/v0/users/current"
+const deepSeekAuthAPIURL = "https://platform.deepseek.com/api/v0/users/get_user_summary"
 
 func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 	originalLaunch := launchDeepSeekBrowser
@@ -404,14 +431,15 @@ func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, events: events}
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("tok")}, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
 
-	webStore := `{"l":{},"s":{},"c":[{"name":"session","value":"cookie-value","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true}]}`
+	webStore := `{"l":{"userToken":"tok"},"s":{},"c":[{"name":"session","value":"cookie-value","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true}]}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +498,8 @@ func TestRunDeepSeekPageRejectsAuthRequestWhenAuthKeyMismatch(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{len("wrong")}, // auth key present but wrong length
@@ -533,7 +562,8 @@ func TestRunDeepSeekPageIgnoresUnrelatedStorageKeyChange(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	// Saved: userToken="x" (auth, len 1), theme="dark" (non-auth, len 4).
 	// Only the AUTH key (userToken) is probed; the non-auth theme key is
 	// not verified, so its live length (whatever it is) is irrelevant.
@@ -565,7 +595,8 @@ func TestRunDeepSeekPageAcceptsMultiKeyRestore(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{len("alpha-token"), len("user-beta")},
@@ -596,7 +627,8 @@ func TestRunDeepSeekPageRejectsMultiKeyWithMissingAuthKey(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{len("alpha-token"), -1}, // second auth key absent
@@ -627,22 +659,38 @@ func TestRunDeepSeekPageRenavigatesToAuthenticate(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
-	// Buffer holds the auth event; it is delivered only after the second
-	// Navigate. We push it on the channel once navigateCount reaches 2.
-	events := make(chan browserauth.Event, 4)
+	// The auth event is pumped only AFTER the second navigation (modeling
+	// the auth-check race fix: the first nav's document-start restore
+	// ran too late, the re-nav re-applies it before the SPA's auth check,
+	// and only then does the protected request fire). The pump runs
+	// periodically so its events land AFTER the per-navigation drain.
+	events := make(chan browserauth.Event, 32)
+	stopPump := make(chan struct{})
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{len("x")},
 		events:              events,
 		onNavigate: func(nav int) {
 			if nav >= 2 {
-				select {
-				case events <- deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL):
-				default:
-				}
+				go func() {
+					ticker := time.NewTicker(20 * time.Millisecond)
+					defer ticker.Stop()
+					for {
+						select {
+						case <-stopPump:
+							return
+						case <-ticker.C:
+							select {
+							case events <- deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL):
+							default:
+							}
+						}
+					}
+				}()
 			}
 		},
 	}
+	defer close(stopPump)
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
@@ -682,6 +730,110 @@ func TestRunDeepSeekPageDoesNotTreatSamePageLengthMatchAsSuccess(t *testing.T) {
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must NOT treat a same-page length match as success when no auth request is observed")
+	}
+}
+
+// TestRunDeepSeekPageRejectsPublicLoginAPI2xx proves a 2xx on the LOGIN
+// page's own public API (e.g. sign-in/captcha) is NOT an authenticated
+// signal — only the project-verified protected endpoints
+// (get_user_summary / usage/amount) count. The login page may fire a
+// 2xx public request; the page must still fail (not authenticated).
+func TestRunDeepSeekPageRejectsPublicLoginAPI2xx(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
+
+	// A 2xx on a PUBLIC login-page API URL (not the protected endpoints).
+	publicLoginAPI := "https://platform.deepseek.com/api/v0/users/login"
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, publicLoginAPI), 20*time.Millisecond)
+	defer stopPump()
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("x")},
+		events:              events,
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("a 2xx on a public login-page API must NOT be treated as authenticated")
+	}
+}
+
+// TestRunDeepSeekPageRejectsEmptyAuthKeys proves the userToken auth key
+// is REQUIRED. A webStore with no auth-bearing keys (only a non-auth
+// key) plus an observed protected request must still fail — the
+// prerequisite auth key is absent.
+func TestRunDeepSeekPageRejectsEmptyAuthKeys(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 80 * time.Millisecond
+
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekUsageURL,
+		// No auth keys probed (webStore has only a non-auth key), so the
+		// prerequisite is empty — but the page must still require a
+		// userToken. Provide a non-auth key only.
+		localStorageLengths: []int{len("dark")},
+		events:              events,
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	// Only a non-auth key; no userToken. The auth-key prerequisite is
+	// empty (no auth keys to verify), which must NOT pass.
+	webStore := `{"l":{"theme":"dark"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("an account with no auth keys (no userToken) must NOT be treated as authenticated even if a protected request is observed")
+	}
+}
+
+// TestRunDeepSeekPageRejectsCrossNavigationLateResponse proves a
+// response event from a PREVIOUS navigation (a late event that lands
+// during the next navigation's window) does NOT authenticate the
+// current window. The per-navigation drain isolates each window so a
+// stale event is discarded, not consumed. The second navigation gets
+// no fresh protected response → must fail.
+func TestRunDeepSeekPageRejectsCrossNavigationLateResponse(t *testing.T) {
+	originalLaunch := launchDeepSeekBrowser
+	originalWait := deepSeekAuthWaitPerNav
+	defer func() {
+		launchDeepSeekBrowser = originalLaunch
+		deepSeekAuthWaitPerNav = originalWait
+	}()
+	deepSeekAuthWaitPerNav = 60 * time.Millisecond
+
+	// Pre-load ONE protected auth event from the "previous navigation".
+	// It sits in the buffer; the first navigation's drain discards it,
+	// and no fresh event arrives → re-navigate → drain again (empty) →
+	// no signal → fail after maxRenav. This proves the stale event is
+	// NOT consumed by the later window.
+	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	cdp := &fakeDeepSeekCDP{
+		pageURL:             deepSeekUsageURL,
+		localStorageLengths: []int{len("x")},
+		events:              events,
+	}
+	browser := &fakeDeepSeekBrowser{cdp: cdp}
+	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
+		return browser, nil
+	}
+	webStore := `{"l":{"userToken":"x"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("a stale response from a previous navigation must NOT authenticate the current window")
 	}
 }
 
@@ -737,18 +889,20 @@ func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{
-		pageURL:           deepSeekUsageURL,
-		rejectCookieNames: map[string]bool{"__Host-bad": true},
-		events:            events,
+		pageURL:             deepSeekUsageURL,
+		rejectCookieNames:   map[string]bool{"__Host-bad": true},
+		localStorageLengths: []int{len("tok")},
+		events:              events,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
 
-	webStore := `{"l":{},"s":{},"c":[` +
+	webStore := `{"l":{"userToken":"tok"},"s":{},"c":[` +
 		`{"name":"__Host-bad","value":"x","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true},` +
 		`{"name":"session","value":"good","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true}` +
 		`]}`
@@ -783,7 +937,8 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -819,7 +974,8 @@ func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 80 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
 	cdp := &fakeDeepSeekCDP{
 		pageURL:             deepSeekUsageURL,
 		localStorageLengths: []int{-1}, // auth key ABSENT
@@ -848,14 +1004,15 @@ func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
 	}()
 	deepSeekAuthWaitPerNav = 500 * time.Millisecond
 
-	events := eventsWithAuth(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL))
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, events: events}
+	events, stopPump := authEventPump(deepSeekAuthResponseEvent(200, deepSeekAuthAPIURL), 20*time.Millisecond)
+	defer stopPump()
+	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("tok")}, events: events}
 	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
 
-	webStore := `{"l":{},"s":{}}`
+	webStore := `{"l":{"userToken":"tok"},"s":{}}`
 	done := make(chan error, 1)
 	go func() { done <- RunDeepSeekPage(deepSeekUsageURL, webStore) }()
 	select {

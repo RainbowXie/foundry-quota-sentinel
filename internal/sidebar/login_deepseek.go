@@ -488,28 +488,45 @@ func deepSeekAuthStorageEntries(all []deepSeekStorageEntry) []deepSeekStorageEnt
 	return out
 }
 
-// deepSeekAuthRequestRe matches platform API request URLs the usage page
-// makes once it has accepted the restored userToken. Observing a 200 on
-// such a URL is the real authenticated signal.
-var deepSeekAuthRequestRe = regexp.MustCompile(`https://[a-z0-9.\-]*platform\.deepseek\.com/api/`)
+// deepSeekProtectedAPIRe matches the PROTECTED platform API endpoints the
+// project has already verified the authenticated usage page calls:
+// /api/v0/users/get_user_summary (FetchSummary) and
+// /api/v0/usage/amount (FetchUsage). The login page's own 2xx public
+// endpoints (e.g. sign-in/captcha) must NOT count as an auth signal, so
+// the regex is pinned to these two paths rather than a broad /api/.
+var deepSeekProtectedAPIRe = regexp.MustCompile(`https://[a-z0-9.\-]*platform\.deepseek\.com/api/v0/(users/get_user_summary|usage/amount)`)
 
-// deepSeekEnsureAuthenticated observes the page until it makes a
-// successful authenticated platform request (Network.responseReceived
-// 200 on a platform API URL), provided the auth storage keys are present
-// and length-match. If that signal does not arrive within a per-
-// navigation window, it re-navigates (so the document-start restore
-// script runs before the SPA's auth check on the fresh document) and
-// re-observes, up to maxRenav times. A stable URL alone is NOT success;
-// only the successful auth request is.
-// deepSeekAuthWaitPerNav is how long deepSeekEnsureAuthenticated waits
-// per navigation for the authenticated platform request before
-// re-navigating. Defaults to 5s in production; tests lower it to keep
-// failure-path tests fast.
+// deepSeekProtectedAuthed requires BOTH that the userToken auth key is
+// present with a matching length AND that the page is NOT on the login
+// page AND that a 2xx response on a protected API endpoint was observed
+// during THIS navigation window. A same-page length match, a public
+// login-page API 2xx, or a late event from a previous navigation are all
+// rejected as false authentication.
+//
+// deepSeekAuthWaitPerNav is how long each navigation waits for the
+// protected auth signal before re-navigating. Defaults to 5s in
+// production; tests lower it to keep failure-path tests fast.
 var deepSeekAuthWaitPerNav = 5 * time.Second
 
 func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, pageURL string, authKeys []deepSeekStorageEntry, maxRenav int) error {
+	// The userToken auth key is REQUIRED. No auth keys means there is no
+	// credential to verify — a protected request alone (e.g. from a
+	// cached/previously-authenticated session) must NOT count.
+	if len(authKeys) == 0 {
+		return fmt.Errorf("DeepSeek 登录态恢复失败：缺少 userToken 认证键，无法验证登录态")
+	}
 	for attempt := 0; ; attempt++ {
-		if observed := deepSeekWaitForAuthRequest(ctx, cdp, events, authKeys, deepSeekAuthWaitPerNav); observed {
+		// Isolate this navigation: drain events that arrived before the
+		// navigation started so a late response from a previous
+		// navigation cannot falsely authenticate the current window.
+		drainCDPEvents(events)
+		if observed := deepSeekWaitForProtectedAuth(ctx, cdp, events, authKeys, deepSeekAuthWaitPerNav); observed {
+			// Final guard: the page must not be on /sign_in even after
+			// the protected request succeeded.
+			postURL, _ := cdp.PageURL(ctx, deepSeekHost)
+			if isDeepSeekLoginPage(postURL) {
+				return fmt.Errorf("DeepSeek 登录态恢复失败：观测到受保护接口响应但页面仍在登录页，请重新登录")
+			}
 			return nil
 		}
 		if attempt >= maxRenav {
@@ -519,37 +536,53 @@ func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-
 				return fmt.Errorf("DeepSeek 登录态恢复失败：重导航 %d 次后仍停留在登录页，请重新登录", maxRenav)
 			}
 			if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) > 0 {
-				return fmt.Errorf("DeepSeek 登录态恢复失败：未观测到已认证请求，认证键有 %d 个缺失或长度不匹配", len(mismatch))
+				return fmt.Errorf("DeepSeek 登录态恢复失败：未观测到受保护接口成功响应，认证键有 %d 个缺失或长度不匹配", len(mismatch))
 			}
-			return fmt.Errorf("DeepSeek 登录态恢复失败：认证键已恢复但未观测到已认证平台请求")
+			return fmt.Errorf("DeepSeek 登录态恢复失败：认证键已恢复但未观测到受保护接口成功响应")
 		}
-		log.Printf("deepseek: 账户页未观测到已认证平台请求，重新导航让 document-start 脚本在 SPA 鉴权前生效")
+		log.Printf("deepseek: 账户页未观测到受保护接口成功响应，重新导航让 document-start 脚本在 SPA 鉴权前生效")
 		if err := cdp.Navigate(ctx, pageURL, deepSeekHost); err != nil {
 			return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
 		}
 	}
 }
 
-// deepSeekWaitForAuthRequest waits, within a deadline, for a
-// Network.responseReceived event whose URL is a platform API URL with a
-// 2xx status, AND for the auth storage keys to be present with matching
-// lengths. The successful auth request is the primary signal; the auth
-// keys are the prerequisite. Returns true if both hold.
-func deepSeekWaitForAuthRequest(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, authKeys []deepSeekStorageEntry, timeout time.Duration) bool {
+// drainCDPEvents non-blockingly drains any events already buffered on the
+// channel. Used to isolate a navigation window so a late response from a
+// previous navigation cannot masquerade as this window's auth signal.
+func drainCDPEvents(events <-chan browserauth.Event) {
+	for {
+		select {
+		case _, ok := <-events:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
+// deepSeekWaitForProtectedAuth waits, within a deadline, for a
+// Network.responseReceived 2xx on a PROTECTED platform API endpoint
+// (get_user_summary / usage/amount) AND for the auth storage keys to be
+// present with matching lengths. Only events arriving on THIS window's
+// channel (after the drain) count. Returns true if both hold.
+func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, authKeys []deepSeekStorageEntry, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	authed := false
 	for time.Now().Before(deadline) && !authed {
-		// Drain any responseReceived events that already arrived.
 		select {
 		case ev, ok := <-events:
 			if !ok {
 				return false
 			}
 			if rr, isRR := browserauth.DecodeResponseReceivedEvent(ev); isRR {
-				if rr.Status >= 200 && rr.Status < 300 && deepSeekAuthRequestRe.MatchString(rr.URL) {
-					// Prerequisite: auth keys present and length-match.
+				if rr.Status >= 200 && rr.Status < 300 && deepSeekProtectedAPIRe.MatchString(rr.URL) {
+					// Prerequisite: the auth keys (incl. userToken) are
+					// present with matching lengths.
 					if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) == 0 {
-						log.Printf("deepseek: 观测到已认证平台请求（host 验证通过，状态 %d）", rr.Status)
+						log.Printf("deepseek: 观测到受保护接口成功响应（host 验证通过，状态 %d）", rr.Status)
 						authed = true
 					}
 				}
