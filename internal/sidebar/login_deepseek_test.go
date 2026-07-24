@@ -98,9 +98,21 @@ type fakeDeepSeekCDP struct {
 	// second nav sees the correct length. Map: nav → lengths. When nil
 	// for a nav, falls back to localStorageLengths.
 	postNavLengths map[int][]int
-	// reapplySeen tracks whether the post-load re-apply Evaluate ran,
-	// so the fake can model that after re-apply + re-navigate the SPA no
-	// longer overwrites userToken (it sees the valid token).
+	// pollBasedLengths models per-navigation per-poll userToken lengths,
+	// so a test can simulate "92 multiple times then 30" (SPA overwrite
+	// after several stable reads). Map: nav → ordered list of lengths,
+	// consumed one per Evaluate(getItem) call. Falls back to postNavLengths
+	// when exhausted or nil.
+	pollBasedLengths map[int][]int
+	// pollBasedURLs models per-navigation per-poll page URLs, so a test
+	// can simulate "usage multiple times then sign_in" (delayed redirect).
+	// Map: nav → ordered list of URLs, consumed one per PageURL call.
+	// Falls back to pageURL/renavURL when exhausted or nil.
+	pollBasedURLs map[int][]string
+	// pollLenIdx/pollURLIdx track per-nav poll counters.
+	pollLenIdx map[int]int
+	pollURLIdx map[int]int
+	// reapplySeen tracks whether the post-load re-apply Evaluate ran.
 	reapplySeen bool
 	// mu guards the shared mutable fields below when a test drives
 	// runDeepSeekPage in a goroutine (StaysOpenAfterNavigation).
@@ -113,46 +125,57 @@ func (c *fakeDeepSeekCDP) BrowserCookies(context.Context) ([]browserauth.Cookie,
 }
 func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.pageURLReads++
-	reads := c.pageURLReads
 	url := c.pageURL
-	if c.delayedRedirectURL != "" && reads > c.delayedRedirectAt {
+	// Poll-based URLs: consume one URL per PageURL call for the current nav.
+	if c.pollBasedURLs != nil {
+		if urls, ok := c.pollBasedURLs[c.navigateCount]; ok {
+			idx := c.pollURLIdx[c.navigateCount]
+			if idx < len(urls) {
+				url = urls[idx]
+				c.pollURLIdx[c.navigateCount] = idx + 1
+			} else if len(urls) > 0 {
+				url = urls[len(urls)-1] // hold last
+			}
+		}
+	}
+	if c.delayedRedirectURL != "" && c.pageURLReads > c.delayedRedirectAt {
 		url = c.delayedRedirectURL
 	}
-	// After enough re-navigations, the fresh document's document-start
-	// restore runs before the SPA auth check → the page stays on the
-	// authenticated account URL.
 	if c.renavURL != "" && c.navigateCount >= c.renavAfterNavigate {
-		url = c.renavURL
+		if c.pollBasedURLs == nil {
+			url = c.renavURL
+		}
 	}
-	c.mu.Unlock()
 	return url, nil
 }
 func (c *fakeDeepSeekCDP) Events() <-chan browserauth.Event { return c.events }
 func (c *fakeDeepSeekCDP) Evaluate(ctx context.Context, expression string) (json.RawMessage, error) {
-	// Track whether the post-load re-apply script (the restore script
-	// that sets localStorage.setItem) ran via Evaluate — this is how the
-	// production code re-applies after SPA boot overwrites userToken.
 	if strings.Contains(expression, "localStorage.setItem") {
 		c.mu.Lock()
 		c.reapplySeen = true
 		c.mu.Unlock()
 		return json.RawMessage(`{"result":{}}`), nil
 	}
-	// Post-navigation localStorage key probe (runDeepSeekPage's restore
-	// verification). The production expression returns a JSON array of
-	// [present, valueLength] pairs ([-1,-1] when absent). Tests set
-	// localStorageLengths to the value lengths per expected key; -1 means
-	// absent. A nil default means "every expected key present, length 1".
 	if strings.Contains(expression, "localStorage.getItem") {
 		c.mu.Lock()
 		lens := append([]int(nil), c.localStorageLengths...)
 		nav := c.navigateCount
-		// Model the real SPA-overwrite behavior: after nav1, if the
-		// re-apply has NOT run yet, the SPA overwrites userToken with a
-		// short default (postNavLengths[1]). After re-apply + re-navigate,
-		// the SPA no longer overwrites (postNavLengths[2]).
-		if c.postNavLengths != nil {
+		// Poll-based lengths: consume one length per Evaluate(getItem) call.
+		if c.pollBasedLengths != nil {
+			if ls, ok := c.pollBasedLengths[nav]; ok {
+				idx := c.pollLenIdx[nav]
+				if idx < len(ls) {
+					lens = []int{ls[idx]}
+					c.pollLenIdx[nav] = idx + 1
+				} else if len(ls) > 0 {
+					lens = []int{ls[len(ls)-1]} // hold last
+				}
+			}
+		}
+		// Fallback to postNavLengths if no poll-based lengths for this nav.
+		if lens == nil && c.postNavLengths != nil {
 			if l, ok := c.postNavLengths[nav]; ok {
 				lens = append([]int(nil), l...)
 			}
@@ -675,46 +698,62 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 // TestRunDeepSeekPageWaitsForTransitionNotEarlySamples proves the round-1
 // condition-wait requires a real TRANSITION from saved-length to
 // overwritten-length, not just two early identical samples. The fake
-// returns the saved length (92) for the first polls, then switches to the
+// returns the saved length (92) for the FIRST poll, then switches to the
 // overwritten length (30) — the wait must observe this change before
-// proceeding. A naive "two identical" impl would have settled at 92 early
-// (never seeing the overwrite) and proceeded wrong.
+// proceeding. A naive "two identical" impl would have settled at 92 after
+// the second 92 poll (never seeing the overwrite) and proceeded wrong.
+// This test FAILS on the old "two identical" impl (RED) because the old
+// impl would return success based on the two 92 reads, never detecting
+// the SPA overwrite.
 func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	// userToken starts at saved length 92, switches to 30 after a delay
-	// (modeling SPA boot overwrite). The condition-wait must see the
-	// transition, not settle early at 92.
-	placeholder := strings.Repeat("a", 92)
-	webStore := `{"l":{"userToken":"` + placeholder + `"},"s":{}}`
-	cdp.postNavLengths = map[int][]int{1: {92}, 2: {92}}
+	// userToken starts at saved length 92 for nav1 poll 0, then switches
+	// to 30 on subsequent polls (modeling SPA boot overwrite). On nav2,
+	// the re-apply + reload means the SPA recognizes the token and the
+	// length stays at 92.
+	cdp.pollLenIdx = map[int]int{}
+	cdp.pollURLIdx = map[int]int{}
+	cdp.pollBasedLengths = map[int][]int{
+		1: {92, 92, 30, 30}, // nav1: saved→saved→overwritten→overwritten
+		2: {92, 92, 92, 92}, // nav2: preserved (authed)
+	}
 	cdp.renavURL = deepSeekUsageURL
 	cdp.renavAfterNavigate = 2
+	placeholder := strings.Repeat("a", 92)
+	webStore := `{"l":{"userToken":"` + placeholder + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
-		t.Fatalf("must succeed when userToken is preserved on nav2: %v", err)
+		t.Fatalf("must succeed when userToken transitions 92→30→92 across navs: %v", err)
+	}
+	if !cdp.reapplySeen {
+		t.Fatal("runDeepSeekPage must re-apply after detecting the SPA overwrite")
 	}
 }
 
 // TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable proves
 // that when the page stays on /usage for several polls then delays a
-// jump to /sign_in, runDeepSeekPage's round-2 condition-wait catches it
-// rather than settling early. The fake returns /usage for nav2's first
-// reads, then switches to /sign_in.
+// jump to /sign_in, runDeepSeekPage's round-2 condition-wait catches it.
+// The fake returns /usage for nav2's first polls, then switches to
+// /sign_in. The old "two identical" impl would have settled at /usage
+// after the second poll (RED).
 func TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
-	cdp.renavURL = deepSeekUsageURL
-	cdp.renavAfterNavigate = 2
-	cdp.delayedRedirectURL = deepSeekLoginURL
-	cdp.delayedRedirectAt = 100 // very high so it doesn't trigger in tests
-	// But set pageURL to login to simulate the delayed jump.
-	cdp.pageURL = deepSeekLoginURL
-	cdp.renavURL = deepSeekLoginURL // after re-navigate, jump to login
-	cdp.renavAfterNavigate = 2
+	// This test needs real polling (non-zero settle timeout) so the
+	// condition-wait consumes polls and the post-verify sees the jump.
+	deepSeekSettleTimeout = 2 * time.Second
+	cdp.pollLenIdx = map[int]int{}
+	cdp.pollURLIdx = map[int]int{}
+	cdp.pollBasedLengths = map[int][]int{
+		1: {30, 30, 30, 30},
+		2: {92, 92, 92, 92, 92}, // userToken stays correct
+	}
+	cdp.pollBasedURLs = map[int][]string{
+		2: {deepSeekUsageURL, deepSeekUsageURL, deepSeekLoginURL, deepSeekLoginURL},
+	}
 	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the page jumps to /sign_in after re-navigate")
+		t.Fatal("runDeepSeekPage must error when the page delays a jump to /sign_in after /usage")
 	}
 }
 

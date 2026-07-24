@@ -465,10 +465,16 @@ func cmdOpenPage() {
 		sidebar.OpenPageReady = func() { web.WriteOpenHandshake(session, "ready", "") }
 		sidebar.OpenPageError = func(msg string) { web.WriteOpenHandshake(session, "error", msg) }
 	}
+	// pageErr is the early-failure path (before the browser launches):
+	// it writes the error handshake and exits. For the post-launch path,
+	// sidebar.OpenPageError (wrapped in sync.Once) handles it so a stale
+	// error file is not written after the user closes the browser.
 	pageErr := func(msg string) {
 		fmt.Fprintln(os.Stderr, msg)
 		if session != "" {
-			web.WriteOpenHandshake(session, "error", msg)
+			// Mark the session as handled so OpenPageError's sync.Once
+			// won't write a second error file for the same session.
+			sidebar.SignalOpenPageErrorOnce(msg)
 		}
 		os.Exit(1)
 	}

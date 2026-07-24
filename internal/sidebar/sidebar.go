@@ -38,6 +38,14 @@ func resetOpenPageErrorOnce() {
 	openPageErrorOnce = sync.Once{}
 }
 
+// SignalOpenPageErrorOnce is the exported version for main.go's pageErr:
+// it fires the error handshake at most once, so a late OpenPageError call
+// after pageErr already wrote the error file cannot leave a second stale
+// file.
+func SignalOpenPageErrorOnce(msg string) {
+	signalOpenPageError(msg)
+}
+
 // signalOpenPageReady fires OpenPageReady once, nil-safe.
 func signalOpenPageReady() {
 	if OpenPageReady != nil {
