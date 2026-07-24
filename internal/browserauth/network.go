@@ -14,6 +14,8 @@ type RequestHeadersEvent struct {
 	RequestID string
 	URL       string
 	Headers   map[string]string
+	LoaderID  string
+	FrameID   string
 }
 
 // DecodeRequestHeadersEvent returns the typed view of a Network event
@@ -27,6 +29,8 @@ func DecodeRequestHeadersEvent(event Event) (RequestHeadersEvent, bool) {
 	var payload struct {
 		RequestID string            `json:"requestId"`
 		URL       string            `json:"url"`
+		LoaderID  string            `json:"loaderId"`
+		FrameID   string            `json:"frameId"`
 		Headers   map[string]string `json:"headers"`
 		Request   struct {
 			URL     string            `json:"url"`
@@ -46,7 +50,7 @@ func DecodeRequestHeadersEvent(event Event) (RequestHeadersEvent, bool) {
 	if payload.URL == "" {
 		payload.URL = payload.Request.URL
 	}
-	return RequestHeadersEvent{RequestID: payload.RequestID, URL: payload.URL, Headers: headers}, true
+	return RequestHeadersEvent{RequestID: payload.RequestID, URL: payload.URL, Headers: headers, LoaderID: payload.LoaderID, FrameID: payload.FrameID}, true
 }
 
 // BearerToken extracts a Bearer credential from the given request headers.

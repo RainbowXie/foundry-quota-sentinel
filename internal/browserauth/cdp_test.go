@@ -337,3 +337,44 @@ func TestSetCookiesStripsDomainForHostScopedCookies(t *testing.T) {
 		t.Fatalf("SetCookies failed for __Host- cookie: %v", err)
 	}
 }
+
+// TestDecodeRequestHeadersEventCarriesLoaderAndFrame proves
+// requestWillBeSent decodes loaderId/frameId so a coordinator can
+// associate each request (and its response) with the navigation that
+// issued it, instead of draining the event channel to isolate windows.
+func TestDecodeRequestHeadersEventCarriesLoaderAndFrame(t *testing.T) {
+	event := Event{
+		Method: "Network.requestWillBeSent",
+		Params: json.RawMessage(`{"requestId":"r1","loaderId":"L1","frameId":"F1","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","headers":{"authorization":"Bearer t"}}`),
+	}
+	got, ok := DecodeRequestHeadersEvent(event)
+	if !ok {
+		t.Fatal("expected decode to succeed")
+	}
+	if got.RequestID != "r1" || got.LoaderID != "L1" || got.FrameID != "F1" {
+		t.Fatalf("decoded = %#v, want r1/L1/F1", got)
+	}
+	if got.URL != "https://platform.deepseek.com/api/v0/users/get_user_summary" {
+		t.Fatalf("url = %q", got.URL)
+	}
+}
+
+// TestDecodeRequestHeadersEventExtraInfoHasNoLoader proves an
+// ExtraInfo event (no loaderId/frameId) still decodes with empty
+// loader/frame fields, so the coordinator does not crash on it.
+func TestDecodeRequestHeadersEventExtraInfoHasNoLoader(t *testing.T) {
+	event := Event{
+		Method: "Network.requestWillBeSentExtraInfo",
+		Params: json.RawMessage(`{"requestId":"r1","headers":{"authorization":"Bearer t"}}`),
+	}
+	got, ok := DecodeRequestHeadersEvent(event)
+	if !ok {
+		t.Fatal("expected decode to succeed")
+	}
+	if got.LoaderID != "" || got.FrameID != "" {
+		t.Fatalf("ExtraInfo must have empty loader/frame, got %#v", got)
+	}
+	if got.RequestID != "r1" {
+		t.Fatalf("requestId = %q", got.RequestID)
+	}
+}
