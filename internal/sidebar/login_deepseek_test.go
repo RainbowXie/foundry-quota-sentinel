@@ -86,6 +86,15 @@ type fakeDeepSeekCDP struct {
 	// count, so a test can push events onto the channel only after a
 	// re-navigate (modeling the auth-check race fix).
 	onNavigate func(nav int)
+	// sendLoadEvent controls whether NavigateWithLoader pushes a
+	// Page.loadEventFired event onto the events channel. nil/empty =
+	// no event (models a timeout/failure); non-empty = push on each nav.
+	// Tests that want successful navigation set this to true.
+	sendLoadEvent bool
+	// loadEventsForNav controls which navigations get a loadEvent.
+	// nil = all navigations (when sendLoadEvent=true). A map with
+	// specific nav numbers = only those navs get the event.
+	loadEventsForNav map[int]bool
 	// responseBodies maps requestId → response body for the
 	// GetResponseBody fake. Tests register `{"code":0,...}` for a real
 	// protected response; a missing/non-zero-code body makes
@@ -120,6 +129,7 @@ type fakeDeepSeekCDP struct {
 }
 
 func (c *fakeDeepSeekCDP) EnableNetwork(context.Context) error { return nil }
+func (c *fakeDeepSeekCDP) EnablePage(context.Context) error    { return nil }
 func (c *fakeDeepSeekCDP) BrowserCookies(context.Context) ([]browserauth.Cookie, error) {
 	return append([]browserauth.Cookie(nil), c.browserCookies...), nil
 }
@@ -234,9 +244,21 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	nav := c.navigateCount
 	loader := "L" + strconv.Itoa(nav)
 	hook := c.onNavigate
+	sendLoad := c.sendLoadEvent
+	loadForNav := c.loadEventsForNav
 	c.mu.Unlock()
 	if hook != nil {
 		hook(nav)
+	}
+	// Push a Page.loadEventFired if configured for this nav. This models
+	// the real observable document-load signal.
+	if sendLoad && c.events != nil {
+		if loadForNav == nil || loadForNav[nav] {
+			select {
+			case c.events <- browserauth.Event{Method: "Page.loadEventFired", Params: json.RawMessage(`{}`)}:
+			default:
+			}
+		}
 	}
 	return loader, nil
 }
@@ -555,17 +577,15 @@ func TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite(t *testing.T) {
 		launchDeepSeekBrowser = originalLaunch
 		deepSeekSettleTimeout = originalSettle
 	}()
-	deepSeekSettleTimeout = 0
+	deepSeekSettleTimeout = 2 * time.Second
 
-	// The fake models the real diagnostic behavior:
-	// - postNavLengths[1] = [30] → after nav1 SPA overwrites userToken to len 30
-	// - postNavLengths[2] = [92] → after nav2 (post re-apply) SPA preserves len 92
-	// - renavURL = usage → after nav2 PageURL returns /usage (SPA stays)
 	cdp := &fakeDeepSeekCDP{
 		pageURL:            deepSeekUsageURL,
 		renavURL:           deepSeekUsageURL,
 		renavAfterNavigate: 2,
 		postNavLengths:     map[int][]int{1: {30}, 2: {92}},
+		events:             make(chan browserauth.Event, 16),
+		sendLoadEvent:      true,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -638,7 +658,7 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		OpenPageError = originalErrorHook
 		resetOpenPageErrorOnce()
 	}()
-	deepSeekSettleTimeout = 0
+	deepSeekSettleTimeout = 2 * time.Second
 	resetOpenPageErrorOnce()
 
 	errorCh := make(chan string, 1)
@@ -653,6 +673,8 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		pageURL:             deepSeekLoginURL,
 		postNavLengths:      map[int][]int{1: {30}, 2: {30}},
 		localStorageLengths: []int{92},
+		events:              make(chan browserauth.Event, 16),
+		sendLoadEvent:       true,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -698,19 +720,13 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 // TestRunDeepSeekPageWaitsForTransitionNotEarlySamples proves the round-1
 // condition-wait requires a real TRANSITION from saved-length to
 // overwritten-length, not just two early identical samples. Uses non-zero
-// short timeout + injectable poll interval so the poll queue is actually
-// consumed. Asserts reapply only happens AFTER the transition is observed.
+// observable Page.loadEventFired signal, not poll-based thresholds.
+// The fake sends loadEventFired on each nav; the test verifies reapply
+// happens after the load event and before the reload.
 func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	deepSeekSettleTimeout = 2 * time.Second
-	deepSeekSettlePollInterval = 10 * time.Millisecond
-	cdp.pollLenIdx = map[int]int{}
-	cdp.pollURLIdx = map[int]int{}
-	cdp.pollBasedLengths = map[int][]int{
-		1: {92, 92, 30, 30, 30, 30},
-		2: {92, 92, 92, 92, 92, 92, 92},
-	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
 	cdp.renavURL = deepSeekUsageURL
 	cdp.renavAfterNavigate = 2
 	placeholder := strings.Repeat("a", 92)
@@ -719,10 +735,10 @@ func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
 		t.Fatalf("must succeed when userToken transitions 92→30→92: %v", err)
 	}
 	if !cdp.reapplySeen {
-		t.Fatal("runDeepSeekPage must re-apply after detecting the SPA overwrite")
+		t.Fatal("runDeepSeekPage must re-apply after the first load event")
 	}
-	if cdp.pollLenIdx[1] < 3 {
-		t.Fatalf("round-1 must consume at least 3 polls (92,92,30) before reapply, consumed %d", cdp.pollLenIdx[1])
+	if cdp.navigateCount < 2 {
+		t.Fatalf("runDeepSeekPage must re-navigate at least once (count=%d)", cdp.navigateCount)
 	}
 }
 
@@ -732,14 +748,7 @@ func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
 func TestRunDeepSeekPageHandlesFirstSampleAlreadyOverwritten(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	deepSeekSettleTimeout = 2 * time.Second
-	deepSeekSettlePollInterval = 10 * time.Millisecond
-	cdp.pollLenIdx = map[int]int{}
-	cdp.pollURLIdx = map[int]int{}
-	cdp.pollBasedLengths = map[int][]int{
-		1: {30, 30, 30, 30, 30},
-		2: {92, 92, 92, 92, 92, 92, 92},
-	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
 	cdp.renavURL = deepSeekUsageURL
 	cdp.renavAfterNavigate = 2
 	placeholder := strings.Repeat("a", 92)
@@ -753,26 +762,37 @@ func TestRunDeepSeekPageHandlesFirstSampleAlreadyOverwritten(t *testing.T) {
 }
 
 // TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable proves
-// that when the page stays on /usage for several polls then delays a
-// jump to /sign_in, runDeepSeekPage's round-2 condition-wait catches it.
+// that after reload the page lands on /sign_in (not /usage), the final
+// URL check catches it. The loadEventFired fires (document loaded) but
+// the SPA redirected to /sign_in.
 // The 3-read threshold prevents settling early.
 func TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	deepSeekSettleTimeout = 2 * time.Second
-	deepSeekSettlePollInterval = 10 * time.Millisecond
-	cdp.pollLenIdx = map[int]int{}
-	cdp.pollURLIdx = map[int]int{}
-	cdp.pollBasedLengths = map[int][]int{
-		1: {30, 30, 30, 30, 30},
-		2: {92, 92, 92, 92, 92, 92, 92, 92},
-	}
-	cdp.pollBasedURLs = map[int][]string{
-		2: {deepSeekUsageURL, deepSeekUsageURL, deepSeekLoginURL, deepSeekLoginURL, deepSeekLoginURL},
-	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	// Nav2 URL is /sign_in (SPA redirected after reload).
+	cdp.pageURL = deepSeekLoginURL
+	cdp.renavURL = deepSeekLoginURL
+	cdp.renavAfterNavigate = 2
 	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the page delays a jump to /sign_in after /usage")
+		t.Fatal("runDeepSeekPage must error when the page is on /sign_in after reload")
+	}
+}
+
+// TestRunDeepSeekPageLoadEventTimeout proves that when the browser never
+// sends Page.loadEventFired, runDeepSeekPage returns a timeout error
+// (not hanging or silently succeeding). This is the observable signal
+// failure path.
+func TestRunDeepSeekPageLoadEventTimeout(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.sendLoadEvent = false // no loadEventFired → timeout
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	deepSeekSettleTimeout = 200 * time.Millisecond
+	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must return a timeout error when loadEventFired never arrives")
 	}
 }
 
@@ -783,12 +803,16 @@ func dsPageTestSetup(t *testing.T) (*fakeDeepSeekCDP, *fakeDeepSeekBrowser, func
 	t.Helper()
 	originalLaunch := launchDeepSeekBrowser
 	originalSettle := deepSeekSettleTimeout
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL}
+	cdp := &fakeDeepSeekCDP{
+		pageURL:       deepSeekUsageURL,
+		events:        make(chan browserauth.Event, 16),
+		sendLoadEvent: true, // by default, each nav fires loadEventFired
+	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	deepSeekSettleTimeout = 0
+	deepSeekSettleTimeout = 2 * time.Second
 	return cdp, browser, func() {
 		launchDeepSeekBrowser = originalLaunch
 		deepSeekSettleTimeout = originalSettle
@@ -932,21 +956,12 @@ func TestRunDeepSeekPageMustReapplyAndRenavigate(t *testing.T) {
 // navigation must run, and the browser must stay open until the user
 // closes it.
 func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
-	originalLaunch := launchDeepSeekBrowser
-	defer func() {
-		launchDeepSeekBrowser = originalLaunch
-	}()
-
-	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekUsageURL,
-		rejectCookieNames:   map[string]bool{"__Host-bad": true},
-		localStorageLengths: []int{len("tok")},
-	}
-	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)
-	browser := &fakeDeepSeekBrowser{cdp: cdp}
-	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
-		return browser, nil
-	}
+	cdp, browser, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.rejectCookieNames = map[string]bool{"__Host-bad": true}
+	cdp.postNavLengths = map[int][]int{1: {3}, 2: {3}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
 
 	webStore := `{"l":{"userToken":"tok"},"s":{},"c":[` +
 		`{"name":"__Host-bad","value":"x","domain":"platform.deepseek.com","path":"/","secure":true,"httpOnly":true},` +
@@ -975,17 +990,11 @@ func TestRunDeepSeekPageSurvivesSingleBadCookie(t *testing.T) {
 // The cookie-replay step must be a no-op, not an error. The token key
 // matches and an auth request is observed.
 func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
-	originalLaunch := launchDeepSeekBrowser
-	defer func() {
-		launchDeepSeekBrowser = originalLaunch
-	}()
-
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("storage-only")}}
-	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)
-	browser := &fakeDeepSeekBrowser{cdp: cdp}
-	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
-		return browser, nil
-	}
+	cdp, browser, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.postNavLengths = map[int][]int{1: {len("storage-only")}, 2: {len("storage-only")}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
 
 	// No "c" key at all — an older saved account. userToken is the auth
 	// key; storage-only (no cookies) still authenticates via it.
@@ -1009,23 +1018,15 @@ func TestRunDeepSeekPageStorageOnlySurvivesNoCookies(t *testing.T) {
 // auth key is absent, even if a platform request arrives. The auth-key
 // prerequisite (length match) must hold before the auth request counts.
 func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
-	originalLaunch := launchDeepSeekBrowser
-	defer func() {
-		launchDeepSeekBrowser = originalLaunch
-	}()
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.postNavLengths = map[int][]int{1: {-1}, 2: {-1}} // userToken absent
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
 
-	cdp := &fakeDeepSeekCDP{
-		pageURL:             deepSeekUsageURL,
-		localStorageLengths: []int{-1}, // auth key ABSENT
-	}
-	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)
-	browser := &fakeDeepSeekBrowser{cdp: cdp}
-	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
-		return browser, nil
-	}
 	webStore := `{"l":{"userToken":"x"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when the auth key is absent even if a platform request arrives")
+		t.Fatal("runDeepSeekPage must error when the auth key is absent")
 	}
 }
 
@@ -1034,17 +1035,13 @@ func TestRunDeepSeekPageFailsWhenRestoreDidNotApply(t *testing.T) {
 // than returning immediately and being reaped. This is the regression
 // guard for the flash-close: Wait must be the final step.
 func TestRunDeepSeekPageStaysOpenAfterNavigation(t *testing.T) {
-	originalLaunch := launchDeepSeekBrowser
-	defer func() {
-		launchDeepSeekBrowser = originalLaunch
-	}()
-
-	cdp := &fakeDeepSeekCDP{pageURL: deepSeekUsageURL, localStorageLengths: []int{len("tok")}}
-	protectedAuthSequence(cdp, deepSeekAuthAPIURL, 1)
-	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
-	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
-		return browser, nil
-	}
+	cdp, browser, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.postNavLengths = map[int][]int{1: {3}, 2: {3}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
+	browser.waitBlocks = true
+	browser.waitRelease = make(chan struct{})
 
 	webStore := `{"l":{"userToken":"tok"},"s":{}}`
 	done := make(chan error, 1)

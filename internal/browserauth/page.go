@@ -107,6 +107,27 @@ func (c *Client) EnableNetwork(ctx context.Context) error {
 	return nil
 }
 
+// EnablePage turns on Page domain events (loadEventFired,
+// domContentEventFired, frameStoppedLoading) so a coordinator can wait
+// for observable document-load signals rather than polling.
+func (c *Client) EnablePage(ctx context.Context) error {
+	if _, err := c.Call(ctx, "Page.enable", nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+// IsLoadEventFired reports whether a CDP event is Page.loadEventFired.
+func IsLoadEventFired(event Event) bool {
+	return event.Method == "Page.loadEventFired"
+}
+
+// IsDomContentEventFired reports whether a CDP event is
+// Page.domContentEventFired.
+func IsDomContentEventFired(event Event) bool {
+	return event.Method == "Page.domContentEventFired"
+}
+
 // parseHTTPSURL accepts only HTTPS URLs whose host matches the caller
 // allow-list. The host list is matched with cookie domain semantics so
 // subdomains of the policy host also work.

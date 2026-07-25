@@ -113,6 +113,7 @@ func walkJSONCandidates(value any, seen map[string]bool, out *[]string) {
 // deepSeekCDP is the coordinator's narrow view of the shared client.
 type deepSeekCDP interface {
 	EnableNetwork(context.Context) error
+	EnablePage(context.Context) error
 	BrowserCookies(context.Context) ([]browserauth.Cookie, error)
 	PageURL(ctx context.Context, allowedHosts ...string) (string, error)
 	Events() <-chan browserauth.Event
@@ -179,6 +180,9 @@ type sharedDeepSeekClient struct {
 
 func (c *sharedDeepSeekClient) EnableNetwork(ctx context.Context) error {
 	return c.Page().EnableNetwork(ctx)
+}
+func (c *sharedDeepSeekClient) EnablePage(ctx context.Context) error {
+	return c.Page().EnablePage(ctx)
 }
 func (c *sharedDeepSeekClient) BrowserCookies(ctx context.Context) ([]browserauth.Cookie, error) {
 	return c.Browser().BrowserCookies(ctx)
@@ -459,17 +463,24 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if err := cdp.EnableNetwork(ctx); err != nil {
 		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
 	}
+	if err := cdp.EnablePage(ctx); err != nil {
+		return fmt.Errorf("启用 DeepSeek 账户页页面事件失败: %w", err)
+	}
+	events := cdp.Events()
 
 	// Navigate #1: SPA boots and overwrites userToken with a default.
 	log.Printf("deepseek: 账户页首次导航")
 	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
 	}
-	// Condition-wait: poll userToken length until it stabilizes (SPA
-	// overwrite complete). No fixed sleep.
-	deepSeekWaitForStorageStable(ctx, cdp, authEntries, deepSeekSettleTimeout)
+	// Wait for observable Page.loadEventFired (document fully loaded =
+	// SPA boot complete, userToken overwritten). Returns error on timeout.
+	if err := deepSeekWaitForLoad(ctx, events, deepSeekSettleTimeout); err != nil {
+		return fmt.Errorf("等待 DeepSeek 账户页加载超时: %w", err)
+	}
 
-	// Re-apply the restore script post-load.
+	// Re-apply the restore script post-load (after SPA boot overwrote
+	// userToken).
 	if script != "" {
 		log.Printf("deepseek: post-load 重新应用登录态脚本")
 		if _, err := cdp.Evaluate(ctx, script); err != nil {
@@ -482,8 +493,11 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
 		return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
 	}
-	// Condition-wait: poll URL + userToken length until they stabilize.
-	deepSeekWaitForAuthStable(ctx, cdp, authEntries, deepSeekSettleTimeout)
+	// Wait for observable Page.loadEventFired on the reload, then verify
+	// auth state (URL=/usage + userToken length match).
+	if err := deepSeekWaitForLoad(ctx, events, deepSeekSettleTimeout); err != nil {
+		return fmt.Errorf("等待 DeepSeek 账户页重新加载超时: %w", err)
+	}
 
 	// Verify: userToken length matches AND URL is /usage.
 	postURL, _ := cdp.PageURL(ctx, deepSeekHost)
@@ -511,91 +525,32 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	return nil
 }
 
-// deepSeekSettleTimeout is the deadline for condition-wait polling.
+// deepSeekSettleTimeout is the deadline for waiting on observable CDP events.
 var deepSeekSettleTimeout = 5 * time.Second
 
-// deepSeekSettlePollInterval is the poll interval for condition-waits.
-// Injectable so tests can run fast.
-var deepSeekSettlePollInterval = 200 * time.Millisecond
-
-// deepSeekWaitForStorageStable waits until it observes a TRANSITION from
-// the saved userToken length to a DIFFERENT length (the SPA overwrite),
-// confirming SPA boot completed. It then waits for the new length to
-// stabilize (2 consecutive identical reads). Handles the case where the
-// first sample is ALREADY the overwritten value (SPA booted before the
-// first poll): it requires at least 2 consecutive identical overwritten
-// reads (stable) even without a transition.
-func deepSeekWaitForStorageStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
+// deepSeekWaitForLoad waits for Page.loadEventFired on the events channel,
+// which is the observable signal that the document fully loaded (SPA boot
+// complete, userToken overwritten). Returns an error on timeout or ctx
+// cancellation — no silent fallthrough.
+func deepSeekWaitForLoad(ctx context.Context, events <-chan browserauth.Event, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	// Phase 1: wait for a transition (saved → overwritten) OR 2 stable
-	// overwritten reads (SPA already booted before first poll).
-	var prevLen int = -1
-	sawChange := false
-	stableOverwritten := 0
-	for time.Now().Before(deadline) && !sawChange && stableOverwritten < 2 {
-		mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys)
-		curLen := 0
-		if len(mismatch) > 0 {
-			curLen = -1 // overwritten or absent
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return fmt.Errorf("等待页面加载事件超时")
 		}
-		if curLen != prevLen {
-			if prevLen != -1 {
-				sawChange = true // transition observed
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return fmt.Errorf("事件通道已关闭")
 			}
-			stableOverwritten = 0
-			prevLen = curLen
-		} else if curLen == -1 {
-			stableOverwritten++
-		}
-		select {
+			if browserauth.IsLoadEventFired(ev) {
+				return nil
+			}
+		case <-time.After(remaining):
+			return fmt.Errorf("等待页面加载事件超时")
 		case <-ctx.Done():
-			return
-		case <-time.After(deepSeekSettlePollInterval):
-		}
-	}
-	// Phase 2: wait for the overwritten length to stabilize (2 reads).
-	stable := 0
-	for time.Now().Before(deadline) && stable < 2 {
-		mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys)
-		curLen := 0
-		if len(mismatch) > 0 {
-			curLen = -1
-		}
-		if curLen == prevLen {
-			stable++
-		} else {
-			stable = 0
-			prevLen = curLen
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(deepSeekSettlePollInterval):
-		}
-	}
-}
-
-// deepSeekWaitForAuthStable waits until the page reaches the authenticated
-// state (URL is /usage AND userToken length matches the saved value) and
-// that state stabilizes for 3 consecutive reads at a real auth-decision
-// boundary. The 3-read threshold (not 2) requires the SPA to have fully
-// completed its auth decision, not just a transient match.
-func deepSeekWaitForAuthStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	stable := 0
-	for time.Now().Before(deadline) && stable < 3 {
-		postURL, _ := cdp.PageURL(ctx, deepSeekHost)
-		mismatchCount := len(deepSeekStorageMismatch(ctx, cdp, authKeys))
-		authed := deepSeekIsUsagePage(postURL) && mismatchCount == 0
-		if authed {
-			stable++
-		} else {
-			stable = 0
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(deepSeekSettlePollInterval):
+			return fmt.Errorf("等待页面加载事件被取消: %w", ctx.Err())
 		}
 	}
 }
