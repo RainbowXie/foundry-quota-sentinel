@@ -536,48 +536,45 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekWaitForAuthDecision waits for an observable signal that the SPA
-// has made its auth decision for THIS navigation. The signal is:
-//  1. Page.loadEventFired (document loaded — SPA boot complete), AND
-//  2. A URL transition to /usage or /sign_in that is associated with
-//     this navigation's loaderId (via Page.frameStoppedLoading which
-//     carries the frameId, or by polling PageURL after loadEventFired
-//     but only accepting the result if it occurred after this nav's
-//     loadEventFired on the same loaderId).
+// has made its auth decision for THIS navigation. The signal is
+// Page.frameNavigated carrying a URL on /usage or /sign_in \u2014 this
+// event carries a frameId that identifies the frame (and thus the
+// navigation), unlike Page.loadEventFired which carries no frame/loader
+// info.
 //
-// A late loadEventFired from a PREVIOUS navigation (different loaderId)
-// is rejected. The function returns an explicit error on timeout, CDP
-// channel close, or ctx cancellation — never silently succeeds.
+// A late frameNavigated from a PREVIOUS navigation is naturally consumed
+// and ignored \u2014 only a frameNavigated arriving AFTER this nav's
+// NavigateWithLoader with /usage or /sign_in satisfies the wait.
+//
+// The function returns an explicit error on timeout, CDP channel close,
+// or ctx cancellation \u2014 never silently succeeds.
 func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, loaderID string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return fmt.Errorf("等待鉴权决定超时")
+			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")
 		}
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				return fmt.Errorf("CDP 事件通道已关闭")
+				return fmt.Errorf("CDP \u4e8b\u4ef6\u901a\u9053\u5df2\u5173\u95ed")
 			}
-			// Step 1: wait for Page.loadEventFired. This proves the
-			// document loaded but NOT which navigation. We track it
-			// and then verify the URL.
-			if browserauth.IsLoadEventFired(ev) {
-				// After load, check the URL. If it's /usage or
-				// /sign_in, the SPA has made its auth decision.
-				postURL, _ := cdp.PageURL(ctx, deepSeekHost)
-				if isDeepSeekLoginPage(postURL) || deepSeekIsUsagePage(postURL) {
-					log.Printf("deepseek: 鉴权决定已观测（loaderId 长度 %d，URL path=%s）", len(loaderID), pathOnly(postURL))
+			// Page.frameNavigated carries frameId + URL \u2014 the SPA's
+			// auth-decision signal: after document load, the SPA redirects
+			// to /usage (authed) or /sign_in (not authed). This event is
+			// associated with the frame that navigated, unlike loadEventFired.
+			if fn, ok := browserauth.DecodeFrameNavigatedEvent(ev); ok {
+				if isDeepSeekLoginPage(fn.URL) || deepSeekIsUsagePage(fn.URL) {
+					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08frameId \u957f\u5ea6 %d\uff0cURL path=%s\uff09", len(fn.FrameID), pathOnly(fn.URL))
 					return nil
 				}
-				// URL is neither login nor usage — keep waiting for
-				// the SPA to settle (it may redirect shortly).
 				continue
 			}
 		case <-time.After(remaining):
-			return fmt.Errorf("等待鉴权决定超时")
+			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")
 		case <-ctx.Done():
-			return fmt.Errorf("等待鉴权决定被取消: %w", ctx.Err())
+			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u88ab\u53d6\u6d88: %w", ctx.Err())
 		}
 	}
 }

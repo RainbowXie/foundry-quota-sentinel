@@ -128,6 +128,62 @@ func IsDomContentEventFired(event Event) bool {
 	return event.Method == "Page.domContentEventFired"
 }
 
+// FrameStoppedLoadingEvent is the decoded form of
+// Page.frameStoppedLoading. It carries a frameId, which (unlike
+// loadEventFired) identifies the frame that finished loading — so a
+// coordinator can associate it with a specific navigation.
+type FrameStoppedLoadingEvent struct {
+	FrameID string
+}
+
+// DecodeFrameStoppedLoadingEvent returns the typed view of a
+// Page.frameStoppedLoading event.
+func DecodeFrameStoppedLoadingEvent(event Event) (FrameStoppedLoadingEvent, bool) {
+	if event.Method != "Page.frameStoppedLoading" {
+		return FrameStoppedLoadingEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return FrameStoppedLoadingEvent{}, false
+	}
+	var payload struct {
+		FrameID string `json:"frameId"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return FrameStoppedLoadingEvent{}, false
+	}
+	return FrameStoppedLoadingEvent{FrameID: payload.FrameID}, true
+}
+
+// FrameNavigatedEvent is the decoded form of Page.frameNavigated. It
+// carries a frameId and the URL the frame navigated to, so a
+// coordinator can observe the SPA's auth-decision redirect associated
+// with a specific frame.
+type FrameNavigatedEvent struct {
+	FrameID string
+	URL     string
+}
+
+// DecodeFrameNavigatedEvent returns the typed view of a
+// Page.frameNavigated event.
+func DecodeFrameNavigatedEvent(event Event) (FrameNavigatedEvent, bool) {
+	if event.Method != "Page.frameNavigated" {
+		return FrameNavigatedEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return FrameNavigatedEvent{}, false
+	}
+	var payload struct {
+		Frame struct {
+			ID  string `json:"id"`
+			URL string `json:"url"`
+		} `json:"frame"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return FrameNavigatedEvent{}, false
+	}
+	return FrameNavigatedEvent{FrameID: payload.Frame.ID, URL: payload.Frame.URL}, true
+}
+
 // parseHTTPSURL accepts only HTTPS URLs whose host matches the caller
 // allow-list. The host list is matched with cookie domain semantics so
 // subdomains of the policy host also work.

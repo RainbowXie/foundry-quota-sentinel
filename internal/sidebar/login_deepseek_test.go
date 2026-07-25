@@ -246,16 +246,22 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	hook := c.onNavigate
 	sendLoad := c.sendLoadEvent
 	loadForNav := c.loadEventsForNav
+	url := c.pageURL
+	if c.renavURL != "" && nav >= c.renavAfterNavigate {
+		url = c.renavURL
+	}
 	c.mu.Unlock()
 	if hook != nil {
 		hook(nav)
 	}
-	// Push a Page.loadEventFired if configured for this nav. This models
-	// the real observable document-load signal.
+	// Push a Page.frameNavigated event if configured for this nav. This
+	// carries a frameId + URL — the SPA's auth-decision signal (redirect
+	// to /usage or /sign_in). Models the real observable signal.
 	if sendLoad && c.events != nil {
 		if loadForNav == nil || loadForNav[nav] {
+			frameEvt := fmt.Sprintf(`{"frame":{"id":"F%d","url":"%s"}}`, nav, url)
 			select {
-			case c.events <- browserauth.Event{Method: "Page.loadEventFired", Params: json.RawMessage(`{}`)}:
+			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(frameEvt)}:
 			default:
 			}
 		}
