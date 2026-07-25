@@ -697,59 +697,78 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 
 // TestRunDeepSeekPageWaitsForTransitionNotEarlySamples proves the round-1
 // condition-wait requires a real TRANSITION from saved-length to
-// overwritten-length, not just two early identical samples. The fake
-// returns the saved length (92) for the FIRST poll, then switches to the
-// overwritten length (30) — the wait must observe this change before
-// proceeding. A naive "two identical" impl would have settled at 92 after
-// the second 92 poll (never seeing the overwrite) and proceeded wrong.
-// This test FAILS on the old "two identical" impl (RED) because the old
-// impl would return success based on the two 92 reads, never detecting
-// the SPA overwrite.
+// overwritten-length, not just two early identical samples. Uses non-zero
+// short timeout + injectable poll interval so the poll queue is actually
+// consumed. Asserts reapply only happens AFTER the transition is observed.
 func TestRunDeepSeekPageWaitsForTransitionNotEarlySamples(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	// userToken starts at saved length 92 for nav1 poll 0, then switches
-	// to 30 on subsequent polls (modeling SPA boot overwrite). On nav2,
-	// the re-apply + reload means the SPA recognizes the token and the
-	// length stays at 92.
+	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettlePollInterval = 10 * time.Millisecond
 	cdp.pollLenIdx = map[int]int{}
 	cdp.pollURLIdx = map[int]int{}
 	cdp.pollBasedLengths = map[int][]int{
-		1: {92, 92, 30, 30}, // nav1: saved→saved→overwritten→overwritten
-		2: {92, 92, 92, 92}, // nav2: preserved (authed)
+		1: {92, 92, 30, 30, 30, 30},
+		2: {92, 92, 92, 92, 92, 92, 92},
 	}
 	cdp.renavURL = deepSeekUsageURL
 	cdp.renavAfterNavigate = 2
 	placeholder := strings.Repeat("a", 92)
 	webStore := `{"l":{"userToken":"` + placeholder + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
-		t.Fatalf("must succeed when userToken transitions 92→30→92 across navs: %v", err)
+		t.Fatalf("must succeed when userToken transitions 92→30→92: %v", err)
 	}
 	if !cdp.reapplySeen {
 		t.Fatal("runDeepSeekPage must re-apply after detecting the SPA overwrite")
+	}
+	if cdp.pollLenIdx[1] < 3 {
+		t.Fatalf("round-1 must consume at least 3 polls (92,92,30) before reapply, consumed %d", cdp.pollLenIdx[1])
+	}
+}
+
+// TestRunDeepSeekPageHandlesFirstSampleAlreadyOverwritten proves that
+// when the first poll already sees the overwritten value (SPA booted
+// before the first poll), the wait completes via 2 stable overwritten reads.
+func TestRunDeepSeekPageHandlesFirstSampleAlreadyOverwritten(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettlePollInterval = 10 * time.Millisecond
+	cdp.pollLenIdx = map[int]int{}
+	cdp.pollURLIdx = map[int]int{}
+	cdp.pollBasedLengths = map[int][]int{
+		1: {30, 30, 30, 30, 30},
+		2: {92, 92, 92, 92, 92, 92, 92},
+	}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
+	placeholder := strings.Repeat("a", 92)
+	webStore := `{"l":{"userToken":"` + placeholder + `"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("must succeed when first sample is already overwritten: %v", err)
+	}
+	if !cdp.reapplySeen {
+		t.Fatal("runDeepSeekPage must re-apply even when first sample is already overwritten")
 	}
 }
 
 // TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable proves
 // that when the page stays on /usage for several polls then delays a
 // jump to /sign_in, runDeepSeekPage's round-2 condition-wait catches it.
-// The fake returns /usage for nav2's first polls, then switches to
-// /sign_in. The old "two identical" impl would have settled at /usage
-// after the second poll (RED).
+// The 3-read threshold prevents settling early.
 func TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	// This test needs real polling (non-zero settle timeout) so the
-	// condition-wait consumes polls and the post-verify sees the jump.
 	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettlePollInterval = 10 * time.Millisecond
 	cdp.pollLenIdx = map[int]int{}
 	cdp.pollURLIdx = map[int]int{}
 	cdp.pollBasedLengths = map[int][]int{
-		1: {30, 30, 30, 30},
-		2: {92, 92, 92, 92, 92}, // userToken stays correct
+		1: {30, 30, 30, 30, 30},
+		2: {92, 92, 92, 92, 92, 92, 92, 92},
 	}
 	cdp.pollBasedURLs = map[int][]string{
-		2: {deepSeekUsageURL, deepSeekUsageURL, deepSeekLoginURL, deepSeekLoginURL},
+		2: {deepSeekUsageURL, deepSeekUsageURL, deepSeekLoginURL, deepSeekLoginURL, deepSeekLoginURL},
 	}
 	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {

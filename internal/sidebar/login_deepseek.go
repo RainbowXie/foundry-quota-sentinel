@@ -515,24 +515,25 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekSettlePollInterval is the poll interval for condition-waits.
-const deepSeekSettlePollInterval = 200 * time.Millisecond
+// Injectable so tests can run fast.
+var deepSeekSettlePollInterval = 200 * time.Millisecond
 
 // deepSeekWaitForStorageStable waits until it observes a TRANSITION from
 // the saved userToken length to a DIFFERENT length (the SPA overwrite),
 // confirming SPA boot completed. It then waits for the new length to
-// stabilize (2 consecutive identical reads). This is NOT the same as
-// two early identical samples — it requires a real state change.
+// stabilize (2 consecutive identical reads). Handles the case where the
+// first sample is ALREADY the overwritten value (SPA booted before the
+// first poll): it requires at least 2 consecutive identical overwritten
+// reads (stable) even without a transition.
 func deepSeekWaitForStorageStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
-	// Phase 1: wait for the saved userToken to appear (document-start
-	// restore ran) or SPA overwrite to change the length.
+	// Phase 1: wait for a transition (saved → overwritten) OR 2 stable
+	// overwritten reads (SPA already booted before first poll).
 	var prevLen int = -1
 	sawChange := false
-	for time.Now().Before(deadline) && !sawChange {
+	stableOverwritten := 0
+	for time.Now().Before(deadline) && !sawChange && stableOverwritten < 2 {
 		mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys)
-		// If mismatch == 0, the saved value is present (perhaps briefly
-		// before SPA overwrite). If mismatch > 0, the value changed
-		// (SPA overwrote or absent).
 		curLen := 0
 		if len(mismatch) > 0 {
 			curLen = -1 // overwritten or absent
@@ -541,7 +542,10 @@ func deepSeekWaitForStorageStable(ctx context.Context, cdp deepSeekCDP, authKeys
 			if prevLen != -1 {
 				sawChange = true // transition observed
 			}
+			stableOverwritten = 0
 			prevLen = curLen
+		} else if curLen == -1 {
+			stableOverwritten++
 		}
 		select {
 		case <-ctx.Done():
@@ -573,16 +577,15 @@ func deepSeekWaitForStorageStable(ctx context.Context, cdp deepSeekCDP, authKeys
 
 // deepSeekWaitForAuthStable waits until the page reaches the authenticated
 // state (URL is /usage AND userToken length matches the saved value) and
-// that state stabilizes for 2 consecutive reads. It requires the
-// condition to hold at a real auth-decision boundary, not just two early
-// identical samples.
+// that state stabilizes for 3 consecutive reads at a real auth-decision
+// boundary. The 3-read threshold (not 2) requires the SPA to have fully
+// completed its auth decision, not just a transient match.
 func deepSeekWaitForAuthStable(ctx context.Context, cdp deepSeekCDP, authKeys []deepSeekStorageEntry, timeout time.Duration) {
 	deadline := time.Now().Add(timeout)
 	stable := 0
-	for time.Now().Before(deadline) && stable < 2 {
+	for time.Now().Before(deadline) && stable < 3 {
 		postURL, _ := cdp.PageURL(ctx, deepSeekHost)
 		mismatchCount := len(deepSeekStorageMismatch(ctx, cdp, authKeys))
-		// Authenticated = URL is /usage AND all auth keys match.
 		authed := deepSeekIsUsagePage(postURL) && mismatchCount == 0
 		if authed {
 			stable++
