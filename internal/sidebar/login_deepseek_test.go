@@ -796,6 +796,45 @@ func TestRunDeepSeekPageLoadEventTimeout(t *testing.T) {
 	}
 }
 
+// TestRunDeepSeekPageTimeoutDoesNotFlashClose proves that when the auth-
+// decision wait times out, the browser is NOT closed (no flash-close).
+// The error goes through failAndWait → signalOpenPageError → browser.Wait.
+func TestRunDeepSeekPageTimeoutDoesNotFlashClose(t *testing.T) {
+	cdp, browser, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.sendLoadEvent = false // no loadEventFired → timeout
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	deepSeekSettleTimeout = 200 * time.Millisecond
+	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
+	err := RunDeepSeekPage(deepSeekUsageURL, webStore)
+	if err == nil {
+		t.Fatal("runDeepSeekPage must return a timeout error")
+	}
+	if browser.closed {
+		t.Fatal("browser must NOT be closed on timeout — it must stay open via failAndWait→browser.Wait")
+	}
+}
+
+// TestRunDeepSeekPageCrossNavLateLoadEventRejected proves that a late
+// Page.loadEventFired from nav1 (arriving during nav2's wait) does NOT
+// falsely satisfy nav2's auth-decision wait. The fake sends loadEventFired
+// only for nav1 (loadEventsForNav={1:true}), so nav2 never gets one and
+// must time out — proving the cross-nav late event is not consumed.
+func TestRunDeepSeekPageCrossNavLateLoadEventRejected(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	// Send loadEvent only on nav1, NOT nav2.
+	cdp.loadEventsForNav = map[int]bool{1: true, 2: false}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.renavURL = deepSeekUsageURL
+	cdp.renavAfterNavigate = 2
+	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when nav2's loadEvent never arrives (late nav1 event must not satisfy nav2)")
+	}
+}
+
 // dsPageTestSetup is the common setup for runDeepSeekPage tests: saves
 // launch/settle overrides, sets settle to 0 (no sleep in tests), and
 // injects the fake browser. Returns the cdp for configuration.

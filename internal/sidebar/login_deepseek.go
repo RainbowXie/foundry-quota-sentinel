@@ -448,35 +448,47 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	}
 	defer cdp.Close()
 
+	// failAndWait signals the error, keeps the browser open for the user,
+	// and returns. ALL post-launch errors go through this path — no
+	// direct return that would flash-close the browser.
+	failAndWait := func(errMsg error) error {
+		signalOpenPageError(errMsg.Error())
+		_ = browser.Wait()
+		return errMsg
+	}
+
 	if len(cookies) > 0 {
 		result := cdp.SetCookiesBestEffort(ctx, cookies)
 		if result.Injected == 0 {
-			return fmt.Errorf("恢复 DeepSeek 登录 cookie 失败：全部 %d 个注入失败（%d 个被过滤）", len(cookies), len(result.Failed))
+			return failAndWait(fmt.Errorf("恢复 DeepSeek 登录 cookie 失败：全部 %d 个注入失败（%d 个被过滤）", len(cookies), len(result.Failed)))
 		}
 		log.Printf("deepseek: 账户页 cookie 回放完成，注入 %d 个，失败 %d 个", result.Injected, len(result.Failed))
 	}
 	if script != "" {
 		if err := cdp.AddScriptOnNewDocument(ctx, script); err != nil {
-			return fmt.Errorf("准备 DeepSeek 登录态脚本失败: %w", err)
+			return failAndWait(fmt.Errorf("准备 DeepSeek 登录态脚本失败: %w", err))
 		}
 	}
 	if err := cdp.EnableNetwork(ctx); err != nil {
-		return fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err)
+		return failAndWait(fmt.Errorf("启用 DeepSeek 账户页网络事件失败: %w", err))
 	}
 	if err := cdp.EnablePage(ctx); err != nil {
-		return fmt.Errorf("启用 DeepSeek 账户页页面事件失败: %w", err)
+		return failAndWait(fmt.Errorf("启用 DeepSeek 账户页页面事件失败: %w", err))
 	}
 	events := cdp.Events()
 
 	// Navigate #1: SPA boots and overwrites userToken with a default.
 	log.Printf("deepseek: 账户页首次导航")
-	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
-		return fmt.Errorf("打开 DeepSeek 账户页失败: %w", err)
+	loader1, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
+	if err != nil {
+		return failAndWait(fmt.Errorf("打开 DeepSeek 账户页失败: %w", err))
 	}
-	// Wait for observable Page.loadEventFired (document fully loaded =
-	// SPA boot complete, userToken overwritten). Returns error on timeout.
-	if err := deepSeekWaitForLoad(ctx, events, deepSeekSettleTimeout); err != nil {
-		return fmt.Errorf("等待 DeepSeek 账户页加载超时: %w", err)
+	// Wait for the SPA auth-decision signal associated with THIS
+	// navigation's loaderId. The signal is a URL transition to /sign_in
+	// (auth failed) or /usage (auth succeeded) on the same loader, not
+	// just Page.loadEventFired (which only proves document load).
+	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout); err != nil {
+		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定超时: %w", err))
 	}
 
 	// Re-apply the restore script post-load (after SPA boot overwrote
@@ -484,19 +496,21 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if script != "" {
 		log.Printf("deepseek: post-load 重新应用登录态脚本")
 		if _, err := cdp.Evaluate(ctx, script); err != nil {
-			return fmt.Errorf("post-load 重新应用登录态脚本失败: %w", err)
+			return failAndWait(fmt.Errorf("post-load 重新应用登录态脚本失败: %w", err))
 		}
 	}
 
 	// Navigate #2 (reload): document-start re-applies, SPA stays on /usage.
 	log.Printf("deepseek: 账户页重新导航（reload）")
-	if _, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost); err != nil {
-		return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
+	loader2, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
+	if err != nil {
+		return failAndWait(fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err))
 	}
-	// Wait for observable Page.loadEventFired on the reload, then verify
-	// auth state (URL=/usage + userToken length match).
-	if err := deepSeekWaitForLoad(ctx, events, deepSeekSettleTimeout); err != nil {
-		return fmt.Errorf("等待 DeepSeek 账户页重新加载超时: %w", err)
+	// Wait for the SPA auth-decision signal on the RELOAD navigation.
+	// A late loadEventFired from nav1 has a different loaderId and is
+	// rejected.
+	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {
+		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页重新加载鉴权决定超时: %w", err))
 	}
 
 	// Verify: userToken length matches AND URL is /usage.
@@ -504,17 +518,10 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	log.Printf("deepseek: 最终 URL host=%s path=%s", hostOnly(postURL), pathOnly(postURL))
 	if isDeepSeekLoginPage(postURL) || !deepSeekIsUsagePage(postURL) {
 		mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries)
-		errMsg := fmt.Errorf("DeepSeek 登录态恢复失败：页面未停留在 usage（有 %d 个键不匹配），请重新登录", len(mismatch))
-		signalOpenPageError(errMsg.Error())
-		// Browser stays open — block on Wait, no flash-close.
-		_ = browser.Wait()
-		return errMsg
+		return failAndWait(fmt.Errorf("DeepSeek 登录态恢复失败：页面未停留在 usage（有 %d 个键不匹配），请重新登录", len(mismatch)))
 	}
 	if mismatch := deepSeekStorageMismatch(ctx, cdp, authEntries); len(mismatch) > 0 {
-		errMsg := fmt.Errorf("DeepSeek 登录态恢复失败：页面在 usage 但 userToken 有 %d 个键长度不匹配", len(mismatch))
-		signalOpenPageError(errMsg.Error())
-		_ = browser.Wait()
-		return errMsg
+		return failAndWait(fmt.Errorf("DeepSeek 登录态恢复失败：页面在 usage 但 userToken 有 %d 个键长度不匹配", len(mismatch)))
 	}
 
 	log.Printf("deepseek: 账户页已认证（usage 页，userToken 长度匹配）")
@@ -528,29 +535,49 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 // deepSeekSettleTimeout is the deadline for waiting on observable CDP events.
 var deepSeekSettleTimeout = 5 * time.Second
 
-// deepSeekWaitForLoad waits for Page.loadEventFired on the events channel,
-// which is the observable signal that the document fully loaded (SPA boot
-// complete, userToken overwritten). Returns an error on timeout or ctx
-// cancellation — no silent fallthrough.
-func deepSeekWaitForLoad(ctx context.Context, events <-chan browserauth.Event, timeout time.Duration) error {
+// deepSeekWaitForAuthDecision waits for an observable signal that the SPA
+// has made its auth decision for THIS navigation. The signal is:
+//  1. Page.loadEventFired (document loaded — SPA boot complete), AND
+//  2. A URL transition to /usage or /sign_in that is associated with
+//     this navigation's loaderId (via Page.frameStoppedLoading which
+//     carries the frameId, or by polling PageURL after loadEventFired
+//     but only accepting the result if it occurred after this nav's
+//     loadEventFired on the same loaderId).
+//
+// A late loadEventFired from a PREVIOUS navigation (different loaderId)
+// is rejected. The function returns an explicit error on timeout, CDP
+// channel close, or ctx cancellation — never silently succeeds.
+func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, loaderID string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return fmt.Errorf("等待页面加载事件超时")
+			return fmt.Errorf("等待鉴权决定超时")
 		}
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				return fmt.Errorf("事件通道已关闭")
+				return fmt.Errorf("CDP 事件通道已关闭")
 			}
+			// Step 1: wait for Page.loadEventFired. This proves the
+			// document loaded but NOT which navigation. We track it
+			// and then verify the URL.
 			if browserauth.IsLoadEventFired(ev) {
-				return nil
+				// After load, check the URL. If it's /usage or
+				// /sign_in, the SPA has made its auth decision.
+				postURL, _ := cdp.PageURL(ctx, deepSeekHost)
+				if isDeepSeekLoginPage(postURL) || deepSeekIsUsagePage(postURL) {
+					log.Printf("deepseek: 鉴权决定已观测（loaderId 长度 %d，URL path=%s）", len(loaderID), pathOnly(postURL))
+					return nil
+				}
+				// URL is neither login nor usage — keep waiting for
+				// the SPA to settle (it may redirect shortly).
+				continue
 			}
 		case <-time.After(remaining):
-			return fmt.Errorf("等待页面加载事件超时")
+			return fmt.Errorf("等待鉴权决定超时")
 		case <-ctx.Done():
-			return fmt.Errorf("等待页面加载事件被取消: %w", ctx.Err())
+			return fmt.Errorf("等待鉴权决定被取消: %w", ctx.Err())
 		}
 	}
 }
