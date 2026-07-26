@@ -267,8 +267,10 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 			default:
 			}
 			// 2. navigatedWithinDocument: SPA routed (auth decision).
+			// Carries frameId matching the frameNavigated's frameId.
+			nwdEvt := fmt.Sprintf(`{"frameId":"F%d","url":"%s"}`, nav, deepSeekUsageURL)
 			select {
-			case c.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(`{}`)}:
+			case c.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
 			default:
 			}
 		}
@@ -875,6 +877,55 @@ func TestRunDeepSeekPageRejectsInitialFrameNavigatedWithoutSPA(t *testing.T) {
 	webStore := dsWebStore(92)
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must NOT succeed on initial frameNavigated alone (SPA hasn't made auth decision)")
+	}
+}
+
+// TestRunDeepSeekPageRejectsSubFrameNavigatedWithinDocument proves a
+// navigatedWithinDocument with a DIFFERENT frameId (sub-frame) is NOT
+// accepted as the SPA auth-decision signal. Only same-frameId events
+// count.
+func TestRunDeepSeekPageRejectsSubFrameNavigatedWithinDocument(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.skipDefaultEvent = true
+	cdp.onNavigate = func(nav int) {
+		loader := "L" + strconv.Itoa(nav)
+		// frameNavigated with main frame (no parentId).
+		fnEvt := fmt.Sprintf(`{"frame":{"id":"MAIN%d","loaderId":"%s","url":"%s"}}`, nav, loader, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
+		default:
+		}
+		// navigatedWithinDocument with a DIFFERENT frameId (sub-frame).
+		nwdEvt := fmt.Sprintf(`{"frameId":"SUB%d","url":"%s"}`, nav, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
+		default:
+		}
+	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must reject navigatedWithinDocument with a different frameId (sub-frame)")
+	}
+}
+
+// TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument proves
+// that a navigatedWithinDocument from nav1 (arriving during nav2's
+// wait) does NOT satisfy nav2's wait. The fake sends nav1's events
+// normally but suppresses nav2's navigatedWithinDocument, so nav2
+// must time out.
+func TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	// Send events only for nav1, not nav2.
+	cdp.loadEventsForNav = map[int]bool{1: true, 2: false}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must error when nav2's navigatedWithinDocument never arrives (late nav1 event must not satisfy nav2)")
 	}
 }
 

@@ -154,6 +154,35 @@ func DecodeFrameStoppedLoadingEvent(event Event) (FrameStoppedLoadingEvent, bool
 	return FrameStoppedLoadingEvent{FrameID: payload.FrameID}, true
 }
 
+// NavigatedWithinDocumentEvent is the decoded form of
+// Page.navigatedWithinDocument. It carries a frameId and url — the
+// SPA's client-side routing decision. A coordinator associates it
+// with the main frame's frameId (from the initial frameNavigated)
+// to reject sub-frame or cross-navigation events.
+type NavigatedWithinDocumentEvent struct {
+	FrameID string
+	URL     string
+}
+
+// DecodeNavigatedWithinDocumentEvent returns the typed view of a
+// Page.navigatedWithinDocument event.
+func DecodeNavigatedWithinDocumentEvent(event Event) (NavigatedWithinDocumentEvent, bool) {
+	if event.Method != "Page.navigatedWithinDocument" {
+		return NavigatedWithinDocumentEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return NavigatedWithinDocumentEvent{}, false
+	}
+	var payload struct {
+		FrameID string `json:"frameId"`
+		URL     string `json:"url"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return NavigatedWithinDocumentEvent{}, false
+	}
+	return NavigatedWithinDocumentEvent{FrameID: payload.FrameID, URL: payload.URL}, true
+}
+
 // FrameNavigatedEvent is the decoded form of Page.frameNavigated. It
 // carries a frameId, the URL the frame navigated to, the loaderId that
 // initiated the navigation, and a parentId. A frame with no parentId is
