@@ -156,9 +156,7 @@ func DecodeFrameStoppedLoadingEvent(event Event) (FrameStoppedLoadingEvent, bool
 
 // NavigatedWithinDocumentEvent is the decoded form of
 // Page.navigatedWithinDocument. It carries a frameId and url — the
-// SPA's client-side routing decision. A coordinator associates it
-// with the main frame's frameId (from the initial frameNavigated)
-// to reject sub-frame or cross-navigation events.
+// SPA's client-side routing decision.
 type NavigatedWithinDocumentEvent struct {
 	FrameID string
 	URL     string
@@ -181,6 +179,43 @@ func DecodeNavigatedWithinDocumentEvent(event Event) (NavigatedWithinDocumentEve
 		return NavigatedWithinDocumentEvent{}, false
 	}
 	return NavigatedWithinDocumentEvent{FrameID: payload.FrameID, URL: payload.URL}, true
+}
+
+// FrameStartedNavigatingEvent is the decoded form of
+// Page.frameStartedNavigating. It carries frameId, url, loaderId, and
+// navigationType. This is the FIRST event of each navigation and carries
+// the real loaderId (Page.navigate may return empty for reloads).
+type FrameStartedNavigatingEvent struct {
+	FrameID  string
+	LoaderID string
+	URL      string
+	NavType  string
+}
+
+// DecodeFrameStartedNavigatingEvent returns the typed view of a
+// Page.frameStartedNavigating event.
+func DecodeFrameStartedNavigatingEvent(event Event) (FrameStartedNavigatingEvent, bool) {
+	if event.Method != "Page.frameStartedNavigating" {
+		return FrameStartedNavigatingEvent{}, false
+	}
+	if len(event.Params) == 0 {
+		return FrameStartedNavigatingEvent{}, false
+	}
+	var payload struct {
+		FrameID  string `json:"frameId"`
+		LoaderID string `json:"loaderId"`
+		URL      string `json:"url"`
+		NavType  string `json:"navigationType"`
+	}
+	if err := json.Unmarshal(event.Params, &payload); err != nil {
+		return FrameStartedNavigatingEvent{}, false
+	}
+	return FrameStartedNavigatingEvent{
+		FrameID:  payload.FrameID,
+		LoaderID: payload.LoaderID,
+		URL:      payload.URL,
+		NavType:  payload.NavType,
+	}, true
 }
 
 // FrameNavigatedEvent is the decoded form of Page.frameNavigated. It

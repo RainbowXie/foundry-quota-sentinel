@@ -536,26 +536,28 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekWaitForAuthDecision waits for the real SPA auth-decision
-// signal: after the main-frame frameNavigated (loaderId matches), the
-// SPA boots and fires Page.navigatedWithinDocument (client-side routing).
-// The function:
-//  1. Waits for a main-frame frameNavigated with loaderId == navLoader.
-//     Saves the main frame's frameId. Marks the navigation epoch.
-//  2. Waits for Page.navigatedWithinDocument with the SAME frameId AND
-//     whose url is on the DeepSeek host AND whose url path is /usage or
-//     /sign_in. Only the FIRST navigatedWithinDocument after this
-//     epoch's frameNavigated is accepted; subsequent ones (late events
-//     from a previous navigation) are rejected by the epoch guard.
-//  3. After accepting the event, reads PageURL to confirm the CURRENT
-//     page URL matches the event's url. Propagates PageURL errors.
+// signal using Page.frameStartedNavigating as the navigation epoch
+// marker. This event carries a loaderId that uniquely identifies the
+// navigation (Page.navigate may return empty for reloads).
 //
+// The function:
+//  1. Waits for Page.frameStartedNavigating with a non-empty loaderId.
+//     This is the epoch start — the loaderId identifies this navigation.
+//  2. Waits for Page.frameNavigated with the SAME loaderId (main frame,
+//     parentId absent). Saves the frameId.
+//  3. Waits for Page.navigatedWithinDocument with the SAME frameId AND
+//     whose url is /usage or /sign_in. The event's url path must match
+//     the current PageURL path. Propagates PageURL errors.
+//
+// A late event from a previous navigation has a DIFFERENT loaderId
+// (captured at step 1), so it cannot match at step 2 or 3.
 // Returns an explicit error on timeout, CDP channel close, or ctx
 // cancellation.
-func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, loaderID string, timeout time.Duration) error {
+func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, _ string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	var epochLoaderID string
 	var mainFrameID string
-	frameNavSeen := false
-	nwdAccepted := false // epoch guard: only one navigatedWithinDocument
+	phase := 0 // 0=wait frameStartedNavigating, 1=wait frameNavigated, 2=wait navigatedWithinDocument
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
@@ -566,44 +568,51 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 			if !ok {
 				return fmt.Errorf("CDP \u4e8b\u4ef6\u901a\u9053\u5df2\u5173\u95ed")
 			}
-			if !frameNavSeen {
-				if fn, ok := browserauth.DecodeFrameNavigatedEvent(ev); ok {
-					if fn.IsMainFrame() && fn.LoaderID != "" && fn.LoaderID == loaderID {
-						frameNavSeen = true
-						mainFrameID = fn.FrameID
-						log.Printf("deepseek: \u4e3b\u5e27 frameNavigated \u5df2\u89c2\u6d4b\uff08loaderId \u5339\u914d\uff0cframeId \u957f\u5ea6 %d\uff09", len(mainFrameID))
+			if phase == 0 {
+				// Step 1: wait for frameStartedNavigating with non-empty loaderId.
+				if fsn, ok := browserauth.DecodeFrameStartedNavigatingEvent(ev); ok {
+					if fsn.LoaderID != "" {
+						epochLoaderID = fsn.LoaderID
+						phase = 1
+						log.Printf("deepseek: \u5bfc\u822a epoch \u5df2\u786e\u5b9a\uff08loaderId \u957f\u5ea6 %d\uff09", len(epochLoaderID))
 					}
 					continue
 				}
 				continue
 			}
-			// Step 2: after frameNavigated, wait for the FIRST
-			// navigatedWithinDocument with matching frameId and valid url.
-			// The epoch guard (nwdAccepted) rejects a LATE event from a
-			// previous navigation that arrives after this epoch's
-			// frameNavigated — only one navigatedWithinDocument is
-			// accepted per epoch.
-			if nwd, ok := browserauth.DecodeNavigatedWithinDocumentEvent(ev); ok {
-				if nwdAccepted {
-					continue // late event — already accepted one for this epoch
-				}
-				if mainFrameID != "" && nwd.FrameID != mainFrameID {
+			if phase == 1 {
+				// Step 2: wait for frameNavigated with the SAME loaderId (main frame).
+				if fn, ok := browserauth.DecodeFrameNavigatedEvent(ev); ok {
+					if fn.IsMainFrame() && fn.LoaderID == epochLoaderID {
+						mainFrameID = fn.FrameID
+						phase = 2
+						log.Printf("deepseek: \u4e3b\u5e27 frameNavigated \u5df2\u89c2\u6d4b\uff08loaderId \u5339\u914d epoch\uff09")
+					}
 					continue
 				}
-				if !isDeepSeekLoginPage(nwd.URL) && !deepSeekIsUsagePage(nwd.URL) {
-					continue
+				continue
+			}
+			if phase == 2 {
+				// Step 3: wait for navigatedWithinDocument with matching frameId
+				// and valid url.
+				if nwd, ok := browserauth.DecodeNavigatedWithinDocumentEvent(ev); ok {
+					if mainFrameID != "" && nwd.FrameID != mainFrameID {
+						continue
+					}
+					if !isDeepSeekLoginPage(nwd.URL) && !deepSeekIsUsagePage(nwd.URL) {
+						continue
+					}
+					postURL, err := cdp.PageURL(ctx, deepSeekHost)
+					if err != nil {
+						return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
+					}
+					if pathOnly(postURL) != pathOnly(nwd.URL) {
+						continue
+					}
+					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08navigatedWithinDocument\uff0cframeId \u5339\u914d\uff0cURL path=%s\uff09", pathOnly(postURL))
+					return nil
 				}
-				postURL, err := cdp.PageURL(ctx, deepSeekHost)
-				if err != nil {
-					return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
-				}
-				if pathOnly(postURL) != pathOnly(nwd.URL) {
-					log.Printf("deepseek: navigatedWithinDocument url path=%s \u4e0e\u5f53\u524d PageURL path=%s \u4e0d\u4e00\u81f4\uff0c\u7ee7\u7eed\u7b49\u5f85", pathOnly(nwd.URL), pathOnly(postURL))
-					continue
-				}
-				nwdAccepted = true
-				log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08navigatedWithinDocument\uff0cframeId \u5339\u914d\uff0cURL path=%s\uff09", pathOnly(postURL))
-				return nil
+				continue
 			}
 		case <-time.After(remaining):
 			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")
