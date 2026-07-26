@@ -536,16 +536,19 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekWaitForAuthDecision waits for the real SPA auth-decision
-// signal observed in the diagnostic: after the main-frame
-// frameNavigated (initial /usage request, loaderId matches), the SPA
-// boots and fires Page.navigatedWithinDocument (client-side routing).
+// signal: after the main-frame frameNavigated (loaderId matches), the
+// SPA boots and fires Page.navigatedWithinDocument (client-side routing).
 // The function:
 //  1. Waits for a main-frame frameNavigated with loaderId == navLoader.
 //     Saves the main frame's frameId.
-//  2. Waits for Page.navigatedWithinDocument with the SAME frameId
-//     (rejects sub-frame or cross-navigation events).
-//  3. Reads PageURL and returns nil if /usage or /sign_in.
-//     Propagates PageURL errors.
+//  2. Waits for Page.navigatedWithinDocument with the SAME frameId AND
+//     whose url is on the DeepSeek host AND whose url path is /usage or
+//     /sign_in. This rejects sub-frame events, cross-navigation late
+//     events (same frameId but url from a previous nav's SPA routing),
+//     and non-DeepSeek URLs.
+//  3. After accepting the event, reads PageURL to confirm the CURRENT
+//     page URL matches the event's url (not a stale value from a
+//     previous navigation). Propagates PageURL errors.
 //
 // Returns an explicit error on timeout, CDP channel close, or ctx
 // cancellation.
@@ -575,21 +578,30 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 				continue
 			}
 			// Step 2: after frameNavigated, wait for
-			// Page.navigatedWithinDocument with the SAME frameId.
+			// Page.navigatedWithinDocument with the SAME frameId AND
+			// a DeepSeek /usage or /sign_in url.
 			if nwd, ok := browserauth.DecodeNavigatedWithinDocumentEvent(ev); ok {
 				if mainFrameID != "" && nwd.FrameID != mainFrameID {
-					continue // sub-frame or cross-navigation event
+					continue
 				}
-				// Step 3: read PageURL to see where the SPA routed.
+				// The event's own url must be on the DeepSeek host and
+				// be /usage or /sign_in (not a stale url from a previous
+				// navigation's SPA routing).
+				if !isDeepSeekLoginPage(nwd.URL) && !deepSeekIsUsagePage(nwd.URL) {
+					continue
+				}
+				// Step 3: confirm the CURRENT PageURL matches the
+				// event's url (not a stale value).
 				postURL, err := cdp.PageURL(ctx, deepSeekHost)
 				if err != nil {
 					return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
 				}
-				if isDeepSeekLoginPage(postURL) || deepSeekIsUsagePage(postURL) {
-					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08navigatedWithinDocument\uff0cframeId \u5339\u914d\uff0cURL path=%s\uff09", pathOnly(postURL))
-					return nil
+				if pathOnly(postURL) != pathOnly(nwd.URL) {
+					log.Printf("deepseek: navigatedWithinDocument url path=%s \u4e0e\u5f53\u524d PageURL path=%s \u4e0d\u4e00\u81f4\uff0c\u7ee7\u7eed\u7b49\u5f85", pathOnly(nwd.URL), pathOnly(postURL))
+					continue
 				}
-				continue
+				log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08navigatedWithinDocument\uff0cframeId \u5339\u914d\uff0cURL path=%s\uff09", pathOnly(postURL))
+				return nil
 			}
 		case <-time.After(remaining):
 			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")

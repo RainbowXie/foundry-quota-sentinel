@@ -142,7 +142,14 @@ func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	defer c.mu.Unlock()
 	c.pageURLReads++
 	url := c.pageURL
-	// Poll-based URLs: consume one URL per PageURL call for the current nav.
+	// If navSPAURLs is set for the current nav, return that URL
+	// (it's the SPA's post-routing URL = what PageURL should see).
+	if c.navSPAURLs != nil {
+		if u, ok := c.navSPAURLs[c.navigateCount]; ok {
+			url = u
+		}
+	}
+	// Poll-based URLs override if set.
 	if c.pollBasedURLs != nil {
 		if urls, ok := c.pollBasedURLs[c.navigateCount]; ok {
 			idx := c.pollURLIdx[c.navigateCount]
@@ -158,7 +165,7 @@ func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 		url = c.delayedRedirectURL
 	}
 	if c.renavURL != "" && c.navigateCount >= c.renavAfterNavigate {
-		if c.pollBasedURLs == nil {
+		if c.pollBasedURLs == nil && c.navSPAURLs == nil {
 			url = c.renavURL
 		}
 	}
@@ -257,18 +264,31 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	// Send the real event sequence per nav (unless skipDefaultEvent):
 	// 1. Page.frameNavigated (main frame, loaderId matches, url=/usage).
 	// 2. Page.navigatedWithinDocument (SPA client-side routing).
+	// Uses a STABLE main frameId ("MAIN") across all navigations (real
+	// Chrome reuses the same frameId for the main frame).
 	// The fake's PageURL returns the SPA's post-routing URL (navSPAURLs).
 	if sendLoad && c.events != nil && !c.skipDefaultEvent {
 		if loadForNav == nil || loadForNav[nav] {
 			// 1. frameNavigated: initial /usage request, main frame.
-			fnEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s"}}`, nav, loader, deepSeekUsageURL)
+			fnEvt := fmt.Sprintf(`{"frame":{"id":"MAIN","loaderId":"%s","url":"%s"}}`, loader, deepSeekUsageURL)
 			select {
 			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
 			default:
 			}
 			// 2. navigatedWithinDocument: SPA routed (auth decision).
-			// Carries frameId matching the frameNavigated's frameId.
-			nwdEvt := fmt.Sprintf(`{"frameId":"F%d","url":"%s"}`, nav, deepSeekUsageURL)
+			// Uses the SAME stable frameId "MAIN" and the SPA's
+			// post-routing URL (navSPAURLs[nav] or pageURL/renavURL).
+			spaURL := deepSeekUsageURL
+			if c.navSPAURLs != nil {
+				if u, ok := c.navSPAURLs[nav]; ok {
+					spaURL = u
+				}
+			} else if c.renavURL != "" && nav >= c.renavAfterNavigate {
+				spaURL = c.renavURL
+			} else {
+				spaURL = c.pageURL
+			}
+			nwdEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, spaURL)
 			select {
 			case c.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
 			default:
@@ -787,7 +807,8 @@ func TestRunDeepSeekPageDetectsDelayedJumpToLoginAfterUsageStable(t *testing.T) 
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
 	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
-	// Nav2 URL is /sign_in (SPA redirected after reload).
+	// Nav2 SPA redirects to /sign_in (auth failed after reload).
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekLoginURL}
 	cdp.pageURL = deepSeekLoginURL
 	cdp.renavURL = deepSeekLoginURL
 	cdp.renavAfterNavigate = 2
@@ -912,20 +933,26 @@ func TestRunDeepSeekPageRejectsSubFrameNavigatedWithinDocument(t *testing.T) {
 }
 
 // TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument proves
-// that a navigatedWithinDocument from nav1 (arriving during nav2's
-// wait) does NOT satisfy nav2's wait. The fake sends nav1's events
-// normally but suppresses nav2's navigatedWithinDocument, so nav2
-// must time out.
+// that a navigatedWithinDocument from nav1 (url=/sign_in, same stable
+// frameId "MAIN") arriving during nav2's wait does NOT satisfy nav2
+// when nav2's current PageURL is /usage. The event's url (/sign_in)
+// must match the current PageURL (/usage) — mismatch → continue waiting.
+// This prevents a late nav1 /sign_in event from falsely satisfying
+// nav2's auth wait when nav2 is actually on /usage.
 func TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
 	deepSeekSettleTimeout = 500 * time.Millisecond
-	// Send events only for nav1, not nav2.
+	// Nav1 events only; nav2 gets frameNavigated but NOT
+	// navigatedWithinDocument (simulating nav1's late event arriving
+	// during nav2's wait).
 	cdp.loadEventsForNav = map[int]bool{1: true, 2: false}
 	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	// nav2's PageURL is /usage (SPA accepted the token).
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
 	webStore := dsWebStore(92)
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when nav2's navigatedWithinDocument never arrives (late nav1 event must not satisfy nav2)")
+		t.Fatal("runDeepSeekPage must error when nav2's navigatedWithinDocument never arrives (nav1 late event has /sign_in url, not matching nav2's /usage PageURL)")
 	}
 }
 
