@@ -250,30 +250,25 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	hook := c.onNavigate
 	sendLoad := c.sendLoadEvent
 	loadForNav := c.loadEventsForNav
-	// The SPA auth-decision URL: the URL the SPA redirects to after
-	// boot. For nav1 this is typically /sign_in (SPA overwrites token,
-	// auth fails). For nav2 (after re-apply) this is /usage (SPA
-	// accepts the token). Tests can override via navSPAURLs.
-	spaURL := c.pageURL
-	if c.renavURL != "" && nav >= c.renavAfterNavigate {
-		spaURL = c.renavURL
-	}
-	if c.navSPAURLs != nil {
-		if u, ok := c.navSPAURLs[nav]; ok {
-			spaURL = u
-		}
-	}
 	c.mu.Unlock()
 	if hook != nil {
 		hook(nav)
 	}
-	// Send ONE Page.frameNavigated event per nav (unless skipDefaultEvent
-	// is set, in which case onNavigate is responsible for injecting events).
+	// Send the real event sequence per nav (unless skipDefaultEvent):
+	// 1. Page.frameNavigated (main frame, loaderId matches, url=/usage).
+	// 2. Page.navigatedWithinDocument (SPA client-side routing).
+	// The fake's PageURL returns the SPA's post-routing URL (navSPAURLs).
 	if sendLoad && c.events != nil && !c.skipDefaultEvent {
 		if loadForNav == nil || loadForNav[nav] {
-			evt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s"}}`, nav, loader, spaURL)
+			// 1. frameNavigated: initial /usage request, main frame.
+			fnEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s"}}`, nav, loader, deepSeekUsageURL)
 			select {
-			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(evt)}:
+			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
+			default:
+			}
+			// 2. navigatedWithinDocument: SPA routed (auth decision).
+			select {
+			case c.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(`{}`)}:
 			default:
 			}
 		}
@@ -852,6 +847,34 @@ func TestRunDeepSeekPageCrossNavLateLoadEventRejected(t *testing.T) {
 	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must error when nav2's loadEvent never arrives (late nav1 event must not satisfy nav2)")
+	}
+}
+
+// TestRunDeepSeekPageRejectsInitialFrameNavigatedWithoutSPA proves
+// that the initial /usage frameNavigated (from the NavigateWithLoader
+// call itself) must NOT be treated as the auth decision — the SPA
+// hasn't booted yet. The fake sends ONLY the frameNavigated (no
+// navigatedWithinDocument), so the wait must time out. An impl that
+// accepts the initial frameNavigated as success would pass this test
+// wrongly (RED on such an impl).
+func TestRunDeepSeekPageRejectsInitialFrameNavigatedWithoutSPA(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	// Override: send ONLY frameNavigated, NO navigatedWithinDocument.
+	cdp.skipDefaultEvent = true
+	cdp.onNavigate = func(nav int) {
+		loader := "L" + strconv.Itoa(nav)
+		evt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s"}}`, nav, loader, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(evt)}:
+		default:
+		}
+	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must NOT succeed on initial frameNavigated alone (SPA hasn't made auth decision)")
 	}
 }
 
