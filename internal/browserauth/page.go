@@ -155,23 +155,21 @@ func DecodeFrameStoppedLoadingEvent(event Event) (FrameStoppedLoadingEvent, bool
 }
 
 // FrameNavigatedEvent is the decoded form of Page.frameNavigated. It
-// carries a frameId, the URL the frame navigated to, and the loaderId
-// that initiated the navigation, so a coordinator can associate it
-// with a specific Page.navigate call and reject events from a previous
-// navigation. The frame also has a name/type; "OutermostFrame" marks
-// the main frame.
+// carries a frameId, the URL the frame navigated to, the loaderId that
+// initiated the navigation, and a parentId. A frame with no parentId is
+// the main (outermost) frame; a frame with a parentId is a sub-frame.
 type FrameNavigatedEvent struct {
 	FrameID  string
 	LoaderID string
 	URL      string
-	Name     string
+	ParentID string
 }
 
 // IsMainFrame reports whether this frameNavigated event is for the
-// main (outermost) frame — sub-frame navigations (iframes, etc.) must
-// not be treated as the SPA's auth-decision signal.
+// main (outermost) frame — determined by the ABSENCE of a parentId,
+// not by the frame name (which Chrome does not reliably set).
 func (e FrameNavigatedEvent) IsMainFrame() bool {
-	return e.Name == "" || strings.Contains(e.Name, "OutermostFrame")
+	return e.ParentID == ""
 }
 
 // DecodeFrameNavigatedEvent returns the typed view of a
@@ -188,7 +186,7 @@ func DecodeFrameNavigatedEvent(event Event) (FrameNavigatedEvent, bool) {
 			ID       string `json:"id"`
 			LoaderID string `json:"loaderId"`
 			URL      string `json:"url"`
-			Name     string `json:"name"`
+			ParentID string `json:"parentId"`
 		} `json:"frame"`
 	}
 	if err := json.Unmarshal(event.Params, &payload); err != nil {
@@ -198,7 +196,7 @@ func DecodeFrameNavigatedEvent(event Event) (FrameNavigatedEvent, bool) {
 		FrameID:  payload.Frame.ID,
 		LoaderID: payload.Frame.LoaderID,
 		URL:      payload.Frame.URL,
-		Name:     payload.Frame.Name,
+		ParentID: payload.Frame.ParentID,
 	}, true
 }
 

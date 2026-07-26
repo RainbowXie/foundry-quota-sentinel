@@ -94,10 +94,11 @@ type fakeDeepSeekCDP struct {
 	loadEventsForNav map[int]bool
 	// navSPAURLs maps nav → the URL the SPA redirects to after boot
 	// (the auth-decision URL). nil for a nav = use pageURL/renavURL.
-	// Tests set this to control the SPA's auth decision per nav:
-	// e.g. {1: sign_in, 2: usage} means nav1 SPA redirects to login,
-	// nav2 SPA stays on usage.
 	navSPAURLs map[int]string
+	// skipDefaultEvent suppresses the default frameNavigated event in
+	// NavigateWithLoader when onNavigate is set (so tests that inject
+	// custom events via onNavigate don't also get the default one).
+	skipDefaultEvent bool
 	// responseBodies maps requestId → response body for the
 	// GetResponseBody fake. Tests register `{"code":0,...}` for a real
 	// protected response; a missing/non-zero-code body makes
@@ -266,24 +267,13 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	if hook != nil {
 		hook(nav)
 	}
-	// Send two Page.frameNavigated events per nav:
-	// 1. Initial request to /usage (same loaderId, matches initialURL
-	//    → rejected by deepSeekWaitForAuthDecision as "not the auth
-	//    decision").
-	// 2. SPA auth-decision redirect to spaURL (same loaderId, different
-	//    URL → accepted).
-	if sendLoad && c.events != nil {
+	// Send ONE Page.frameNavigated event per nav (unless skipDefaultEvent
+	// is set, in which case onNavigate is responsible for injecting events).
+	if sendLoad && c.events != nil && !c.skipDefaultEvent {
 		if loadForNav == nil || loadForNav[nav] {
-			// Initial request frameNavigated.
-			initEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s","name":"OutermostFrame"}}`, nav, loader, deepSeekUsageURL)
+			evt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s"}}`, nav, loader, spaURL)
 			select {
-			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(initEvt)}:
-			default:
-			}
-			// SPA auth-decision frameNavigated.
-			spaEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s","name":"OutermostFrame"}}`, nav, loader, spaURL)
-			select {
-			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(spaEvt)}:
+			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(evt)}:
 			default:
 			}
 		}
@@ -862,6 +852,68 @@ func TestRunDeepSeekPageCrossNavLateLoadEventRejected(t *testing.T) {
 	webStore := `{"l":{"userToken":"` + strings.Repeat("a", 92) + `"},"s":{}}`
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
 		t.Fatal("runDeepSeekPage must error when nav2's loadEvent never arrives (late nav1 event must not satisfy nav2)")
+	}
+}
+
+// TestRunDeepSeekPageRejectsSubFrameFrameNavigated proves a
+// frameNavigated with a parentId (sub-frame/iframe) is NOT accepted
+// as the SPA auth-decision signal, even if the URL is /usage. Only
+// main-frame (parentId absent) events count.
+func TestRunDeepSeekPageRejectsSubFrameFrameNavigated(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.skipDefaultEvent = true
+	// Override: send a sub-frame frameNavigated (with parentId) instead
+	// of the default main-frame one.
+	cdp.onNavigate = func(nav int) {
+		loader := "L" + strconv.Itoa(nav)
+		spaURL := deepSeekLoginURL
+		if cdp.navSPAURLs != nil {
+			if u, ok := cdp.navSPAURLs[nav]; ok {
+				spaURL = u
+			}
+		}
+		// Sub-frame: has parentId.
+		evt := fmt.Sprintf(`{"frame":{"id":"SUB%d","loaderId":"%s","url":"%s","parentId":"F%d"}}`, nav, loader, spaURL, nav)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(evt)}:
+		default:
+		}
+	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must reject sub-frame frameNavigated (parentId present)")
+	}
+}
+
+// TestRunDeepSeekPageRejectsEmptyLoaderId proves a frameNavigated with
+// an empty loaderId is NOT accepted — the loaderId must be non-empty
+// and strictly match the current navigation's loaderId.
+func TestRunDeepSeekPageRejectsEmptyLoaderId(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.skipDefaultEvent = true
+	// Override: send frameNavigated with empty loaderId.
+	cdp.onNavigate = func(nav int) {
+		spaURL := deepSeekLoginURL
+		if cdp.navSPAURLs != nil {
+			if u, ok := cdp.navSPAURLs[nav]; ok {
+				spaURL = u
+			}
+		}
+		evt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"","url":"%s"}}`, nav, spaURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(evt)}:
+		default:
+		}
+	}
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("runDeepSeekPage must reject frameNavigated with empty loaderId")
 	}
 }
 
