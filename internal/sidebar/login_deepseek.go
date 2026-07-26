@@ -487,7 +487,7 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	// navigation's loaderId. The signal is a URL transition to /sign_in
 	// (auth failed) or /usage (auth succeeded) on the same loader, not
 	// just Page.loadEventFired (which only proves document load).
-	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout); err != nil {
+	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout, false); err != nil {
 		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定超时: %w", err))
 	}
 
@@ -509,7 +509,7 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	// Wait for the SPA auth-decision signal on the RELOAD navigation.
 	// A late loadEventFired from nav1 has a different loaderId and is
 	// rejected.
-	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {
+	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout, true); err != nil {
 		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页重新加载鉴权决定超时: %w", err))
 	}
 
@@ -537,19 +537,24 @@ var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekWaitForAuthDecision waits for an observable signal that the SPA
 // has made its auth decision for THIS navigation. The signal is
-// Page.frameNavigated carrying a URL on /usage or /sign_in \u2014 this
-// event carries a frameId that identifies the frame (and thus the
-// navigation), unlike Page.loadEventFired which carries no frame/loader
-// info.
+// Page.frameNavigated on the MAIN frame whose loaderId matches the
+// Page.navigate return value, carrying a URL on /usage or /sign_in.
 //
-// A late frameNavigated from a PREVIOUS navigation is naturally consumed
-// and ignored \u2014 only a frameNavigated arriving AFTER this nav's
-// NavigateWithLoader with /usage or /sign_in satisfies the wait.
+// The initial /usage frameNavigated (from the NavigateWithLoader call
+// itself) has the SAME loaderId but is NOT the SPA auth decision — it
+// is the initial document request. The SPA's auth decision is a
+// SUBSEQUENT frameNavigated (same loaderId, same main frame) with a
+// different URL (e.g. /sign_in after the SPA boots and rejects the
+// token, or /usage if the SPA accepts it). So we require the
+// frameNavigated URL to differ from the initial request URL OR to be
+// /sign_in (which is always a redirect, never the initial request).
 //
-// The function returns an explicit error on timeout, CDP channel close,
-// or ctx cancellation \u2014 never silently succeeds.
-func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, loaderID string, timeout time.Duration) error {
+// A late frameNavigated from a PREVIOUS navigation (different loaderId)
+// is rejected by the loaderId check. The function returns an explicit
+// error on timeout, CDP channel close, or ctx cancellation.
+func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, loaderID string, timeout time.Duration, isReload bool) error {
 	deadline := time.Now().Add(timeout)
+	initialURL := deepSeekUsageURL // the URL we navigated to
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
@@ -560,15 +565,31 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 			if !ok {
 				return fmt.Errorf("CDP \u4e8b\u4ef6\u901a\u9053\u5df2\u5173\u95ed")
 			}
-			// Page.frameNavigated carries frameId + URL \u2014 the SPA's
-			// auth-decision signal: after document load, the SPA redirects
-			// to /usage (authed) or /sign_in (not authed). This event is
-			// associated with the frame that navigated, unlike loadEventFired.
 			if fn, ok := browserauth.DecodeFrameNavigatedEvent(ev); ok {
-				if isDeepSeekLoginPage(fn.URL) || deepSeekIsUsagePage(fn.URL) {
-					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08frameId \u957f\u5ea6 %d\uff0cURL path=%s\uff09", len(fn.FrameID), pathOnly(fn.URL))
+				// Must be the main frame (not a sub-frame/iframe).
+				if !fn.IsMainFrame() {
+					continue
+				}
+				// Must match this navigation's loaderId (rejects late
+				// events from a previous navigation).
+				if loaderID != "" && fn.LoaderID != "" && fn.LoaderID != loaderID {
+					continue
+				}
+				// The initial /usage request is NOT the auth decision —
+				// the SPA hasn't booted yet. Only accept /sign_in (always
+				// a redirect) or a /usage that differs from the initial
+				// request (meaning the SPA re-navigated to /usage after
+				// accepting the token).
+				if isDeepSeekLoginPage(fn.URL) {
+					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08loaderId \u5339\u914d\uff0cURL path=/sign_in\uff09")
 					return nil
 				}
+				if deepSeekIsUsagePage(fn.URL) && (isReload || fn.URL != initialURL) {
+					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08loaderId \u5339\u914d\uff0cURL path=/usage\uff0c\u975e\u521d\u59cb\u8bf7\u6c42\uff09")
+					return nil
+				}
+				// Initial /usage request (same URL) — not the auth
+				// decision; keep waiting for the SPA to redirect.
 				continue
 			}
 		case <-time.After(remaining):

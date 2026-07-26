@@ -86,15 +86,18 @@ type fakeDeepSeekCDP struct {
 	// count, so a test can push events onto the channel only after a
 	// re-navigate (modeling the auth-check race fix).
 	onNavigate func(nav int)
-	// sendLoadEvent controls whether NavigateWithLoader pushes a
-	// Page.loadEventFired event onto the events channel. nil/empty =
-	// no event (models a timeout/failure); non-empty = push on each nav.
-	// Tests that want successful navigation set this to true.
+	// sendLoadEvent controls whether NavigateWithLoader pushes
+	// Page.frameNavigated events. false = no event (timeout).
 	sendLoadEvent bool
-	// loadEventsForNav controls which navigations get a loadEvent.
-	// nil = all navigations (when sendLoadEvent=true). A map with
-	// specific nav numbers = only those navs get the event.
+	// loadEventsForNav controls which navigations get frameNavigated.
+	// nil = all navigations (when sendLoadEvent=true).
 	loadEventsForNav map[int]bool
+	// navSPAURLs maps nav → the URL the SPA redirects to after boot
+	// (the auth-decision URL). nil for a nav = use pageURL/renavURL.
+	// Tests set this to control the SPA's auth decision per nav:
+	// e.g. {1: sign_in, 2: usage} means nav1 SPA redirects to login,
+	// nav2 SPA stays on usage.
+	navSPAURLs map[int]string
 	// responseBodies maps requestId → response body for the
 	// GetResponseBody fake. Tests register `{"code":0,...}` for a real
 	// protected response; a missing/non-zero-code body makes
@@ -246,22 +249,41 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	hook := c.onNavigate
 	sendLoad := c.sendLoadEvent
 	loadForNav := c.loadEventsForNav
-	url := c.pageURL
+	// The SPA auth-decision URL: the URL the SPA redirects to after
+	// boot. For nav1 this is typically /sign_in (SPA overwrites token,
+	// auth fails). For nav2 (after re-apply) this is /usage (SPA
+	// accepts the token). Tests can override via navSPAURLs.
+	spaURL := c.pageURL
 	if c.renavURL != "" && nav >= c.renavAfterNavigate {
-		url = c.renavURL
+		spaURL = c.renavURL
+	}
+	if c.navSPAURLs != nil {
+		if u, ok := c.navSPAURLs[nav]; ok {
+			spaURL = u
+		}
 	}
 	c.mu.Unlock()
 	if hook != nil {
 		hook(nav)
 	}
-	// Push a Page.frameNavigated event if configured for this nav. This
-	// carries a frameId + URL — the SPA's auth-decision signal (redirect
-	// to /usage or /sign_in). Models the real observable signal.
+	// Send two Page.frameNavigated events per nav:
+	// 1. Initial request to /usage (same loaderId, matches initialURL
+	//    → rejected by deepSeekWaitForAuthDecision as "not the auth
+	//    decision").
+	// 2. SPA auth-decision redirect to spaURL (same loaderId, different
+	//    URL → accepted).
 	if sendLoad && c.events != nil {
 		if loadForNav == nil || loadForNav[nav] {
-			frameEvt := fmt.Sprintf(`{"frame":{"id":"F%d","url":"%s"}}`, nav, url)
+			// Initial request frameNavigated.
+			initEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s","name":"OutermostFrame"}}`, nav, loader, deepSeekUsageURL)
 			select {
-			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(frameEvt)}:
+			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(initEvt)}:
+			default:
+			}
+			// SPA auth-decision frameNavigated.
+			spaEvt := fmt.Sprintf(`{"frame":{"id":"F%d","loaderId":"%s","url":"%s","name":"OutermostFrame"}}`, nav, loader, spaURL)
+			select {
+			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(spaEvt)}:
 			default:
 			}
 		}
@@ -590,8 +612,9 @@ func TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite(t *testing.T) {
 		renavURL:           deepSeekUsageURL,
 		renavAfterNavigate: 2,
 		postNavLengths:     map[int][]int{1: {30}, 2: {92}},
-		events:             make(chan browserauth.Event, 16),
+		events:             make(chan browserauth.Event, 32),
 		sendLoadEvent:      true,
+		navSPAURLs:         map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL},
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -679,8 +702,9 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		pageURL:             deepSeekLoginURL,
 		postNavLengths:      map[int][]int{1: {30}, 2: {30}},
 		localStorageLengths: []int{92},
-		events:              make(chan browserauth.Event, 16),
+		events:              make(chan browserauth.Event, 32),
 		sendLoadEvent:       true,
+		navSPAURLs:          map[int]string{1: deepSeekLoginURL, 2: deepSeekLoginURL},
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp, waitBlocks: true, waitRelease: make(chan struct{})}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -850,8 +874,13 @@ func dsPageTestSetup(t *testing.T) (*fakeDeepSeekCDP, *fakeDeepSeekBrowser, func
 	originalSettle := deepSeekSettleTimeout
 	cdp := &fakeDeepSeekCDP{
 		pageURL:       deepSeekUsageURL,
-		events:        make(chan browserauth.Event, 16),
-		sendLoadEvent: true, // by default, each nav fires loadEventFired
+		events:        make(chan browserauth.Event, 32),
+		sendLoadEvent: true,
+		// Default: nav1 SPA redirects to /sign_in (token overwritten),
+		// nav2 SPA stays on /usage (token accepted after re-apply).
+		navSPAURLs:         map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL},
+		renavURL:           deepSeekUsageURL,
+		renavAfterNavigate: 2,
 	}
 	browser := &fakeDeepSeekBrowser{cdp: cdp}
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
@@ -898,8 +927,10 @@ func TestRunDeepSeekPageRestoresStoredCookies(t *testing.T) {
 func TestRunDeepSeekPageDetectsLoginRedirect(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	cdp.pageURL = deepSeekLoginURL                       // stuck on sign_in even after re-navigate
-	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}} // re-apply works but URL stays sign_in
+	cdp.pageURL = deepSeekLoginURL
+	cdp.renavURL = deepSeekLoginURL
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekLoginURL}
 
 	webStore := dsWebStore(92)
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {

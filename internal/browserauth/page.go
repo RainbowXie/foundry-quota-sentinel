@@ -155,12 +155,23 @@ func DecodeFrameStoppedLoadingEvent(event Event) (FrameStoppedLoadingEvent, bool
 }
 
 // FrameNavigatedEvent is the decoded form of Page.frameNavigated. It
-// carries a frameId and the URL the frame navigated to, so a
-// coordinator can observe the SPA's auth-decision redirect associated
-// with a specific frame.
+// carries a frameId, the URL the frame navigated to, and the loaderId
+// that initiated the navigation, so a coordinator can associate it
+// with a specific Page.navigate call and reject events from a previous
+// navigation. The frame also has a name/type; "OutermostFrame" marks
+// the main frame.
 type FrameNavigatedEvent struct {
-	FrameID string
-	URL     string
+	FrameID  string
+	LoaderID string
+	URL      string
+	Name     string
+}
+
+// IsMainFrame reports whether this frameNavigated event is for the
+// main (outermost) frame — sub-frame navigations (iframes, etc.) must
+// not be treated as the SPA's auth-decision signal.
+func (e FrameNavigatedEvent) IsMainFrame() bool {
+	return e.Name == "" || strings.Contains(e.Name, "OutermostFrame")
 }
 
 // DecodeFrameNavigatedEvent returns the typed view of a
@@ -174,14 +185,21 @@ func DecodeFrameNavigatedEvent(event Event) (FrameNavigatedEvent, bool) {
 	}
 	var payload struct {
 		Frame struct {
-			ID  string `json:"id"`
-			URL string `json:"url"`
+			ID       string `json:"id"`
+			LoaderID string `json:"loaderId"`
+			URL      string `json:"url"`
+			Name     string `json:"name"`
 		} `json:"frame"`
 	}
 	if err := json.Unmarshal(event.Params, &payload); err != nil {
 		return FrameNavigatedEvent{}, false
 	}
-	return FrameNavigatedEvent{FrameID: payload.Frame.ID, URL: payload.Frame.URL}, true
+	return FrameNavigatedEvent{
+		FrameID:  payload.Frame.ID,
+		LoaderID: payload.Frame.LoaderID,
+		URL:      payload.Frame.URL,
+		Name:     payload.Frame.Name,
+	}, true
 }
 
 // parseHTTPSURL accepts only HTTPS URLs whose host matches the caller
