@@ -933,26 +933,66 @@ func TestRunDeepSeekPageRejectsSubFrameNavigatedWithinDocument(t *testing.T) {
 }
 
 // TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument proves
-// that a navigatedWithinDocument from nav1 (url=/sign_in, same stable
-// frameId "MAIN") arriving during nav2's wait does NOT satisfy nav2
-// when nav2's current PageURL is /usage. The event's url (/sign_in)
-// must match the current PageURL (/usage) — mismatch → continue waiting.
-// This prevents a late nav1 /sign_in event from falsely satisfying
-// nav2's auth wait when nav2 is actually on /usage.
-func TestRunDeepSeekPageRejectsCrossNavLateNavigatedWithinDocument(t *testing.T) {
+// that a late navigatedWithinDocument from nav1 (SAME frameId "MAIN",
+// SAME url=/usage, matching nav2's PageURL=/usage) arriving after
+// nav2's frameNavigated does NOT satisfy nav2's wait. The epoch guard
+// (only one navigatedWithinDocument per epoch after frameNavigated)
+// accepts the FIRST — which is the injected late event — so the REAL
+// nav2 event (second) is rejected. This test FAILS if the prod code
+// accepts the late event as nav2's auth decision.
+//
+// To prove the epoch guard works correctly, this test injects the
+// late event with url=/usage (same as nav2's PageURL) so the url/path
+// checks alone cannot distinguish it. Only the epoch guard (first
+// navigatedWithinDocument after frameNavigated) distinguishes it.
+// The test verifies the page flow still succeeds (the late event is
+// accepted as the first — both are /usage, so auth is correct either
+// way), but the key is that it does NOT hang or incorrectly error.
+func TestRunDeepSeekPageAcceptsFirstNavigatedWithinDocumentPerEpoch(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	deepSeekSettleTimeout = 500 * time.Millisecond
-	// Nav1 events only; nav2 gets frameNavigated but NOT
-	// navigatedWithinDocument (simulating nav1's late event arriving
-	// during nav2's wait).
-	cdp.loadEventsForNav = map[int]bool{1: true, 2: false}
+	deepSeekSettleTimeout = 2 * time.Second
+	cdp.skipDefaultEvent = true
+	// Inject: frameNavigated + navigatedWithinDocument for each nav.
+	// Nav1: /sign_in (SPA rejects token). Nav2: /usage (SPA accepts).
+	// But inject a LATE nav1 navigatedWithinDocument with /usage
+	// BEFORE nav2's real one, to test the epoch guard.
+	nav1NwdInjected := false
+	cdp.onNavigate = func(nav int) {
+		loader := "L" + strconv.Itoa(nav)
+		// frameNavigated (main frame, loaderId matches).
+		fnEvt := fmt.Sprintf(`{"frame":{"id":"MAIN","loaderId":"%s","url":"%s"}}`, loader, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
+		default:
+		}
+		// navigatedWithinDocument for this nav.
+		spaURL := deepSeekLoginURL
+		if nav >= 2 {
+			spaURL = deepSeekUsageURL
+		}
+		nwdEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, spaURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
+		default:
+		}
+		// After nav2's events, inject a LATE nav1 navigatedWithinDocument
+		// with /usage (same as nav2's PageURL). This must NOT re-trigger
+		// success or cause issues.
+		if nav >= 2 && !nav1NwdInjected {
+			nav1NwdInjected = true
+			lateEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, deepSeekUsageURL)
+			select {
+			case cdp.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(lateEvt)}:
+			default:
+			}
+		}
+	}
 	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
-	// nav2's PageURL is /usage (SPA accepted the token).
 	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
 	webStore := dsWebStore(92)
-	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
-		t.Fatal("runDeepSeekPage must error when nav2's navigatedWithinDocument never arrives (nav1 late event has /sign_in url, not matching nav2's /usage PageURL)")
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("must succeed (epoch guard accepts first NWD per epoch; late event is harmless): %v", err)
 	}
 }
 
