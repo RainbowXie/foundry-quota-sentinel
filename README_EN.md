@@ -7,7 +7,7 @@
 *One desktop sidebar to watch OpenCode Go, DeepSeek, and Ollama Cloud usage — multi-account, browser login.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.0-4466FF?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/version-0.9.0-4466FF?style=flat-square" alt="version">
   <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go" alt="go">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4?style=flat-square" alt="platform">
   <img src="https://img.shields.io/badge/build-CGO-FF2D78?style=flat-square" alt="cgo">
@@ -67,8 +67,8 @@
 
 | Platform | GUI form | OpenCode browser login | DeepSeek browser login | Ollama browser login | CLI / web panel |
 |---|---|---|---|---|---|
-| Windows | Edge-docked auto-hiding sidebar | via `config add` (manual) | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
-| macOS | Standalone window | via `config add` (manual) | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
+| Windows | Edge-docked auto-hiding sidebar | ✅ | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
+| macOS | Standalone window | ✅ | ✅ | Chrome / Chromium / Edge must be on PATH | ✅ |
 | Linux | Standalone window | ✅ | ✅ | ✅ (verified with Edge) | ✅ |
 
 > OpenCode, DeepSeek, and Ollama all use the same `internal/browserauth` path: a one-shot temporary profile launches an installed Chrome/Chromium/Edge and the DevTools Protocol captures credentials. The system WebView only powers the local sidebar UI. Edge-docked auto-hide is a Windows-native capability.
@@ -118,7 +118,7 @@ foundry-quota-sentinel serve
 | `balance` | DeepSeek balance (official API key) |
 | `history` | Local 7-day token usage history |
 | `login-deepseek <name>` | Pop-up login, save DeepSeek web Token |
-| `login-opencode <name>` | Pop-up login, save OpenCode Cookie (Linux) |
+| `login-opencode <name>` | Pop-up login, save OpenCode Cookie |
 | `login-ollama <name>` | One-shot Chrome / Chromium / Edge login, save Ollama Cookie |
 | `config init` / `config add <name>` | Interactive setup / add account |
 | `config list` / `config use <name>` | List / switch accounts |

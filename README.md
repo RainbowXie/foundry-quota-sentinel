@@ -7,7 +7,7 @@
 *一个桌面侧边栏统一监视 OpenCode Go、DeepSeek 与 Ollama Cloud 用量 —— 多账户、浏览器登录。*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.8.0-4466FF?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/version-0.9.0-4466FF?style=flat-square" alt="version">
   <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go" alt="go">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4?style=flat-square" alt="platform">
   <img src="https://img.shields.io/badge/build-CGO-FF2D78?style=flat-square" alt="cgo">
@@ -67,8 +67,8 @@
 
 | 平台 | GUI 形态 | OpenCode 浏览器登录 | DeepSeek 浏览器登录 | Ollama 浏览器登录 | CLI / 网页面板 |
 |---|---|---|---|---|---|
-| Windows | 贴边自动隐藏的停靠侧边栏 | 用 `config add` 手动配置 | ✅ | 需 Chrome / Chromium / Edge 在 PATH | ✅ |
-| macOS | 普通独立窗口 | 用 `config add` 手动配置 | ✅ | 需 Chrome / Chromium / Edge 在 PATH | ✅ |
+| Windows | 贴边自动隐藏的停靠侧边栏 | ✅ | ✅ | 需 Chrome / Chromium / Edge 在 PATH | ✅ |
+| macOS | 普通独立窗口 | ✅ | ✅ | 需 Chrome / Chromium / Edge 在 PATH | ✅ |
 | Linux | 普通独立窗口 | ✅ | ✅ | ✅（已验证 Edge） | ✅ |
 
 > OpenCode、DeepSeek、Ollama 的登录与账户页统一走 `internal/browserauth`：使用本机已安装的 Chrome/Chromium/Edge 启动一个一次性临时配置窗口，通过 DevTools Protocol 抓取凭证。停靠侧边栏的贴边自动隐藏是 Windows 原生能力。
@@ -115,7 +115,7 @@ foundry-quota-sentinel serve
 | `balance` | DeepSeek 余额（官方 API Key） |
 | `history` | 本地 7 日 token 消耗历史 |
 | `login-deepseek <名称>` | 弹窗登录 DeepSeek 保存网页 Token |
-| `login-opencode <名称>` | 弹窗登录 OpenCode 保存 Cookie（Linux） |
+| `login-opencode <名称>` | 弹窗登录 OpenCode 保存 Cookie |
 | `login-ollama <名称>` | 使用一次性 Chrome / Chromium / Edge 登录并保存 Ollama Cookie |
 | `config init` / `config add <名称>` | 交互式配置 / 添加账户 |
 | `config list` / `config use <名称>` | 列出 / 切换账户 |
