@@ -483,12 +483,19 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if err != nil {
 		return failAndWait(fmt.Errorf("打开 DeepSeek 账户页失败: %w", err))
 	}
-	// Wait for the SPA auth-decision signal associated with THIS
-	// navigation's loaderId. The signal is a URL transition to /sign_in
-	// (auth failed) or /usage (auth succeeded) on the same loader, not
-	// just Page.loadEventFired (which only proves document load).
+	// Nav1: wait for the SPA auth-decision signal (protected API response
+	// with matching loaderId). On nav1 the SPA typically overwrites
+	// userToken and redirects to /sign_in — no protected API call fires,
+	// so this wait times out. That's EXPECTED: the timeout means "SPA
+	// didn't authenticate on nav1" → proceed to re-apply and reload.
+	// Only a CDP channel close or ctx cancellation is fatal here.
 	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout); err != nil {
-		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定超时: %w", err))
+		// Timeout on nav1 is expected (SPA didn't auth). Channel/ctx
+		// errors are fatal.
+		if strings.Contains(err.Error(), "事件通道已关闭") || strings.Contains(err.Error(), "被取消") {
+			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定失败: %w", err))
+		}
+		log.Printf("deepseek: 首次导航未观测到受保护接口响应（预期：SPA 覆盖了 userToken）")
 	}
 
 	// Re-apply the restore script post-load (after SPA boot overwrote
@@ -536,28 +543,29 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 var deepSeekSettleTimeout = 5 * time.Second
 
 // deepSeekWaitForAuthDecision waits for the real SPA auth-decision
-// signal using Page.frameStartedNavigating as the navigation epoch
-// marker. This event carries a loaderId that uniquely identifies the
-// navigation (Page.navigate may return empty for reloads).
+// signal: a Network.responseReceived with status 2xx on a PROTECTED
+// DeepSeek API endpoint (get_user_summary / usage/amount) whose
+// loaderId matches the current navigation's frameStartedNavigating
+// loaderId. This is the real observable auth signal — the SPA makes
+// these API calls only when it has accepted the userToken.
 //
 // The function:
-//  1. Waits for Page.frameStartedNavigating with a non-empty loaderId.
-//     This is the epoch start — the loaderId identifies this navigation.
-//  2. Waits for Page.frameNavigated with the SAME loaderId (main frame,
-//     parentId absent). Saves the frameId.
-//  3. Waits for Page.navigatedWithinDocument with the SAME frameId AND
-//     whose url is /usage or /sign_in. The event's url path must match
-//     the current PageURL path. Propagates PageURL errors.
+//  1. Waits for Page.frameStartedNavigating with non-empty loaderId →
+//     epochLoaderID (unique per navigation).
+//  2. Waits for Network.responseReceived with status 2xx on a
+//     protected API URL AND whose loaderId == epochLoaderID.
+//  3. Reads PageURL to confirm the page is on /usage.
 //
-// A late event from a previous navigation has a DIFFERENT loaderId
-// (captured at step 1), so it cannot match at step 2 or 3.
+// A late event from a previous navigation has a DIFFERENT loaderId,
+// so it cannot match at step 2. This is real cross-navigation
+// association via loaderId on the response event itself.
+//
 // Returns an explicit error on timeout, CDP channel close, or ctx
 // cancellation.
 func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, _ string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var epochLoaderID string
-	var mainFrameID string
-	phase := 0 // 0=wait frameStartedNavigating, 1=wait frameNavigated, 2=wait navigatedWithinDocument
+	phase := 0 // 0=wait frameStartedNavigating, 1=wait protected API response
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
@@ -569,7 +577,6 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 				return fmt.Errorf("CDP \u4e8b\u4ef6\u901a\u9053\u5df2\u5173\u95ed")
 			}
 			if phase == 0 {
-				// Step 1: wait for frameStartedNavigating with non-empty loaderId.
 				if fsn, ok := browserauth.DecodeFrameStartedNavigatingEvent(ev); ok {
 					if fsn.LoaderID != "" {
 						epochLoaderID = fsn.LoaderID
@@ -581,36 +588,32 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 				continue
 			}
 			if phase == 1 {
-				// Step 2: wait for frameNavigated with the SAME loaderId (main frame).
-				if fn, ok := browserauth.DecodeFrameNavigatedEvent(ev); ok {
-					if fn.IsMainFrame() && fn.LoaderID == epochLoaderID {
-						mainFrameID = fn.FrameID
-						phase = 2
-						log.Printf("deepseek: \u4e3b\u5e27 frameNavigated \u5df2\u89c2\u6d4b\uff08loaderId \u5339\u914d epoch\uff09")
+				// Wait for Network.responseReceived with 2xx on a protected
+				// API URL with loaderId matching the epoch.
+				if rr, ok := browserauth.DecodeResponseReceivedEvent(ev); ok {
+					if rr.Status >= 200 && rr.Status < 300 && isProtectedAPIURL(rr.URL) {
+						// Check loaderId: the responseReceived event carries
+						// a loaderId in its params. We need to decode it.
+						// DecodeFrameStartedNavigatingEvent won't work; we
+						// need a raw decode for the loaderId.
+						var raw struct {
+							LoaderID string `json:"loaderId"`
+						}
+						if json.Unmarshal(ev.Params, &raw) == nil && raw.LoaderID == epochLoaderID {
+							// Confirm the page is on /usage.
+							postURL, err := cdp.PageURL(ctx, deepSeekHost)
+							if err != nil {
+								return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
+							}
+							if !deepSeekIsUsagePage(postURL) {
+								log.Printf("deepseek: \u53d7\u4fdd\u62a4\u63a5\u53e3\u6210\u529f\u4f46\u9875\u9762\u672a\u5728 usage\uff0cURL path=%s\uff0c\u7ee7\u7eed\u7b49\u5f85", pathOnly(postURL))
+								continue
+							}
+							log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08\u53d7\u4fdd\u62a4\u63a5\u53e3 2xx\uff0cloaderId \u5339\u914d\uff0cURL path=/usage\uff09")
+							return nil
+						}
 					}
 					continue
-				}
-				continue
-			}
-			if phase == 2 {
-				// Step 3: wait for navigatedWithinDocument with matching frameId
-				// and valid url.
-				if nwd, ok := browserauth.DecodeNavigatedWithinDocumentEvent(ev); ok {
-					if mainFrameID != "" && nwd.FrameID != mainFrameID {
-						continue
-					}
-					if !isDeepSeekLoginPage(nwd.URL) && !deepSeekIsUsagePage(nwd.URL) {
-						continue
-					}
-					postURL, err := cdp.PageURL(ctx, deepSeekHost)
-					if err != nil {
-						return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
-					}
-					if pathOnly(postURL) != pathOnly(nwd.URL) {
-						continue
-					}
-					log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08navigatedWithinDocument\uff0cframeId \u5339\u914d\uff0cURL path=%s\uff09", pathOnly(postURL))
-					return nil
 				}
 				continue
 			}

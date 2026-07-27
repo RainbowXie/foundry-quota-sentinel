@@ -263,10 +263,9 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 	}
 	// Send the real event sequence per nav (unless skipDefaultEvent):
 	// 1. Page.frameStartedNavigating (carries loaderId = epoch marker).
-	// 2. Page.frameNavigated (same loaderId, main frame, url=/usage).
-	// 3. Page.navigatedWithinDocument (same frameId, SPA auth decision).
-	// Uses a STABLE main frameId ("MAIN") across all navigations (real
-	// Chrome reuses the same frameId for the main frame).
+	// 2. Network.responseReceived on a protected API URL (status 200,
+	//    same loaderId) — the real SPA auth-decision signal.
+	// The fake's PageURL returns the SPA's post-routing URL (navSPAURLs).
 	if sendLoad && c.events != nil && !c.skipDefaultEvent {
 		if loadForNav == nil || loadForNav[nav] {
 			// 1. frameStartedNavigating: epoch marker with loaderId.
@@ -275,13 +274,11 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 			case c.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
 			default:
 			}
-			// 2. frameNavigated: initial /usage request, main frame.
-			fnEvt := fmt.Sprintf(`{"frame":{"id":"MAIN","loaderId":"%s","url":"%s"}}`, loader, deepSeekUsageURL)
-			select {
-			case c.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
-			default:
-			}
-			// 3. navigatedWithinDocument: SPA routed (auth decision).
+			// 2. Network.responseReceived on get_user_summary (status 200,
+			//    same loaderId) — the real protected API auth signal.
+			// Only sent if the SPA accepted the token (navSPAURLs[nav]
+			// is /usage). If navSPAURLs[nav] is /sign_in, no protected
+			// API response is sent (SPA didn't authenticate).
 			spaURL := deepSeekUsageURL
 			if c.navSPAURLs != nil {
 				if u, ok := c.navSPAURLs[nav]; ok {
@@ -292,10 +289,12 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 			} else {
 				spaURL = c.pageURL
 			}
-			nwdEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, spaURL)
-			select {
-			case c.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
-			default:
+			if deepSeekIsUsagePage(spaURL) {
+				rrEvt := fmt.Sprintf(`{"requestId":"r%d","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, nav, loader)
+				select {
+				case c.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+				default:
+				}
 			}
 		}
 	}
@@ -616,7 +615,7 @@ func TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite(t *testing.T) {
 		launchDeepSeekBrowser = originalLaunch
 		deepSeekSettleTimeout = originalSettle
 	}()
-	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettleTimeout = 500 * time.Millisecond
 
 	cdp := &fakeDeepSeekCDP{
 		pageURL:            deepSeekUsageURL,
@@ -698,7 +697,7 @@ func TestRunDeepSeekPageErrorSignalsThenWaits(t *testing.T) {
 		OpenPageError = originalErrorHook
 		resetOpenPageErrorOnce()
 	}()
-	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettleTimeout = 200 * time.Millisecond
 	resetOpenPageErrorOnce()
 
 	errorCh := make(chan string, 1)
@@ -955,48 +954,38 @@ func TestRunDeepSeekPageRejectsSubFrameNavigatedWithinDocument(t *testing.T) {
 func TestRunDeepSeekPageAcceptsFirstNavigatedWithinDocumentPerEpoch(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
-	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettleTimeout = 500 * time.Millisecond
 	cdp.skipDefaultEvent = true
-	// Inject the full real event sequence per nav including
-	// frameStartedNavigating (the epoch marker with loaderId).
-	// Nav1: /sign_in. Nav2: /usage.
-	// After nav2's events, inject a LATE nav1 navigatedWithinDocument
-	// with /usage (same frameId, same url) — the epoch loaderId from
-	// frameStartedNavigating distinguishes it (nav1's loaderId != nav2's).
-	nav1NwdInjected := false
+	// Inject the real event sequence per nav:
+	// 1. frameStartedNavigating (epoch marker with unique loaderId).
+	// 2. For nav2 only: Network.responseReceived on protected API
+	//    (status 200, same loaderId) — the auth-decision signal.
+	// After nav2's response, inject a LATE nav1 responseReceived with
+	// nav1's loaderId (different from nav2's) — must NOT re-trigger.
+	nav1LateInjected := false
 	cdp.onNavigate = func(nav int) {
 		loader := "L" + strconv.Itoa(nav)
-		// 1. frameStartedNavigating (epoch marker with loaderId).
+		// 1. frameStartedNavigating.
 		fsnEvt := fmt.Sprintf(`{"frameId":"MAIN","loaderId":"%s","url":"%s","navigationType":"navigation"}`, loader, deepSeekUsageURL)
 		select {
 		case cdp.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
 		default:
 		}
-		// 2. frameNavigated (main frame, loaderId matches).
-		fnEvt := fmt.Sprintf(`{"frame":{"id":"MAIN","loaderId":"%s","url":"%s"}}`, loader, deepSeekUsageURL)
-		select {
-		case cdp.events <- browserauth.Event{Method: "Page.frameNavigated", Params: json.RawMessage(fnEvt)}:
-		default:
-		}
-		// 3. navigatedWithinDocument for this nav.
-		spaURL := deepSeekLoginURL
+		// 2. For nav2 (authed): Network.responseReceived on protected API.
 		if nav >= 2 {
-			spaURL = deepSeekUsageURL
-		}
-		nwdEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, spaURL)
-		select {
-		case cdp.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(nwdEvt)}:
-		default:
-		}
-		// After nav2's events, inject a LATE nav1 navigatedWithinDocument
-		// with /usage (same frameId MAIN, same url /usage).
-		// This must NOT re-trigger or cause issues — the function has
-		// already returned after nav2's NWD was accepted.
-		if nav >= 2 && !nav1NwdInjected {
-			nav1NwdInjected = true
-			lateEvt := fmt.Sprintf(`{"frameId":"MAIN","url":"%s"}`, deepSeekUsageURL)
+			rrEvt := fmt.Sprintf(`{"requestId":"r%d","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, nav, loader)
 			select {
-			case cdp.events <- browserauth.Event{Method: "Page.navigatedWithinDocument", Params: json.RawMessage(lateEvt)}:
+			case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+			default:
+			}
+		}
+		// After nav2's response, inject LATE nav1 responseReceived with
+		// nav1's loaderId (L1 != L2). Must NOT re-trigger or error.
+		if nav >= 2 && !nav1LateInjected {
+			nav1LateInjected = true
+			lateEvt := fmt.Sprintf(`{"requestId":"r1_late","loaderId":"L1","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`)
+			select {
+			case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(lateEvt)}:
 			default:
 			}
 		}
@@ -1005,7 +994,7 @@ func TestRunDeepSeekPageAcceptsFirstNavigatedWithinDocumentPerEpoch(t *testing.T
 	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
 	webStore := dsWebStore(92)
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
-		t.Fatalf("must succeed (epoch loaderId distinguishes nav1/nav2; late event is harmless): %v", err)
+		t.Fatalf("must succeed (nav2's loaderId L2 distinguishes from late nav1 L1): %v", err)
 	}
 }
 
@@ -1092,7 +1081,7 @@ func dsPageTestSetup(t *testing.T) (*fakeDeepSeekCDP, *fakeDeepSeekBrowser, func
 	launchDeepSeekBrowser = func(context.Context, string) (deepSeekLoginBrowser, error) {
 		return browser, nil
 	}
-	deepSeekSettleTimeout = 2 * time.Second
+	deepSeekSettleTimeout = 500 * time.Millisecond
 	return cdp, browser, func() {
 		launchDeepSeekBrowser = originalLaunch
 		deepSeekSettleTimeout = originalSettle
@@ -1191,6 +1180,7 @@ func TestRunDeepSeekPageRequiresUserTokenKey(t *testing.T) {
 func TestRunDeepSeekPageIgnoresUnrelatedStorageKeyChange(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
 	// userToken (auth) preserved; theme (non-auth) not probed.
 	cdp.postNavLengths = map[int][]int{1: {3}, 2: {3}}
 	cdp.renavURL = deepSeekUsageURL
@@ -1208,6 +1198,7 @@ func TestRunDeepSeekPageIgnoresUnrelatedStorageKeyChange(t *testing.T) {
 func TestRunDeepSeekPageMustReapplyAndRenavigate(t *testing.T) {
 	cdp, _, cleanup := dsPageTestSetup(t)
 	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
 	cdp.postNavLengths = map[int][]int{1: {3}, 2: {3}}
 	cdp.renavURL = deepSeekUsageURL
 	cdp.renavAfterNavigate = 2
