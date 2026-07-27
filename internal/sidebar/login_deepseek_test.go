@@ -102,8 +102,14 @@ type fakeDeepSeekCDP struct {
 	// responseBodies maps requestId → response body for the
 	// GetResponseBody fake. Tests register `{"code":0,...}` for a real
 	// protected response; a missing/non-zero-code body makes
-	// deepSeekResponseCodeOK return false.
+	// deepSeekResponseCodeOK return false. NavigateWithLoader
+	// auto-registers a default {"code":0,...} body for a requestId it
+	// emits, so success-path tests don't need to wire one explicitly.
 	responseBodies map[string]string
+	// skipLoadingFinishedForNav suppresses the loadingFinished event on
+	// a given nav so RED tests can model an unfinished response body
+	// (loadingFinished never fires → body not ready → auth fails).
+	skipLoadingFinishedForNav map[int]bool
 	// postNavLengths models the real SPA-overwrites-userToken behavior
 	// observed in the diagnostic: after nav1 the SPA overwrites userToken
 	// with a short default (e.g. len 30). If runDeepSeekPage re-applies
@@ -290,10 +296,31 @@ func (c *fakeDeepSeekCDP) NavigateWithLoader(context.Context, string, ...string)
 				spaURL = c.pageURL
 			}
 			if deepSeekIsUsagePage(spaURL) {
-				rrEvt := fmt.Sprintf(`{"requestId":"r%d","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, nav, loader)
+				rid := fmt.Sprintf("r%d", nav)
+				rrEvt := fmt.Sprintf(`{"requestId":"%s","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, rid, loader)
 				select {
 				case c.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
 				default:
+				}
+				// 3. Network.loadingFinished (same requestId) — the body is
+				//    only available once loading has finished. Suppressed when
+				//    skipLoadingFinishedForNav[nav] is set so RED tests can
+				//    model an unfinished body (no loadingFinished).
+				if c.skipLoadingFinishedForNav == nil || !c.skipLoadingFinishedForNav[nav] {
+					lfEvt := fmt.Sprintf(`{"requestId":"%s"}`, rid)
+					select {
+					case c.events <- browserauth.Event{Method: "Network.loadingFinished", Params: json.RawMessage(lfEvt)}:
+					default:
+					}
+				}
+				// Register the default business code==0 body for this
+				// requestId unless the test overrode responseBodies[rid]
+				// (e.g. to model a business error or a missing code field).
+				if c.responseBodies == nil {
+					c.responseBodies = map[string]string{}
+				}
+				if _, hasBody := c.responseBodies[rid]; !hasBody {
+					c.responseBodies[rid] = `{"code":0,"data":{}}`
 				}
 			}
 		}
@@ -523,75 +550,6 @@ func TestRunDeepSeekLoginDoesNotAcceptPreLoginStorageCandidates(t *testing.T) {
 		t.Fatal("expected pre-login storage candidates to be rejected")
 	}
 }
-
-// deepSeekAuthResponseEvent builds a Network.responseReceived event the
-// page flow treats as the observable authenticated signal: a 2xx on a
-// platform API URL. Tests inject it on the events channel.
-func deepSeekAuthResponseEvent(status int, url, requestID string) browserauth.Event {
-	return browserauth.Event{
-		Method: "Network.responseReceived",
-		Params: json.RawMessage(`{"requestId":"` + requestID + `","url":"` + url + `","response":{"url":"` + url + `","status":` + strconv.Itoa(status) + `,"mimeType":"application/json"}}`),
-	}
-}
-
-// deepSeekRequestEvent builds a Network.requestWillBeSent event with the
-// given loaderId/frameId/requestId so the page flow can associate the
-// matching response with THIS navigation window (no drain).
-func deepSeekRequestEvent(loaderID, requestID, url string) browserauth.Event {
-	return browserauth.Event{
-		Method: "Network.requestWillBeSent",
-		Params: json.RawMessage(`{"requestId":"` + requestID + `","loaderId":"` + loaderID + `","frameId":"F1","url":"` + url + `","headers":{}}`),
-	}
-}
-
-// protectedAuthSequence wires a one-shot, in-order event sequence
-// (requestWillBeSent → responseReceived → loadingFinished) onto the
-// fake's onNavigate hook, so the real network ordering is modelled per
-// navigation (no periodic pump masking the race). Each navigation gets a
-// fresh loaderId (the fake returns "L"+nav from NavigateWithLoader); the
-// sequence uses that loader and a per-navigation requestId, and registers
-// the response body. Only the navigation that should succeed emits the
-// sequence; tests pass emitOnNav to choose (e.g. 1 for first nav, 2 for a
-// re-navigate). Returns the events channel.
-func protectedAuthSequence(cdp *fakeDeepSeekCDP, apiURL string, emitOnNav int) chan browserauth.Event {
-	ch := make(chan browserauth.Event, 64)
-	if cdp.responseBodies == nil {
-		cdp.responseBodies = map[string]string{}
-	}
-	prev := cdp.onNavigate
-	cdp.onNavigate = func(nav int) {
-		if prev != nil {
-			prev(nav)
-		}
-		if nav != emitOnNav {
-			return
-		}
-		loader := "L" + strconv.Itoa(nav)
-		rid := "r" + strconv.Itoa(nav)
-		cdp.mu.Lock()
-		cdp.responseBodies[rid] = `{"code":0,"data":{}}`
-		cdp.mu.Unlock()
-		// In-order: request, response, loadingFinished.
-		ch <- deepSeekRequestEvent(loader, rid, apiURL)
-		ch <- deepSeekAuthResponseEvent(200, apiURL, rid)
-		ch <- browserauth.Event{Method: "Network.loadingFinished", Params: json.RawMessage(`{"requestId":"` + rid + `"}`)}
-	}
-	cdp.events = ch
-	return ch
-}
-
-// eventsWithAuth returns a buffered events channel pre-loaded with the
-// given events (NO pump). Used by tests that need a fixed set of events
-// (e.g. a single stale pair that must be ignored by loaderId isolation).
-func eventsWithAuth(ev ...browserauth.Event) chan browserauth.Event {
-	ch := make(chan browserauth.Event, 32)
-	for _, e := range ev {
-		ch <- e
-	}
-	return ch
-}
-
-const deepSeekAuthAPIURL = "https://platform.deepseek.com/api/v0/users/get_user_summary"
 
 // TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite models the REAL
 // behavior observed in the diagnostic (cmd/diag-deepseek):
@@ -971,16 +929,11 @@ func TestRunDeepSeekPageAcceptsFirstNavigatedWithinDocumentPerEpoch(t *testing.T
 		case cdp.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
 		default:
 		}
-		// 2. For nav2 (authed): Network.responseReceived on protected API.
-		if nav >= 2 {
-			rrEvt := fmt.Sprintf(`{"requestId":"r%d","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, nav, loader)
-			select {
-			case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
-			default:
-			}
-		}
-		// After nav2's response, inject LATE nav1 responseReceived with
-		// nav1's loaderId (L1 != L2). Must NOT re-trigger or error.
+		// BEFORE nav2's correct response, inject a LATE nav1
+		// responseReceived with nav1's loaderId (L1 != L2). It must be
+		// rejected by loaderId mismatch in phase 1 and NOT authenticate.
+		// This proves a stale response from a previous navigation cannot
+		// satisfy the current window's auth check.
 		if nav >= 2 && !nav1LateInjected {
 			nav1LateInjected = true
 			lateEvt := fmt.Sprintf(`{"requestId":"r1_late","loaderId":"L1","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`)
@@ -989,12 +942,159 @@ func TestRunDeepSeekPageAcceptsFirstNavigatedWithinDocumentPerEpoch(t *testing.T
 			default:
 			}
 		}
+		// 2. For nav2 (authed): Network.responseReceived on protected API,
+		//    then loadingFinished (same requestId), with a code==0 body
+		//    registered. The auth signal requires all three.
+		if nav >= 2 {
+			rid := fmt.Sprintf("r%d", nav)
+			rrEvt := fmt.Sprintf(`{"requestId":"%s","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, rid, loader)
+			select {
+			case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+			default:
+			}
+			// loadingFinished makes the body available for getResponseBody.
+			lfEvt := fmt.Sprintf(`{"requestId":"%s"}`, rid)
+			select {
+			case cdp.events <- browserauth.Event{Method: "Network.loadingFinished", Params: json.RawMessage(lfEvt)}:
+			default:
+			}
+			if cdp.responseBodies == nil {
+				cdp.responseBodies = map[string]string{}
+			}
+			cdp.responseBodies[rid] = `{"code":0,"data":{}}`
+		}
 	}
 	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
 	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
 	webStore := dsWebStore(92)
 	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
 		t.Fatalf("must succeed (nav2's loaderId L2 distinguishes from late nav1 L1): %v", err)
+	}
+}
+
+// dsProtectedSeq emits the full protected-API auth sequence (frameStartedNavigating
+// → responseReceived → loadingFinished) for a given nav, with a configurable
+// response body registered for the requestId. Used by the business-code RED
+// tests so they share one event-ordering helper and differ only in the body.
+func dsProtectedSeq(t *testing.T, cdp *fakeDeepSeekCDP, emitOnNav int, body string) {
+	t.Helper()
+	cdp.skipDefaultEvent = true
+	prev := cdp.onNavigate
+	cdp.onNavigate = func(nav int) {
+		if prev != nil {
+			prev(nav)
+		}
+		loader := "L" + strconv.Itoa(nav)
+		// 1. frameStartedNavigating (epoch marker).
+		fsnEvt := fmt.Sprintf(`{"frameId":"MAIN","loaderId":"%s","url":"%s","navigationType":"navigation"}`, loader, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
+		default:
+		}
+		if nav != emitOnNav {
+			return
+		}
+		rid := fmt.Sprintf("r%d", nav)
+		// 2. responseReceived (2xx, protected, same loaderId).
+		rrEvt := fmt.Sprintf(`{"requestId":"%s","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, rid, loader)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+		default:
+		}
+		// 3. loadingFinished (same requestId).
+		lfEvt := fmt.Sprintf(`{"requestId":"%s"}`, rid)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Network.loadingFinished", Params: json.RawMessage(lfEvt)}:
+		default:
+		}
+		if cdp.responseBodies == nil {
+			cdp.responseBodies = map[string]string{}
+		}
+		cdp.responseBodies[rid] = body
+	}
+}
+
+// TestRunDeepSeekPageRejects200WithBusinessError proves a 200 response
+// carrying a business error (code != 0) is NOT accepted as the auth
+// signal. The protected endpoint must return code==0. nav2's body has
+// code=401 (unauthorized) → runDeepSeekPage must fail.
+func TestRunDeepSeekPageRejects200WithBusinessError(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
+	dsProtectedSeq(t, cdp, 2, `{"code":401,"msg":"token expired"}`)
+	webStore := dsWebStore(92)
+	err := RunDeepSeekPage(deepSeekUsageURL, webStore)
+	if err == nil {
+		t.Fatal("runDeepSeekPage must fail when the protected API returns business code != 0 (200 + business error is not auth)")
+	}
+}
+
+// TestRunDeepSeekPageRejects200MissingCodeField proves a 200 response
+// with NO top-level "code" field is NOT accepted. The code field MUST
+// exist and equal 0; a missing field is a failure (not a real protected
+// response).
+func TestRunDeepSeekPageRejects200MissingCodeField(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
+	dsProtectedSeq(t, cdp, 2, `{"data":{}}`)
+	webStore := dsWebStore(92)
+	err := RunDeepSeekPage(deepSeekUsageURL, webStore)
+	if err == nil {
+		t.Fatal("runDeepSeekPage must fail when the protected API response body has no top-level code field")
+	}
+}
+
+// TestRunDeepSeekPageRejectsUnfinishedBody proves a 200 response whose
+// body is NOT yet finished (no loadingFinished event) is NOT accepted.
+// The body is only available after loadingFinished; without it, the
+// auth check cannot confirm code==0 and must fail.
+func TestRunDeepSeekPageRejectsUnfinishedBody(t *testing.T) {
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	deepSeekSettleTimeout = 500 * time.Millisecond
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekUsageURL}
+	cdp.skipDefaultEvent = true
+	// Suppress loadingFinished on nav2 so the body is never ready.
+	cdp.skipLoadingFinishedForNav = map[int]bool{2: true}
+	prev := cdp.onNavigate
+	cdp.onNavigate = func(nav int) {
+		if prev != nil {
+			prev(nav)
+		}
+		loader := "L" + strconv.Itoa(nav)
+		fsnEvt := fmt.Sprintf(`{"frameId":"MAIN","loaderId":"%s","url":"%s","navigationType":"navigation"}`, loader, deepSeekUsageURL)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
+		default:
+		}
+		if nav != 2 {
+			return
+		}
+		rid := fmt.Sprintf("r%d", nav)
+		rrEvt := fmt.Sprintf(`{"requestId":"%s","loaderId":"%s","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`, rid, loader)
+		select {
+		case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+		default:
+		}
+		// NO loadingFinished — body not ready. Register the body anyway
+		// to prove the absence of loadingFinished (not the body content)
+		// is what fails the check.
+		if cdp.responseBodies == nil {
+			cdp.responseBodies = map[string]string{}
+		}
+		cdp.responseBodies[rid] = `{"code":0,"data":{}}`
+	}
+	webStore := dsWebStore(92)
+	err := RunDeepSeekPage(deepSeekUsageURL, webStore)
+	if err == nil {
+		t.Fatal("runDeepSeekPage must fail when loadingFinished never fires (body not ready)")
 	}
 }
 

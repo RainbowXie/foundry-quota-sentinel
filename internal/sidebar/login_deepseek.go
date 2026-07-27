@@ -3,6 +3,7 @@ package sidebar
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -484,41 +485,43 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		return failAndWait(fmt.Errorf("打开 DeepSeek 账户页失败: %w", err))
 	}
 	// Nav1: wait for the SPA auth-decision signal (protected API response
-	// with matching loaderId). On nav1 the SPA typically overwrites
-	// userToken and redirects to /sign_in — no protected API call fires,
-	// so this wait times out. That's EXPECTED: the timeout means "SPA
-	// didn't authenticate on nav1" → proceed to re-apply and reload.
-	// Only a CDP channel close or ctx cancellation is fatal here.
-	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout); err != nil {
-		// Timeout on nav1 is expected (SPA didn't auth). Channel/ctx
-		// errors are fatal.
-		if strings.Contains(err.Error(), "事件通道已关闭") || strings.Contains(err.Error(), "被取消") {
-			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定失败: %w", err))
+	// with matching loaderId + business code==0). On nav1 the SPA typically
+	// overwrites userToken and redirects to /sign_in — no protected API
+	// call fires, so this wait times out. That's EXPECTED: the sentinel
+	// timeout means "SPA didn't authenticate on nav1" → re-apply + reload.
+	// EVERY other error (CDP channel close, ctx cancellation, PageURL
+	// failure, body parse failure, business code != 0) is fatal.
+	nav1Err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout)
+	if nav1Err != nil {
+		if !isDeepSeekExpectedNavTimeout(nav1Err) {
+			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定失败: %w", nav1Err))
 		}
+		// Nav1 sentinel timeout (expected): SPA overwrote userToken.
+		// Re-apply the restore script post-load, then reload so the
+		// document-start script re-applies before the SPA auth check.
 		log.Printf("deepseek: 首次导航未观测到受保护接口响应（预期：SPA 覆盖了 userToken）")
-	}
-
-	// Re-apply the restore script post-load (after SPA boot overwrote
-	// userToken).
-	if script != "" {
-		log.Printf("deepseek: post-load 重新应用登录态脚本")
-		if _, err := cdp.Evaluate(ctx, script); err != nil {
-			return failAndWait(fmt.Errorf("post-load 重新应用登录态脚本失败: %w", err))
+		if script != "" {
+			log.Printf("deepseek: post-load 重新应用登录态脚本")
+			if _, err := cdp.Evaluate(ctx, script); err != nil {
+				return failAndWait(fmt.Errorf("post-load 重新应用登录态脚本失败: %w", err))
+			}
+		}
+		// Navigate #2 (reload): document-start re-applies, SPA stays on /usage.
+		log.Printf("deepseek: 账户页重新导航（reload）")
+		loader2, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
+		if err != nil {
+			return failAndWait(fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err))
+		}
+		// Wait for the SPA auth-decision signal on the RELOAD navigation.
+		// A late response from nav1 has a different loaderId and is rejected.
+		if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {
+			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页重新加载鉴权决定失败: %w", err))
 		}
 	}
-
-	// Navigate #2 (reload): document-start re-applies, SPA stays on /usage.
-	log.Printf("deepseek: 账户页重新导航（reload）")
-	loader2, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
-	if err != nil {
-		return failAndWait(fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err))
-	}
-	// Wait for the SPA auth-decision signal on the RELOAD navigation.
-	// A late loadEventFired from nav1 has a different loaderId and is
-	// rejected.
-	if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {
-		return failAndWait(fmt.Errorf("等待 DeepSeek 账户页重新加载鉴权决定超时: %w", err))
-	}
+	// nav1Err == nil: nav1 unexpectedly authenticated (SPA accepted the
+	// token on first boot). No re-apply + reload; the final verify below
+	// confirms the page state. The sentinel/typed-timeout contract means
+	// reaching here is a real auth success, not a swallowed error.
 
 	// Verify: userToken length matches AND URL is /usage.
 	postURL, _ := cdp.PageURL(ctx, deepSeekHost)
@@ -542,85 +545,129 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 // deepSeekSettleTimeout is the deadline for waiting on observable CDP events.
 var deepSeekSettleTimeout = 5 * time.Second
 
+// deepSeekAuthTimeoutError is the sentinel returned by
+// deepSeekWaitForAuthDecision when the deadline elapses WITHOUT any fatal
+// condition (no CDP channel close, no ctx cancellation, no PageURL/parse
+// error). runDeepSeekPage treats ONLY this exact sentinel as "nav1 did not
+// authenticate in time — proceed to re-apply + reload". Every other error
+// (channel closed, ctx cancelled, PageURL read failure, body parse failure)
+// is fatal and propagates through failAndWait. Using a typed error instead
+// of strings.Contains means a future error message that happens to contain
+// "超时" cannot be misclassified as the expected nav1 timeout.
+type deepSeekAuthTimeoutError struct{}
+
+func (e *deepSeekAuthTimeoutError) Error() string { return "等待鉴权决定超时" }
+
+// isDeepSeekExpectedNavTimeout reports whether err is exactly the sentinel
+// nav-timeout error. It is the ONLY timeout runDeepSeekPage tolerates.
+func isDeepSeekExpectedNavTimeout(err error) bool {
+	var target *deepSeekAuthTimeoutError
+	return errors.As(err, &target)
+}
+
 // deepSeekWaitForAuthDecision waits for the real SPA auth-decision
 // signal: a Network.responseReceived with status 2xx on a PROTECTED
 // DeepSeek API endpoint (get_user_summary / usage/amount) whose
 // loaderId matches the current navigation's frameStartedNavigating
-// loaderId. This is the real observable auth signal — the SPA makes
-// these API calls only when it has accepted the userToken.
+// loaderId, AND whose response body's top-level "code" field EXISTS
+// and equals 0. This is the real observable auth signal — the SPA
+// makes these API calls only when it has accepted the userToken, and
+// the business code==0 confirms the protected call actually succeeded
+// (not a 200 carrying an auth/business error).
 //
 // The function:
 //  1. Waits for Page.frameStartedNavigating with non-empty loaderId →
 //     epochLoaderID (unique per navigation).
 //  2. Waits for Network.responseReceived with status 2xx on a
-//     protected API URL AND whose loaderId == epochLoaderID.
-//  3. Reads PageURL to confirm the page is on /usage.
+//     protected API URL AND whose loaderId == epochLoaderID. The
+//     requestId is captured for the body-read step.
+//  3. Waits for Network.loadingFinished with the SAME requestId —
+//     the body is only available once loading has finished.
+//  4. Calls Network.getResponseBody(requestId) and requires the
+//     top-level "code" field to exist and equal 0.
+//  5. Reads PageURL to confirm the page is on /usage.
 //
 // A late event from a previous navigation has a DIFFERENT loaderId,
-// so it cannot match at step 2. This is real cross-navigation
-// association via loaderId on the response event itself.
+// so it cannot match at step 2 — real cross-navigation association
+// via loaderId on the response event itself.
 //
-// Returns an explicit error on timeout, CDP channel close, or ctx
-// cancellation.
+// Returns:
+//   - *deepSeekAuthTimeoutError (sentinel) on deadline elapse with no
+//     fatal condition. runDeepSeekPage treats ONLY this as the expected
+//     nav1 timeout.
+//   - a wrapped fatal error on CDP channel close, ctx cancellation,
+//     PageURL read failure, or body parse failure — these propagate.
 func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, _ string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var epochLoaderID string
-	phase := 0 // 0=wait frameStartedNavigating, 1=wait protected API response
+	var pendingRequestID string // requestId awaiting loadingFinished
+	phase := 0                  // 0=wait frameStartedNavigating, 1=wait protected response, 2=wait loadingFinished
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")
+			return &deepSeekAuthTimeoutError{}
 		}
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				return fmt.Errorf("CDP \u4e8b\u4ef6\u901a\u9053\u5df2\u5173\u95ed")
+				return fmt.Errorf("CDP 事件通道已关闭")
 			}
 			if phase == 0 {
-				if fsn, ok := browserauth.DecodeFrameStartedNavigatingEvent(ev); ok {
-					if fsn.LoaderID != "" {
-						epochLoaderID = fsn.LoaderID
-						phase = 1
-						log.Printf("deepseek: \u5bfc\u822a epoch \u5df2\u786e\u5b9a\uff08loaderId \u957f\u5ea6 %d\uff09", len(epochLoaderID))
-					}
-					continue
+				if fsn, ok := browserauth.DecodeFrameStartedNavigatingEvent(ev); ok && fsn.LoaderID != "" {
+					epochLoaderID = fsn.LoaderID
+					phase = 1
+					log.Printf("deepseek: 导航 epoch 已确定（loaderId 长度 %d）", len(epochLoaderID))
 				}
 				continue
 			}
 			if phase == 1 {
 				// Wait for Network.responseReceived with 2xx on a protected
-				// API URL with loaderId matching the epoch.
+				// API URL whose loaderId == epochLoaderID. Capture the
+				// requestId for the loadingFinished + body-read steps.
 				if rr, ok := browserauth.DecodeResponseReceivedEvent(ev); ok {
-					if rr.Status >= 200 && rr.Status < 300 && isProtectedAPIURL(rr.URL) {
-						// Check loaderId: the responseReceived event carries
-						// a loaderId in its params. We need to decode it.
-						// DecodeFrameStartedNavigatingEvent won't work; we
-						// need a raw decode for the loaderId.
-						var raw struct {
-							LoaderID string `json:"loaderId"`
-						}
-						if json.Unmarshal(ev.Params, &raw) == nil && raw.LoaderID == epochLoaderID {
-							// Confirm the page is on /usage.
-							postURL, err := cdp.PageURL(ctx, deepSeekHost)
-							if err != nil {
-								return fmt.Errorf("\u8bfb\u53d6\u9274\u6743\u540e URL \u5931\u8d25: %w", err)
-							}
-							if !deepSeekIsUsagePage(postURL) {
-								log.Printf("deepseek: \u53d7\u4fdd\u62a4\u63a5\u53e3\u6210\u529f\u4f46\u9875\u9762\u672a\u5728 usage\uff0cURL path=%s\uff0c\u7ee7\u7eed\u7b49\u5f85", pathOnly(postURL))
-								continue
-							}
-							log.Printf("deepseek: \u9274\u6743\u51b3\u5b9a\u5df2\u89c2\u6d4b\uff08\u53d7\u4fdd\u62a4\u63a5\u53e3 2xx\uff0cloaderId \u5339\u914d\uff0cURL path=/usage\uff09")
-							return nil
-						}
+					if !(rr.Status >= 200 && rr.Status < 300) || !isProtectedAPIURL(rr.URL) || rr.RequestID == "" {
+						continue
 					}
+					var raw struct {
+						LoaderID string `json:"loaderId"`
+					}
+					if json.Unmarshal(ev.Params, &raw) != nil || raw.LoaderID != epochLoaderID {
+						continue // stale/previous navigation response — loaderId mismatch
+					}
+					pendingRequestID = rr.RequestID
+					phase = 2
+					log.Printf("deepseek: 受保护接口 2xx 已观测（loaderId 匹配），等待 loadingFinished")
 					continue
 				}
 				continue
 			}
+			if phase == 2 {
+				// Wait for Network.loadingFinished with the SAME requestId,
+				// then read the body and require code field exists and == 0.
+				if lf, ok := browserauth.DecodeLoadingFinishedEvent(ev); ok {
+					if lf.RequestID != pendingRequestID {
+						continue
+					}
+					if !deepSeekResponseCodeOK(ctx, cdp, lf.RequestID) {
+						return fmt.Errorf("受保护接口响应体业务 code 检查失败（缺失或非 0）")
+					}
+					// Confirm the page is on /usage.
+					postURL, err := cdp.PageURL(ctx, deepSeekHost)
+					if err != nil {
+						return fmt.Errorf("读取鉴权后 URL 失败: %w", err)
+					}
+					if !deepSeekIsUsagePage(postURL) {
+						return fmt.Errorf("受保护接口业务 code=0 但页面未在 usage（path=%s）", pathOnly(postURL))
+					}
+					log.Printf("deepseek: 鉴权决定已观测（受保护接口 2xx，loaderId 匹配，业务 code=0，URL path=/usage）")
+					return nil
+				}
+				continue
+			}
 		case <-time.After(remaining):
-			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u8d85\u65f6")
+			return &deepSeekAuthTimeoutError{}
 		case <-ctx.Done():
-			return fmt.Errorf("\u7b49\u5f85\u9274\u6743\u51b3\u5b9a\u88ab\u53d6\u6d88: %w", ctx.Err())
+			return fmt.Errorf("等待鉴权决定被取消: %w", ctx.Err())
 		}
 	}
 }
@@ -690,98 +737,6 @@ func isProtectedAPIURL(u string) bool {
 	return false
 }
 
-// deepSeekNavTracker associates network requests (and their responses)
-// with the navigation that issued them via loaderId, instead of draining
-// the event channel. requestWillBeSent sets the current window's
-// loaderId (the first one seen) and records requestId→loaderId; a
-// responseReceived is accepted only if its requestId was seen in a
-// requestWillBeSent whose loaderId matches the navigation's loaderId
-// (captured from Page.navigate, not guessed from the first request), so
-// a late response from a previous navigation cannot authenticate the
-// current window.
-type deepSeekNavTracker struct {
-	navLoader  string // the loaderId returned by Page.navigate for this window
-	reqLoaders map[string]string
-}
-
-func newDeepSeekNavTracker(loaderID string) *deepSeekNavTracker {
-	return &deepSeekNavTracker{navLoader: loaderID, reqLoaders: map[string]string{}}
-}
-
-// resetWindow sets a fresh navigation's loaderId (from Page.navigate) and
-// clears the requestId→loaderId map. The event channel is NOT drained.
-func (t *deepSeekNavTracker) resetWindow(loaderID string) {
-	t.navLoader = loaderID
-	t.reqLoaders = map[string]string{}
-}
-
-// recordRequest associates a requestWillBeSent with its loaderId. Only
-// requests whose loaderId matches the navigation's loaderId are tracked
-// (sub-frames or stale requests from a previous navigation are ignored).
-func (t *deepSeekNavTracker) recordRequest(req browserauth.RequestHeadersEvent) {
-	if t.navLoader != "" && req.LoaderID == t.navLoader {
-		t.reqLoaders[req.RequestID] = req.LoaderID
-	}
-}
-
-// responseInWindow reports whether a responseReceived belongs to the
-// current navigation window (its requestId was tracked under the
-// navigation's loaderId).
-func (t *deepSeekNavTracker) responseInWindow(resp browserauth.ResponseReceivedEvent) bool {
-	if t.navLoader == "" {
-		return false
-	}
-	return t.reqLoaders[resp.RequestID] == t.navLoader
-}
-
-// deepSeekAuthWaitPerNav is how long each navigation waits for the
-// protected auth signal before re-navigating. Defaults to 5s in
-// production; tests lower it to keep failure-path tests fast.
-var deepSeekAuthWaitPerNav = 5 * time.Second
-
-func deepSeekEnsureAuthenticated(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, pageURL string, authKeys []deepSeekStorageEntry, loaderID string, maxRenav int) error {
-	// The userToken auth key is REQUIRED. No auth keys means there is no
-	// credential to verify — a protected request alone (e.g. from a
-	// cached/previously-authenticated session) must NOT count.
-	if len(authKeys) == 0 {
-		return fmt.Errorf("DeepSeek 登录态恢复失败：缺少 userToken 认证键，无法验证登录态")
-	}
-	tracker := newDeepSeekNavTracker(loaderID)
-	for attempt := 0; ; attempt++ {
-		// The event channel is NOT drained — events keep flowing, but
-		// only responses whose requestId was tracked under this
-		// navigation's loaderId count (a late response from a previous
-		// navigation has a stale loaderId and is rejected).
-		if observed := deepSeekWaitForProtectedAuth(ctx, cdp, events, authKeys, tracker, deepSeekAuthWaitPerNav); observed {
-			// Final guard: after the protected request succeeds, the
-			// page must be on the usage page (not just not /sign_in —
-			// e.g. a transient intermediate page is not authenticated).
-			postURL, _ := cdp.PageURL(ctx, deepSeekHost)
-			if !deepSeekIsUsagePage(postURL) {
-				return fmt.Errorf("DeepSeek 登录态恢复失败：受保护接口成功但页面未停留在 usage（host 验证未通过），请重新登录")
-			}
-			return nil
-		}
-		if attempt >= maxRenav {
-			// Distinguish failure modes without logging the full URL.
-			postURL, _ := cdp.PageURL(ctx, deepSeekHost)
-			if isDeepSeekLoginPage(postURL) {
-				return fmt.Errorf("DeepSeek 登录态恢复失败：重导航 %d 次后仍停留在登录页，请重新登录", maxRenav)
-			}
-			if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) > 0 {
-				return fmt.Errorf("DeepSeek 登录态恢复失败：未观测到受保护接口成功响应，认证键有 %d 个缺失或长度不匹配", len(mismatch))
-			}
-			return fmt.Errorf("DeepSeek 登录态恢复失败：认证键已恢复但未观测到受保护接口成功响应")
-		}
-		log.Printf("deepseek: 账户页未观测到受保护接口成功响应，重新导航让 document-start 脚本在 SPA 鉴权前生效")
-		nextLoader, err := cdp.NavigateWithLoader(ctx, pageURL, deepSeekHost)
-		if err != nil {
-			return fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err)
-		}
-		tracker.resetWindow(nextLoader)
-	}
-}
-
 // deepSeekIsUsagePage reports whether the page URL is the authenticated
 // usage page. The path must be /usage (the account page), on the platform
 // host. A login page or intermediate route is NOT authenticated.
@@ -794,71 +749,6 @@ func deepSeekIsUsagePage(u string) bool {
 		return false
 	}
 	return parsed.Path == "/usage" || strings.HasPrefix(parsed.Path, "/usage/")
-}
-
-// deepSeekWaitForProtectedAuth waits, within a deadline, for a protected
-// API request to complete in THIS navigation window. The full sequence
-// for a single requestId must be observed:
-//  1. requestWillBeSent (loaderId == navLoader) — associates requestId.
-//  2. responseReceived (status 2xx, protected URL) — the request returned.
-//  3. loadingFinished (same requestId) — the body is available.
-//
-// Only then is the body read and checked for code==0 (code field MUST
-// exist and equal 0). The userToken auth key must be present and length-
-// matched as the prerequisite. A response/body from a previous
-// navigation (stale loaderId, or never tracked) is rejected. No periodic
-// pump masks the race: events arrive in their real order on the channel.
-func deepSeekWaitForProtectedAuth(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, authKeys []deepSeekStorageEntry, tracker *deepSeekNavTracker, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	// pending tracks requestIds that had a protected 2xx response in this
-	// window, awaiting their loadingFinished before the body is read.
-	pending := make(map[string]bool)
-	authed := false
-	for time.Now().Before(deadline) && !authed {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				return false
-			}
-			// 1. requestWillBeSent: track requests in this window.
-			if req, isReq := browserauth.DecodeRequestHeadersEvent(ev); isReq && ev.Method == "Network.requestWillBeSent" {
-				tracker.recordRequest(req)
-				continue
-			}
-			// 2. responseReceived: protected 2xx in this window.
-			if rr, isRR := browserauth.DecodeResponseReceivedEvent(ev); isRR {
-				if !tracker.responseInWindow(rr) {
-					continue // stale/unknown — not this window's request
-				}
-				if !(rr.Status >= 200 && rr.Status < 300) || !isProtectedAPIURL(rr.URL) {
-					continue
-				}
-				// Prerequisite: the userToken auth key is present with a
-				// matching length.
-				if mismatch := deepSeekStorageMismatch(ctx, cdp, authKeys); len(mismatch) > 0 {
-					continue
-				}
-				pending[rr.RequestID] = true
-				continue
-			}
-			// 3. loadingFinished: body is ready; read it and check code==0.
-			if lf, isLF := browserauth.DecodeLoadingFinishedEvent(ev); isLF {
-				if !pending[lf.RequestID] {
-					continue // not a protected 2xx we are waiting on
-				}
-				delete(pending, lf.RequestID)
-				if !deepSeekResponseCodeOK(ctx, cdp, lf.RequestID) {
-					continue // body missing/unparseable or code != 0
-				}
-				log.Printf("deepseek: 观测到受保护接口成功响应（host=platform.deepseek.com，业务 code=0）")
-				authed = true
-			}
-		case <-time.After(100 * time.Millisecond):
-		case <-ctx.Done():
-			return false
-		}
-	}
-	return authed
 }
 
 // deepSeekResponseCodeOK fetches the response body for a requestId and
