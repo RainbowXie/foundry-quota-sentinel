@@ -173,7 +173,7 @@ func (q *KimiQuerier) FetchQuota(ctx context.Context) (*KimiQuotaData, error) {
 		return nil, fmt.Errorf("%w: 响应超过 %d 字节", ErrKimiUnsupportedResponse, kimiMaxResponseSize)
 	}
 
-	data, err := ParseKimiQuota(string(body))
+	data, err := ParseKimiQuota(string(body), time.Now())
 	if err != nil {
 		// A Connect "unauthenticated" code inside a 2xx is also auth-expiry.
 		if isKimiAuthErrorCode(string(body)) {

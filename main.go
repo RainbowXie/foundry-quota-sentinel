@@ -596,8 +596,9 @@ func printKimiQuota(acc *config.KimiAccount) error {
 	fmt.Println("========================================")
 	fmt.Printf("  Kimi Code 账户 %q\n", acc.Name)
 	fmt.Println("----------------------------------------")
-	fmt.Printf("  本周用量:  %s  reset in %s\n", formatter.ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay)
-	fmt.Printf("  频率限制:  %s  reset in %s\n", formatter.ProgressBar(data.RateLimit.UsagePercent, 18), data.RateLimit.ResetDisplay)
+	fmt.Printf("  总使用量:   %s  reset %s\n", quota.FormatKimiPercent(data.Total.UsagePercent), data.Total.ResetDisplay)
+	fmt.Printf("  5 小时用量: %s  reset %s\n", quota.FormatKimiPercent(data.FiveHour.UsagePercent), data.FiveHour.ResetDisplay)
+	fmt.Printf("  7 天用量:   %s  reset %s\n", quota.FormatKimiPercent(data.SevenDay.UsagePercent), data.SevenDay.ResetDisplay)
 	fmt.Println("========================================")
 	fmt.Printf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05"))
 	return nil

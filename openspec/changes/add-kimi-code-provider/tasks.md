@@ -1,47 +1,48 @@
-## 1. Evidence and test contracts
+## 1. Revised evidence and RED contracts
 
-- [x] 1.1 Run GitNexus context/impact analysis for every existing symbol selected for modification, record direct callers and affected flows, and stop for user review before any HIGH or CRITICAL-risk edit.
-- [x] 1.2 Use a disposable real Chrome/Edge profile and loopback CDP to capture the sanitized Kimi console navigation/network sequence, identifying the protected quota request, completed-response success discriminator, minimum replay credentials, meter/reset fields, allowed login hosts, and canonical add-on destination without recording live secret values.
-- [x] 1.3 Write a checked-in evidence note containing only endpoint paths, event ordering, field names/types, redacted observations, and acceptance conclusions; create synthetic response fixtures for the representative `10% / 6d 12h 20min` weekly and `52% / 3h 20min` frequency-limit case.
-- [x] 1.4 Add RED parser/auth-correlation tests that fail on the pre-Kimi implementation for a valid response, business failure inside 2xx, missing success discriminator, missing meter, invalid percentage/reset, unfinished body, stale navigation response, unrelated endpoint, and oversized response.
-- [x] 1.5 Remove all diagnostic commands, captured browser profiles, raw traces, and credential-bearing temporary files after the sanitized fixtures/evidence are sufficient.
+- [x] 1.1 Run GitNexus context/impact analysis for every existing symbol selected for modification, record direct callers and affected flows, and warn before every HIGH or CRITICAL-risk edit.
+- [ ] 1.2 Update the sanitized real-browser evidence for `https://www.kimi.com/membership/subscription?tab=quota`: prove the field-to-label mapping for total/5-hour/7-day usage, absolute reset instants and timezone formatting, exact durable refresh request/rotation, minimum SPA replay state, and allowed hosts without retaining secrets.
+- [ ] 1.3 Replace old two-meter fixtures with synthetic three-metric fixtures representing `2.19% / 2026-08-27`, `0% / 07-29 19:58`, and `10.42% / 08-04 23:58`, using evidence-confirmed response fields and absolute timestamps.
+- [ ] 1.4 Add RED tests that fail on the current implementation for three-metric parsing, decimal preservation/formatting, missing/invalid metrics, refresh success/failure/rotation, post-expiry quota, membership-page SPA replay, strict URL correlation, and purchase non-automation.
+- [ ] 1.5 Remove all new diagnostic commands, captured payloads, browser profiles, temporary configs/binaries, and credential-bearing artifacts after evidence is sanitized.
 
-## 2. Configuration and quota domain model
+## 2. Durable account and three-metric domain model
 
-- [x] 2.1 Add backward-compatibility tests that load and round-trip pre-Kimi config fixtures without changing existing provider/profile/window data.
-- [x] 2.2 Add a named Kimi account configuration record, optional account collection, versioned minimal authentication envelope, generation-based successful-login marker, and isolated upsert/delete helpers with unit tests.
-- [x] 2.3 Add strict envelope encoding/decoding and validation tests covering supported version, unsupported version, minimum allowlisted values, header control-character rejection, and omission of unknown/unneeded captured state.
-- [x] 2.4 Add a provider-specific Kimi quota aggregate with `Weekly`, `RateLimit`, and `FetchedAt`, reusing `QuotaUsage` without changing existing `QuotaData` JSON semantics.
-- [x] 2.5 Implement the evidence-backed Kimi response parser and reset normalization so both meters retain independent percentage, seconds, and compact display values; make all RED parser tests green.
+- [x] 2.1 Preserve and rerun backward-compatible configuration round-trip coverage for pre-Kimi and provisional Kimi records without changing other providers/profile/window data.
+- [ ] 2.2 Revise the versioned Kimi authentication envelope to hold only the evidence-proven durable refresh and membership-SPA replay state; provide an explicit migration/re-login outcome for provisional access-token-only records.
+- [ ] 2.3 Add strict envelope tests for versioning, closed allowlist, refresh-token rotation, atomic per-account save, control-character/storage validation, concurrent refresh serialization, and secret exclusion.
+- [ ] 2.4 Replace `Weekly`/`RateLimit` with a Kimi-specific `Total`/`FiveHour`/`SevenDay` aggregate and decimal usage leaf containing absolute reset instant, derived seconds, reset display, and status, without altering existing provider models.
+- [ ] 2.5 Implement evidence-backed parsing: total from the confirmed subscription balance ratio/reset, 5-hour and 7-day from their confirmed rate-limit objects, exact `0..1` validation, absent-ratio zero shape, decimal preservation, future timestamp validation, and local absolute-time formatting.
 
-## 3. Authenticated quota transport
+## 3. Refreshable authenticated quota transport
 
-- [x] 3.1 Add an injectable Kimi querier/client with tests for the exact protected request, required replay state, User-Agent behavior if proven necessary, bounded timeout/body size, HTTPS/host/redirect validation, and response-body closure.
-- [x] 3.2 Implement quota retrieval that requires the observed transport and business success signals before parsing and returns distinct expired-auth, timeout, transport, and unsupported-response errors.
-- [x] 3.3 Add tests proving secrets never appear in querier errors and that a 2xx business failure, incomplete response, public endpoint, or stale/cross-account response cannot be accepted as current quota.
+- [ ] 3.1 Add injectable request/refresh transports with exact endpoint/host/path/header/body assertions, bounded timeout/body, redirect rejection, completed-body handling, and response closure.
+- [ ] 3.2 Implement account-scoped token refresh and one safe retry on authentication expiry, including refresh-token rotation and atomic persistence through a caller-owned credential update boundary.
+- [ ] 3.3 Implement three-metric membership statistics retrieval and distinct expired-session, refresh, timeout, transport, and unsupported-response errors.
+- [ ] 3.4 Add tests proving concurrent requests do not race refresh rotation, one account's failure cannot affect another, stale tokens cannot overwrite fresh state, and no secret appears in any error/log/result.
 
-## 4. Shared-browser Kimi login and account page
+## 4. Shared-browser login and membership-page replay
 
-- [x] 4.1 Identify any missing provider-neutral CDP primitives; add them to `internal/browserauth` only with upstream impact analysis and focused transport/decode tests, leaving all Kimi URL and credential rules outside the shared package.
-- [x] 4.2 Define narrow injectable Kimi browser/CDP interfaces and fakes, then add RED login lifecycle tests for protected-response correlation, manual cancellation, validation-before-save, same-name relogin generation, browser reap, and temporary-profile cleanup.
-- [x] 4.3 Implement Kimi system-browser login using the real evidence sequence, allowlisted minimal auth capture, production quota validation, save-after-validation behavior, and deterministic close/wait cleanup.
-- [x] 4.4 Add RED account-page tests for credential application before protected navigation, authenticated console verification, ready handshake ordering, error-handshake-before-wait, no flash-close, unsupported envelope, cross-account isolation, and manual-close cleanup.
-- [x] 4.5 Implement saved Kimi console replay at `https://www.kimi.com/code/console`, including strict URL validation, ready/error handshake integration, and wait-until-user-close behavior.
-- [x] 4.6 Implement the add-on page action using only the evidence-verified canonical Kimi HTTPS host/path and test that it opens the authenticated page without submitting any purchase action.
+- [ ] 4.1 Reassess shared `internal/browserauth` primitives for document-start storage restoration, exact host/path navigation, and correlated membership response events; run upstream impact before adding only provider-neutral primitives with focused tests.
+- [ ] 4.2 Update narrow Kimi browser/CDP interfaces and fakes, then add RED login tests for durable state capture, protected three-metric validation, validation-before-save, cancellation, generation advance, process reap, and profile cleanup.
+- [ ] 4.3 Implement login capture of the minimum refreshable Kimi session and validate it through the production refreshable three-metric path before saving.
+- [ ] 4.4 Add RED membership-page tests for expired-access-token refresh, storage/cookie restoration before navigation, three-metric readiness, exact membership URL, ready/error handshake ordering, no flash-close, account isolation, and manual-close cleanup.
+- [ ] 4.5 Implement saved account opening at exactly `https://www.kimi.com/membership/subscription?tab=quota`, restoring the authenticated SPA state and waiting for a correlated valid three-metric response before readiness.
+- [ ] 4.6 Remove or redirect obsolete `/code/console` and separate add-on-page assumptions so the user-controlled membership quota page is the account/details destination and no purchase control is automated.
 
-## 5. CLI and local web API integration
+## 5. CLI and local web/sidebar integration
 
-- [x] 5.1 Add Kimi config-to-web DTO conversion and a provider callback that returns no authentication fields, with tests that scan serialized responses for all synthetic secret values.
-- [x] 5.2 Add a concurrently fetched, name-sorted Kimi cards endpoint with per-account loading/success/error/re-login status and tests proving one account failure does not suppress other account results.
-- [x] 5.3 Extend login, open-page, delete, and refresh dispatch for provider `kimi`, including subprocess handshake/timeouts and tests for valid, missing-account, unknown-provider, and failed-browser cases.
-- [x] 5.4 Add `login-kimi <name>` and `quota-kimi [name]` CLI flows, explicit weekly/frequency-limit labels, all-account isolation, fetch timestamps, exit/error behavior, and updated command help tests.
-- [x] 5.5 Add Kimi to the sidebar add-account flow and card renderer with both percentages/resets, loading/error/expired states, re-login, refresh, console-open, add-on-open, and delete actions.
-- [x] 5.6 Add GUI and `nogui` route/rendering tests that verify Kimi behavior is identical apart from the GUI shell and that no WebView-specific authentication path is introduced.
+- [ ] 5.1 Update Kimi web DTO/provider conversion to return total, 5-hour, and 7-day decimal metrics plus absolute reset displays while excluding the complete durable authentication envelope.
+- [ ] 5.2 Update the concurrently fetched, name-sorted Kimi cards endpoint for refreshing/success/expired/error states and prove one account failure does not suppress other results.
+- [ ] 5.3 Update login, quota refresh, membership-page open, and delete dispatch for durable credential rotation and exact page targeting, including subprocess handshake failure tests.
+- [ ] 5.4 Update `quota-kimi [name]` output and help to print `总使用量`, `5 小时用量`, and `7 天用量`, preserving `2.19%`, `10.42%`, and `0%` formatting plus absolute reset displays.
+- [ ] 5.5 Replace the old two-meter sidebar card with three rows, decimal-safe rendering, refresh/re-login/error states, and an account/details action that opens the authenticated membership quota page.
+- [ ] 5.6 Update GUI and `nogui` route/rendering/browser tests and remove stale assertions for weekly/frequency-only labels, `/code/console`, or automated/separate add-on navigation.
 
 ## 6. Security, documentation, and acceptance
 
-- [x] 6.1 Audit Kimi credential flow from capture through config, HTTP headers, child processes, errors, API DTOs, HTML, and logs; add regression assertions for every outward-facing boundary.
-- [x] 6.2 Update README.md, README_EN.md, CLI examples/help, provider support tables, and account-page documentation with Kimi weekly/frequency semantics and the non-automated “购买加油包” behavior.
-- [x] 6.3 Run `gofmt`, fresh default tests, fresh `-race -tags nogui` tests, both default and `nogui` vet, and the project-standard GUI/WebKit and `nogui` canonical builds; record exact test counts, binary paths, versions, and SHA256 values.
-- [ ] 6.4 Perform a fresh real-browser acceptance using the canonical build: login and save one isolated Kimi account, retrieve both meters and compare them to the visible console, open the authenticated console until manual close, open the verified add-on page without purchasing, confirm no flash-close/profile leak, and retain only redacted evidence.
-- [x] 6.5 Run GitNexus `detect_changes` against the default branch before committing, review every changed symbol and affected execution flow, and resolve any scope outside the Kimi provider change.
+- [ ] 6.1 Re-audit access/refresh tokens, cookies, storage state, rotated credentials, child processes, errors, API DTOs, HTML, and logs with synthetic-secret boundary tests.
+- [ ] 6.2 Update README.md, README_EN.md, CLI examples/help, support tables, and account-page documentation to describe the membership quota page and three decimal metrics.
+- [ ] 6.3 Run fresh `gofmt`, default tests, `-race -tags nogui` tests, default/nogui vet, strict OpenSpec validation, and project-standard GUI/WebKit and nogui canonical builds; record exact counts, versions, paths, and SHA256 values.
+- [ ] 6.4 Perform canonical real-browser acceptance: save one isolated account, wait until/force the original access token to expire, prove automatic durable refresh, compare all three percentages and absolute resets with the visible membership page, keep the page open until manual close, confirm purchase controls are untouched, and retain only redacted evidence.
+- [ ] 6.5 Run GitNexus `detect_changes` against the implementation baseline before each new commit, review every changed symbol/flow, clean diagnostics/secrets, and finish with a clean worktree except local supervisor/agent files.

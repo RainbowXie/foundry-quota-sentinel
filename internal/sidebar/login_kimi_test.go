@@ -207,11 +207,13 @@ func (c *fakeKimiCDP) navigatedSnapshot() bool {
 }
 
 // kimiSuccessBodyFixture is a synthetic Connect-JSON success body (no "code"
-// string) with both meters, mirroring the REAL captured structure
-// (ratelimitCode7d/ratelimitCode5h + ratio + absolute ISO resetTime). The
-// resetTime is built at call time so it is always in the future.
+// string) with the three REAL metrics, mirroring the captured membership
+// structure (ratelimitCode5h absent-ratio 0%, ratelimitCode7d ratio, and
+// subscriptionBalance.amountUsedRatio + expireTime). resetTime/expireTime built
+// at call time so they are always in the future.
 func kimiSuccessBodyFixture() string {
-	return `{"ratelimitCode5h":{"ratio":0.52,"enabled":true,"resetTime":"` + time.Now().Add(12000*time.Second).UTC().Format(time.RFC3339Nano) + `"},"ratelimitCode7d":{"ratio":0.10,"enabled":true,"resetTime":"` + time.Now().Add(562800*time.Second).UTC().Format(time.RFC3339Nano) + `"},"subscriptionBalance":{"id":"synthetic-id"}}`
+	now := time.Now()
+	return `{"ratelimitCode5h":{"enabled":true,"resetTime":"` + now.Add(5*time.Hour).UTC().Format(time.RFC3339Nano) + `"},"ratelimitCode7d":{"ratio":0.1042,"enabled":true,"resetTime":"` + now.Add(7*24*time.Hour).UTC().Format(time.RFC3339Nano) + `"},"subscriptionBalance":{"amountUsedRatio":0.0219,"kimiCodeUsedRatio":0.0219,"expireTime":"` + now.Add(30*24*time.Hour).UTC().Format(time.RFC3339Nano) + `","type":"SUBSCRIPTION","feature":"FEATURE_OMNI","unit":"UNIT_CREDIT","domain":"DOMAIN_NEXUS"}}`
 }
 
 // kimiPageTestSetup is the common setup for RunKimiPage tests: saves the

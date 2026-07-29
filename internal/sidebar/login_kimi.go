@@ -530,7 +530,7 @@ func kimiResponseBodyValid(ctx context.Context, cdp kimiCDP, requestID string) b
 	if err != nil || body == "" {
 		return false
 	}
-	_, err = quota.ParseKimiQuota(body)
+	_, err = quota.ParseKimiQuota(body, time.Now())
 	return err == nil
 }
 

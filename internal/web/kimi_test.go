@@ -7,15 +7,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"foundry-quota-sentinel/internal/quota"
 )
 
-// TestKimiCardsReturnsSortedTwoMeterResults (task 5.2) proves the Kimi cards
-// endpoint concurrently fetches per-account quota, sorts by name, and returns
-// the two meters (weekly + rate_limit) with per-account success/error. One
+// TestKimiCardsReturnsSortedThreeMetricResults (task 5.2) proves the Kimi cards
+// endpoint concurrently fetches per-account three-metric quota, sorts by name,
+// and returns total/5h/7d decimal metrics with per-account success/error. One
 // account failure does NOT suppress other accounts.
-func TestKimiCardsReturnsSortedTwoMeterResults(t *testing.T) {
+func TestKimiCardsReturnsSortedThreeMetricResults(t *testing.T) {
 	srv := NewServer(nil)
 	srv.SetKimiProvider(func() []KimiAccount {
 		return []KimiAccount{
@@ -28,8 +29,9 @@ func TestKimiCardsReturnsSortedTwoMeterResults(t *testing.T) {
 			return nil, errors.New("unavailable")
 		}
 		return &quota.KimiQuotaData{
-			Weekly:    quota.QuotaUsage{UsagePercent: 10, ResetInSec: 562800, ResetDisplay: "6d"},
-			RateLimit: quota.QuotaUsage{UsagePercent: 52, ResetInSec: 12000, ResetDisplay: "3h"},
+			Total:    quota.KimiQuotaUsage{UsagePercent: 2.19, ResetDisplay: "2026-08-27"},
+			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
+			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
 	}
 
@@ -59,7 +61,7 @@ func TestKimiCardsReturnsSortedTwoMeterResults(t *testing.T) {
 	if got.Data[0].Name != "alpha" || !got.Data[0].Success || got.Data[0].Quota == nil {
 		t.Fatalf("first card = %#v", got.Data[0])
 	}
-	if got.Data[0].Quota.Weekly.UsagePercent != 10 || got.Data[0].Quota.RateLimit.UsagePercent != 52 {
+	if got.Data[0].Quota.Total.UsagePercent != 2.19 || got.Data[0].Quota.SevenDay.UsagePercent != 10.42 {
 		t.Fatalf("first card meters = %#v", got.Data[0].Quota)
 	}
 	// One account failure does not suppress the other.
@@ -69,18 +71,18 @@ func TestKimiCardsReturnsSortedTwoMeterResults(t *testing.T) {
 }
 
 // TestKimiCardsEndpointExcludesAuthFields (task 5.1/5.2) proves the cards
-// response excludes the access token and all auth envelope values — only the
-// account name, quota meters, fetched time, and status/error are returned.
+// response excludes the access token and all auth envelope values.
 func TestKimiCardsEndpointExcludesAuthFields(t *testing.T) {
 	srv := NewServer(nil)
-	const secret = "synthetic-kimi-access-token-secret"
+	const secret = "synthetic-kimi-access-token-SECRET"
 	srv.SetKimiProvider(func() []KimiAccount {
 		return []KimiAccount{{Name: "work", AccessToken: secret, Generation: 1}}
 	})
 	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
 		return &quota.KimiQuotaData{
-			Weekly:    quota.QuotaUsage{UsagePercent: 10, ResetInSec: 562800, ResetDisplay: "6d"},
-			RateLimit: quota.QuotaUsage{UsagePercent: 52, ResetInSec: 12000, ResetDisplay: "3h"},
+			Total:    quota.KimiQuotaUsage{UsagePercent: 2.19, ResetDisplay: "2026-08-27"},
+			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
+			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
 	}
 
@@ -97,10 +99,8 @@ func TestKimiCardsEndpointExcludesAuthFields(t *testing.T) {
 	}
 }
 
-// TestKimiAccountsEndpointReturnsConfigImmediately (task 5.2) proves the
-// fast Kimi accounts endpoint reflects config-saved accounts (with generation)
-// without a remote fetch — so a loading card shell appears the moment the
-// account is saved.
+// TestKimiAccountsEndpointReturnsConfigImmediately proves the fast Kimi
+// accounts endpoint reflects config-saved accounts with generation, no token.
 func TestKimiAccountsEndpointReturnsConfigImmediately(t *testing.T) {
 	srv := NewServer(nil)
 	srv.SetKimiProvider(func() []KimiAccount {
@@ -128,14 +128,12 @@ func TestKimiAccountsEndpointReturnsConfigImmediately(t *testing.T) {
 	if !got.Success || len(got.Data) != 1 || got.Data[0].Name != "work" || got.Data[0].Generation != 3 {
 		t.Fatalf("response = %#v", got)
 	}
-	body := w.Body.String()
-	if strings.Contains(body, "tok") {
-		t.Fatalf("accounts response must not expose the access token: %s", body)
+	if strings.Contains(w.Body.String(), "tok") {
+		t.Fatalf("accounts response must not expose the access token: %s", w.Body.String())
 	}
 }
 
-// TestKimiAccountsEndpointEmptyWhenNoAccounts proves no accounts → empty
-// list (not an error, not a ghost card).
+// TestKimiAccountsEndpointEmptyWhenNoAccounts proves no accounts → empty list.
 func TestKimiAccountsEndpointEmptyWhenNoAccounts(t *testing.T) {
 	srv := NewServer(nil)
 	srv.SetKimiProvider(func() []KimiAccount { return nil })
@@ -158,8 +156,8 @@ func TestKimiAccountsEndpointEmptyWhenNoAccounts(t *testing.T) {
 	}
 }
 
-// TestKimiLoginEndpointSpawnsSubprocess (task 5.3) proves /api/kimi/login
-// spawns the login-kimi subprocess and returns success=true.
+// TestKimiLoginEndpointSpawnsSubprocess proves /api/kimi/login spawns the
+// login-kimi subprocess and returns success=true.
 func TestKimiLoginEndpointSpawnsSubprocess(t *testing.T) {
 	srv := NewServer(nil)
 	spawned := false
@@ -212,8 +210,7 @@ func TestKimiLoginReportsSpawnFailure(t *testing.T) {
 	}
 }
 
-// TestOpenEndpointAcceptsKimiProvider (task 5.3) proves /api/open accepts
-// provider=kimi and routes through the same handshake as the other providers.
+// TestOpenEndpointAcceptsKimiProvider proves /api/open accepts provider=kimi.
 func TestOpenEndpointAcceptsKimiProvider(t *testing.T) {
 	srv := NewServer(nil)
 	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
@@ -239,8 +236,7 @@ func TestOpenEndpointAcceptsKimiProvider(t *testing.T) {
 	}
 }
 
-// TestDeleteEndpointAcceptsKimiProvider (task 5.3) proves /api/delete accepts
-// provider=kimi and routes to the delete handler.
+// TestDeleteEndpointAcceptsKimiProvider proves /api/delete accepts provider=kimi.
 func TestDeleteEndpointAcceptsKimiProvider(t *testing.T) {
 	srv := NewServer(nil)
 	var provider, name string
@@ -259,7 +255,7 @@ func TestDeleteEndpointAcceptsKimiProvider(t *testing.T) {
 }
 
 // TestOpenEndpointRejectsUnknownProviderStill proves an unknown provider is
-// rejected (kimi is now valid, but "bogus" is not).
+// rejected (kimi is valid, but "bogus" is not).
 func TestOpenEndpointRejectsUnknownProviderStill(t *testing.T) {
 	srv := NewServer(nil)
 	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=bogus&name=work", nil)
@@ -277,29 +273,6 @@ func TestOpenEndpointRejectsUnknownProviderStill(t *testing.T) {
 	}
 }
 
-// TestOpenEndpointAcceptsKimiAddonProvider proves /api/open accepts
-// provider=kimi-addon (the "购买加油包" action) and routes through the same
-// handshake as the other providers.
-func TestOpenEndpointAcceptsKimiAddonProvider(t *testing.T) {
-	srv := NewServer(nil)
-	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
-		if provider != "kimi-addon" {
-			t.Fatalf("provider = %q, want kimi-addon", provider)
-		}
-		WriteOpenHandshake(session, "ready", "")
-		return func() error { return nil }, nil
-	}
-
-	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=kimi-addon&name=work", nil)
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, r)
-	var got struct {
-		Success bool `json:"success"`
-	}
-	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
-		t.Fatal(err)
-	}
-	if !got.Success {
-		t.Fatal("kimi-addon open-page must succeed on a ready handshake")
-	}
-}
+// keep time imported (used by synthetic fixtures in other packages; this file
+// may reference time for future refresh tests).
+var _ = time.Now
