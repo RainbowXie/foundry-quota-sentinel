@@ -271,3 +271,26 @@ written — 0 Kimi accounts before and after). The complete 6.4 chain ran:
 Artifacts: every disposable HOME, temp profile, canonical binary, and log was
 shredded after the run; no secret artifacts were retained; the real user config
 is unchanged (0 Kimi accounts).
+
+### Round-2 hardening re-acceptance (post `5936450`)
+
+After the round-2 credential-safety hardening (atomic `Save`, serialized
+`SaveKimiTokens` reload, CLI/Web hard-fail, exact pre-replay URL), the full
+6.4 chain was re-run under a fresh disposable HOME to prove the hardening did
+not regress the real path:
+
+- `login-kimi acceptance2` saved an isolated version-1 envelope (gen 1, initial
+  access/refresh 606/607 chars) from an interactive login.
+- `quota-kimi acceptance2` returned the same four values via the production
+  Go-HTTP path (hardened save path active).
+- After ~16 min (access_token expired), `quota-kimi` returned the SAME four
+  values with NO re-login — `FetchQuotaWithRefresh` auto-refreshed, the rotated
+  tokens (606/607 → 567/568 chars) were persisted through the serialized
+  atomic `SaveKimiTokens` path. Hardened durable refresh proven.
+- `open-page kimi` passed the tightened `validateKimiPageURL` exact membership
+  check, replayed SPA state, reached the authenticated membership page
+  (protected 200 + three-metric valid), and held open until manual close
+  (no flash-close).
+
+All disposable artifacts shredded; real config unchanged (0 Kimi accounts); no
+secret artifacts retained.
