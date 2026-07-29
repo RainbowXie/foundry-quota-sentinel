@@ -53,8 +53,9 @@ type OllamaAccount struct {
 // endpoints NEVER serialize them — only the name, quota meters, generation,
 // and status/error leave the API.
 type KimiAccount struct {
-	Name        string
-	AccessToken string
+	Name         string
+	AccessToken  string
+	RefreshToken string
 	// Headers are the saved browser headers (cookie + x-msh-* + user-agent)
 	// the querier replays alongside the Bearer token. Keys are HTTP header
 	// names. Never serialized to the API.
@@ -76,9 +77,13 @@ type Server struct {
 	// kimiFetch retrieves one Kimi account's two-meter quota. Injected by
 	// tests; the default builds a KimiQuerier from the account's token.
 	kimiFetch func(KimiAccount) (*quota.KimiQuotaData, error)
-	deepseek  *quota.DeepSeekQuerier
-	onWinSize func(w, h int)
-	onDelete  func(provider, name string) error
+	// kimiRefreshSave persists rotated access/refresh tokens for a named Kimi
+	// account after a successful auto-refresh. nil in tests (no persistence);
+	// production wires it to a config save of the rotated envelope.
+	kimiRefreshSave func(name, accessToken, refreshToken string) error
+	deepseek        *quota.DeepSeekQuerier
+	onWinSize       func(w, h int)
+	onDelete        func(provider, name string) error
 	// spawnDeepSeekLogin launches the login-deepseek subprocess. The
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
@@ -124,6 +129,12 @@ func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn 
 // SetKimiProvider sets the dynamic Kimi account source, read on each request
 // so a newly saved account appears without a restart.
 func (s *Server) SetKimiProvider(fn func() []KimiAccount) { s.kimiFn = fn }
+
+// SetKimiRefreshSave wires the callback that persists rotated access/refresh
+// tokens for a Kimi account after an auto-refresh (production: config save).
+func (s *Server) SetKimiRefreshSave(fn func(name, accessToken, refreshToken string) error) {
+	s.kimiRefreshSave = fn
+}
 
 // SetWinSizeHandler 设置窗口大小持久化回调（前端 resize 时上报）。
 func (s *Server) SetWinSizeHandler(fn func(w, h int)) { s.onWinSize = fn }
@@ -417,7 +428,16 @@ func (s *Server) Handler() http.Handler {
 		fetch := s.kimiFetch
 		if fetch == nil {
 			fetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
-				return (&quota.KimiQuerier{AccessToken: a.AccessToken, Headers: a.Headers}).FetchQuota(r.Context())
+				q := &quota.KimiQuerier{AccessToken: a.AccessToken, RefreshToken: a.RefreshToken, Headers: a.Headers}
+				data, rotated, err := q.FetchQuotaWithRefresh(r.Context())
+				if err != nil {
+					return nil, err
+				}
+				// Persist rotated tokens if the refresh ran and a save callback is wired.
+				if rotated != nil && s.kimiRefreshSave != nil {
+					_ = s.kimiRefreshSave(a.Name, rotated.AccessToken, rotated.RefreshToken)
+				}
+				return data, nil
 			}
 		}
 		var wg sync.WaitGroup

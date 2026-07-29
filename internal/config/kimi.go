@@ -38,6 +38,7 @@ func KimiAuthEnvelopeVersion() int { return kimiAuthEnvelopeVersion }
 // the persisted credential.
 var kimiAuthAllowlist = []string{
 	"accessToken",
+	"refreshToken",
 	"cookie",
 	"x_msh_device_id",
 	"x_traffic_id",
@@ -88,6 +89,13 @@ func (e *KimiAuthEnvelope) Field(name string) (string, bool) {
 // <accessToken>`). Empty when not saved.
 func (e *KimiAuthEnvelope) AccessToken() string {
 	v, _ := e.Fields["accessToken"]
+	return v
+}
+
+// RefreshToken is the persisted durable refresh token (sent in the
+// RefreshToken request body). Empty when not saved.
+func (e *KimiAuthEnvelope) RefreshToken() string {
+	v, _ := e.Fields["refreshToken"]
 	return v
 }
 

@@ -289,6 +289,10 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 	// block a token-only replay.
 	capturedCookies, _ := cdp.BrowserCookies(ctx)
 	cookieHeader := kimiCookieHeader(capturedCookies)
+	// Capture the durable refresh_token + access_token from localStorage (the
+	// SPA stores refresh_token in localStorage["refresh_token"], NOT in request
+	// headers — this is the durable session the querier needs for auto-refresh).
+	refreshToken := kimiReadLocalStorage(ctx, cdp, "refresh_token")
 	_ = cdp.Close()
 	if err := browser.Close(); err != nil {
 		return config.KimiAuthEnvelope{}, fmt.Errorf("关闭 Kimi 登录浏览器失败: %w", err)
@@ -296,19 +300,47 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 
 	for _, c := range candidates {
 		if validate(c.token) {
-			return kimiBuildEnvelope(c.token, cookieHeader, c.headers), nil
+			return kimiBuildEnvelope(c.token, refreshToken, cookieHeader, c.headers), nil
 		}
 	}
 	return config.KimiAuthEnvelope{}, fmt.Errorf("未找到可验证的 Kimi 凭证")
 }
 
+// kimiReadLocalStorage reads a single localStorage key value via
+// Runtime.evaluate. Returns "" on any error (best-effort capture). The value
+// is the durable session credential (e.g. refresh_token), stored in the
+// allowlisted envelope — never logged.
+func kimiReadLocalStorage(ctx context.Context, cdp kimiCDP, key string) string {
+	// JSON.stringify the value so returnByValue delivers a JSON string we can
+	// unwrap, and escape the key safely.
+	keyJSON, _ := json.Marshal(key)
+	expr := fmt.Sprintf(`JSON.stringify(localStorage.getItem(%s))`, string(keyJSON))
+	raw, err := cdp.Evaluate(ctx, expr)
+	if err != nil {
+		return ""
+	}
+	var envelope struct {
+		Result struct {
+			Value string `json:"value"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil {
+		return ""
+	}
+	// envelope.Result.Value is a JSON string like "\"<token>\"" or "null".
+	var s string
+	if json.Unmarshal([]byte(envelope.Result.Value), &s) != nil {
+		return ""
+	}
+	return s
+}
+
 // kimiBuildEnvelope fills a versioned envelope with the allowlisted replay
-// fields from a captured protected request: the Bearer accessToken, the
-// cookie header, and the stable browser headers (x-msh-device-id,
-// x-traffic-id, x-msh-platform, x-msh-version, x-language, r-timezone,
-// user-agent). Unknown headers are ignored; SetField rejects anything outside
-// the allowlist. Only non-empty values are stored.
-func kimiBuildEnvelope(token, cookieHeader string, headers map[string]string) config.KimiAuthEnvelope {
+// fields: the Bearer accessToken, the durable refresh_token (from localStorage),
+// the cookie header, and the stable browser headers. Unknown headers are
+// ignored; SetField rejects anything outside the allowlist. Only non-empty
+// values are stored.
+func kimiBuildEnvelope(token, refreshToken, cookieHeader string, headers map[string]string) config.KimiAuthEnvelope {
 	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
 	// Header name → envelope field name (allowlisted).
 	h2f := map[string]string{
@@ -321,6 +353,9 @@ func kimiBuildEnvelope(token, cookieHeader string, headers map[string]string) co
 		"user-agent":      "user_agent",
 	}
 	_ = env.SetField("accessToken", token)
+	if refreshToken != "" {
+		_ = env.SetField("refreshToken", refreshToken)
+	}
 	if cookieHeader != "" {
 		_ = env.SetField("cookie", cookieHeader)
 	}
@@ -618,6 +653,7 @@ func kimiEnvelopeCookies(env *config.KimiAuthEnvelope) []browserauth.Cookie {
 func kimiAuthEnvelopeForTest() config.KimiAuthEnvelope {
 	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
 	_ = env.SetField("accessToken", "synthetic-bearer-jwt-1234567890")
+	_ = env.SetField("refreshToken", "synthetic-refresh-jwt-1234567890")
 	_ = env.SetField("cookie", "kimi_session=synthetic-session-value")
 	return env
 }

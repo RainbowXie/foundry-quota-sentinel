@@ -26,12 +26,14 @@ func kimiAllowedHost(host string) bool {
 }
 
 // kimiProtectedQuotaURL is the OBSERVED protected quota endpoint: a Buf
-// Connect POST to the membership service's GetSubscriptionStats method. The
-// SPA's useBalanceModel calls membershipService.getSubscriptionStats({}).
-// EVIDENCE-GATED: the exact 200-body layout (which Balance fields populate)
-// is confirmed by a single real login; the endpoint path and protocol are
-// OBSERVED (401 on POST without auth, 405 on GET).
+// Connect POST to the membership service's GetSubscriptionStats method.
 const kimiProtectedQuotaURL = "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
+
+// kimiRefreshTokenURL is the OBSERVED durable refresh endpoint: a POST to the
+// auth host's AuthService/RefreshToken with body {"refresh_token":"<jwt>"} (NO
+// Bearer header — the refresh_token is in the body). Returns
+// {"accessToken":"<new>","refreshToken":"<new>"} — BOTH tokens rotate.
+const kimiRefreshTokenURL = "https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken"
 
 // kimiRequestTimeout bounds the protected quota request.
 var kimiRequestTimeout = 15 * time.Second
@@ -68,6 +70,9 @@ var ErrKimiTimeout = errors.New("Kimi 请求超时")
 // {code,msg,data} code==0 envelope.
 type KimiQuerier struct {
 	AccessToken string
+	// RefreshToken is the durable Kimi session token (from localStorage). When
+	// set, FetchQuotaWithRefresh can auto-refresh an expired access token.
+	RefreshToken string
 	// BaseURL overrides the OBSERVED host; the default is kimiBaseURL. Used
 	// only by tests that want to point at a fake server — production always
 	// hits www.kimi.com over HTTPS.
@@ -193,4 +198,114 @@ func isKimiAuthErrorCode(body string) bool {
 		return false
 	}
 	return cerr.Code == kimiConnectUnauthenticated
+}
+
+// ErrKimiRefreshFailed is returned when the durable refresh request rejects
+// the saved refresh token (the session is no longer valid → re-login required).
+var ErrKimiRefreshFailed = errors.New("Kimi 会话刷新失败，请重新登录")
+
+// RefreshResult is the outcome of a successful refresh: the rotated access +
+// refresh tokens the caller must atomically persist for this account.
+type RefreshResult struct {
+	AccessToken  string
+	RefreshToken string
+}
+
+// Refresh calls the OBSERVED RefreshToken endpoint with the saved refresh_token
+// and returns the rotated access + refresh tokens. The refresh_token is in the
+// request body (NO Bearer header). Both tokens rotate. Returns
+// ErrKimiRefreshFailed if the refresh is rejected (expired/revoked refresh
+// token); the caller preserves the last envelope and reports re-login-required.
+// The refresh_token never appears in the returned error.
+func (q *KimiQuerier) Refresh(ctx context.Context) (RefreshResult, error) {
+	if strings.TrimSpace(q.RefreshToken) == "" {
+		return RefreshResult{}, fmt.Errorf("%w: 无 refresh_token", ErrKimiRefreshFailed)
+	}
+	body := fmt.Sprintf(`{"refresh_token":%s}`, mustJSONString(q.RefreshToken))
+	reqCtx := ctx
+	cancel := func() {}
+	if _, ok := reqCtx.Deadline(); !ok {
+		reqCtx, cancel = context.WithTimeout(reqCtx, kimiRequestTimeout)
+	}
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, kimiRefreshTokenURL, strings.NewReader(body))
+	if err != nil {
+		return RefreshResult{}, fmt.Errorf("%w: %v", ErrKimiTransport, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connect-Protocol-Version", "1")
+	for name, value := range q.Headers {
+		if value == "" || strings.ContainsAny(value, "\r\n") {
+			continue
+		}
+		req.Header.Set(name, value)
+	}
+	client := q.Client
+	if client == nil {
+		client = &http.Client{Timeout: kimiRequestTimeout}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return RefreshResult{}, fmt.Errorf("%w: %v", ErrKimiTimeout, err)
+		}
+		return RefreshResult{}, fmt.Errorf("%w: %v", ErrKimiTransport, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return RefreshResult{}, fmt.Errorf("%w (HTTP %d)", ErrKimiRefreshFailed, resp.StatusCode)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return RefreshResult{}, fmt.Errorf("%w: HTTP %d", ErrKimiRefreshFailed, resp.StatusCode)
+	}
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, kimiMaxResponseSize))
+	var rotated struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.Unmarshal(respBody, &rotated); err != nil {
+		return RefreshResult{}, fmt.Errorf("%w: %v", ErrKimiRefreshFailed, err)
+	}
+	if rotated.AccessToken == "" || rotated.RefreshToken == "" {
+		return RefreshResult{}, fmt.Errorf("%w: 响应缺少轮换 token", ErrKimiRefreshFailed)
+	}
+	return RefreshResult{AccessToken: rotated.AccessToken, RefreshToken: rotated.RefreshToken}, nil
+}
+
+// mustJSONString JSON-encodes s as a JSON string literal (for embedding in a
+// request body safely, no injection).
+func mustJSONString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
+// FetchQuotaWithRefresh fetches the three metrics, auto-refreshing an expired
+// access token once. On a 401 / Connect "unauthenticated" (ErrKimiAuthExpired),
+// it calls Refresh; on success it retries the quota call once with the rotated
+// access token and returns the rotated tokens via RefreshResult (non-nil) so
+// the caller can atomically persist them. On refresh failure it returns
+// ErrKimiRefreshFailed (caller preserves the old envelope, reports re-login).
+// Refresh is account-scoped: the caller's credential-update boundary serializes
+// rotation (the per-account refresh mutex lives in the caller, not here).
+func (q *KimiQuerier) FetchQuotaWithRefresh(ctx context.Context) (*KimiQuotaData, *RefreshResult, error) {
+	data, err := q.FetchQuota(ctx)
+	if err == nil {
+		return data, nil, nil
+	}
+	if !errors.Is(err, ErrKimiAuthExpired) {
+		return nil, nil, err
+	}
+	// Access token expired — refresh once.
+	rr, rerr := q.Refresh(ctx)
+	if rerr != nil {
+		return nil, nil, rerr
+	}
+	// Retry with the rotated access token.
+	q.AccessToken = rr.AccessToken
+	q.RefreshToken = rr.RefreshToken
+	data, err = q.FetchQuota(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, &rr, nil
 }

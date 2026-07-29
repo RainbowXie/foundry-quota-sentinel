@@ -145,15 +145,29 @@ func kimiFromConfig(conf *config.Config) []web.KimiAccount {
 		if token == "" {
 			continue
 		}
-		out = append(out, web.KimiAccount{Name: a.Name, AccessToken: token, Headers: kimiEnvelopeHeaders(&a.Auth), Generation: a.Generation})
+		out = append(out, web.KimiAccount{Name: a.Name, AccessToken: token, RefreshToken: a.Auth.RefreshToken(), Headers: kimiEnvelopeHeaders(&a.Auth), Generation: a.Generation})
 	}
 	return out
 }
 
-// kimiEnvelopeHeaders turns the saved envelope's browser-header fields into an
-// HTTP header map the querier replays alongside the Bearer token. Field names
-// (underscore form) map back to their HTTP header names. Empty/absent fields
-// are omitted.
+// kimiPersistRotated atomically persists rotated access/refresh tokens for a
+// named Kimi account after an auto-refresh. It re-loads config, updates only
+// that account's envelope tokens, and saves — other accounts and providers are
+// untouched. A failed save does not block the current quota result.
+func kimiPersistRotated(name string, rotated *quota.RefreshResult) error {
+	c := config.Load()
+	for i := range c.KimiAccounts {
+		if c.KimiAccounts[i].Name != name {
+			continue
+		}
+		env := c.KimiAccounts[i].Auth
+		_ = env.SetField("accessToken", rotated.AccessToken)
+		_ = env.SetField("refreshToken", rotated.RefreshToken)
+		c.KimiAccounts[i].Auth = env
+		return c.Save()
+	}
+	return fmt.Errorf("Kimi 账户 %q 不存在", name)
+}
 func kimiEnvelopeHeaders(env *config.KimiAuthEnvelope) map[string]string {
 	if env == nil {
 		return nil
@@ -247,6 +261,20 @@ func startSidebar() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
+		c := config.Load()
+		for i := range c.KimiAccounts {
+			if c.KimiAccounts[i].Name != name {
+				continue
+			}
+			env := c.KimiAccounts[i].Auth
+			_ = env.SetField("accessToken", accessToken)
+			_ = env.SetField("refreshToken", refreshToken)
+			c.KimiAccounts[i].Auth = env
+			return c.Save()
+		}
+		return fmt.Errorf("Kimi 账户 %q 不存在", name)
+	})
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
@@ -415,6 +443,20 @@ func cmdServe() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
+		c := config.Load()
+		for i := range c.KimiAccounts {
+			if c.KimiAccounts[i].Name != name {
+				continue
+			}
+			env := c.KimiAccounts[i].Auth
+			_ = env.SetField("accessToken", accessToken)
+			_ = env.SetField("refreshToken", refreshToken)
+			c.KimiAccounts[i].Auth = env
+			return c.Save()
+		}
+		return fmt.Errorf("Kimi 账户 %q 不存在", name)
+	})
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
@@ -587,10 +629,16 @@ func printKimiQuota(acc *config.KimiAccount) error {
 	if token == "" {
 		return fmt.Errorf("Kimi 账户 %q 缺少凭证，请重新登录", acc.Name)
 	}
-	q := &quota.KimiQuerier{AccessToken: token, Headers: kimiEnvelopeHeaders(&acc.Auth)}
-	data, err := q.FetchQuota(context.Background())
+	q := &quota.KimiQuerier{AccessToken: token, RefreshToken: acc.Auth.RefreshToken(), Headers: kimiEnvelopeHeaders(&acc.Auth)}
+	data, rotated, err := q.FetchQuotaWithRefresh(context.Background())
 	if err != nil {
 		return err
+	}
+	// Persist rotated tokens if the access token was auto-refreshed.
+	if rotated != nil {
+		if saveErr := kimiPersistRotated(acc.Name, rotated); saveErr != nil {
+			fmt.Fprintf(os.Stderr, "Kimi 账户 %q token 轮换保存失败（不影响本次查询）: %v\n", acc.Name, saveErr)
+		}
 	}
 	fmt.Println()
 	fmt.Println("========================================")
