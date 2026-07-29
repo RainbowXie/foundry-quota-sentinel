@@ -40,6 +40,7 @@ type Config struct {
 	Profiles         map[string]Profile `json:"profiles"`
 	DeepSeekAccounts []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
 	OllamaAccounts   []OllamaAccount    `json:"ollama_accounts,omitempty"`
+	KimiAccounts     []KimiAccount      `json:"kimi_accounts,omitempty"`
 	WindowW          int                `json:"window_w,omitempty"`
 	WindowH          int                `json:"window_h,omitempty"`
 }
