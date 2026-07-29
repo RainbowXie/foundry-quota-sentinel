@@ -509,8 +509,13 @@ func kimiStorageRestoreScript(env *config.KimiAuthEnvelope) string {
 }
 
 // isKimiMembershipPage reports whether the page URL is the authenticated
-// membership quota page (the account/data page). The path must be
-// /membership/subscription with tab=quota.
+// membership quota page (the account/data page). The spec pins this page to
+// https://www.kimi.com/membership/subscription?tab=quota exactly: the host must
+// be www.kimi.com, the path must be EXACTLY /membership/subscription (no
+// trailing segments, no prefix-only match), and the tab query param must be
+// quota. A missing or wrong tab, a trailing path, or a non-Kimi host is
+// rejected — the account page must be the authoritative quota page, not a
+// look-alike route.
 func isKimiMembershipPage(u string) bool {
 	parsed, err := url.Parse(u)
 	if err != nil {
@@ -519,10 +524,10 @@ func isKimiMembershipPage(u string) bool {
 	if parsed.Host != kimiHost {
 		return false
 	}
-	if parsed.Path != "/membership/subscription" && !strings.HasPrefix(parsed.Path, "/membership/subscription") {
+	if parsed.Path != "/membership/subscription" {
 		return false
 	}
-	return parsed.Query().Get("tab") == "quota" || parsed.Query().Get("tab") == ""
+	return parsed.Query().Get("tab") == "quota"
 }
 
 // isKimiConsolePage is retained as an alias for isKimiMembershipPage for

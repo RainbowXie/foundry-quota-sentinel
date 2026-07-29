@@ -544,3 +544,31 @@ func kimiTestEnvelope() string {
 	data, _ := env.Encode()
 	return string(data)
 }
+
+// TestIsKimiMembershipPageStrict (task 4.4 exact membership URL) proves the
+// account/data page check requires the EXACT host www.kimi.com, the EXACT path
+// /membership/subscription, AND tab=quota. The previous check accepted a
+// missing tab and used a confusing prefix condition; the spec pins the page to
+// https://www.kimi.com/membership/subscription?tab=quota exactly.
+func TestIsKimiMembershipPageStrict(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+		want bool
+	}{
+		{"exact", "https://www.kimi.com/membership/subscription?tab=quota", true},
+		{"missing tab must reject", "https://www.kimi.com/membership/subscription", false},
+		{"wrong tab must reject", "https://www.kimi.com/membership/subscription?tab=billing", false},
+		{"trailing path must reject", "https://www.kimi.com/membership/subscription/extra?tab=quota", false},
+		{"wrong host must reject", "https://evil.example.com/membership/subscription?tab=quota", false},
+		{"console path must reject", "https://www.kimi.com/code/console", false},
+		{"extra query ok", "https://www.kimi.com/membership/subscription?tab=quota&x=1", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isKimiMembershipPage(c.url); got != c.want {
+				t.Fatalf("isKimiMembershipPage(%q) = %v, want %v", c.url, got, c.want)
+			}
+		})
+	}
+}

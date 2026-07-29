@@ -1,11 +1,13 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -276,3 +278,120 @@ func TestOpenEndpointRejectsUnknownProviderStill(t *testing.T) {
 // keep time imported (used by synthetic fixtures in other packages; this file
 // may reference time for future refresh tests).
 var _ = time.Now
+
+// TestKimiCardsPersistenceFailureSurfacesReLogin (task 3.2/3.4) proves that
+// when the durable refresh succeeds but persisting the rotated tokens FAILS,
+// the card surfaces a re-login-required error instead of silently succeeding
+// (which would leave rotated tokens unpersisted and the config stale). The old
+// record must be preserved and the user told to re-login.
+func TestKimiCardsPersistenceFailureSurfacesReLogin(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: "expired-tok", RefreshToken: "rt", Generation: 1}}
+	})
+	srv.kimiFetch = nil // use production path
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+		// Refresh "succeeded": rotated tokens returned.
+		return &quota.KimiQuotaData{
+				Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99},
+				FiveHour: quota.KimiQuotaUsage{UsagePercent: 0},
+				SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42},
+			}, &quota.RefreshResult{
+				AccessToken:  "rotated-access-SECRET",
+				RefreshToken: "rotated-refresh-SECRET",
+			}, nil
+	}
+	saveCalled := false
+	srv.SetKimiRefreshSave(func(name, access, refresh string) error {
+		saveCalled = true
+		return errors.New("disk full")
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	var got struct {
+		Data []struct {
+			Name    string `json:"name"`
+			Success bool   `json:"success"`
+			Error   string `json:"error,omitempty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !saveCalled {
+		t.Fatal("kimiRefreshSave must be called when tokens rotate")
+	}
+	if len(got.Data) != 1 {
+		t.Fatalf("data = %#v", got.Data)
+	}
+	if got.Data[0].Success {
+		t.Fatalf("card succeeded silently despite persistence failure; must surface re-login: %#v", got.Data[0])
+	}
+	if got.Data[0].Error == "" {
+		t.Fatalf("card error must be non-empty on persistence failure: %#v", got.Data[0])
+	}
+	if strings.Contains(got.Data[0].Error, "rotated-access-SECRET") || strings.Contains(got.Data[0].Error, "rotated-refresh-SECRET") {
+		t.Fatalf("card error must not leak rotated credentials: %q", got.Data[0].Error)
+	}
+}
+
+// TestKimiCardsSerializesPerAccountRefresh (task 3.4) proves concurrent card
+// requests for the SAME account cannot race the refresh path: the per-account
+// mutex makes refresh+persist serial. Two concurrent requests for one account
+// must never run their fetch-with-refresh simultaneously (which would double-
+// rotate the refresh_token). Different accounts run concurrently (isolation).
+func TestKimiCardsSerializesPerAccountRefresh(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: "tok", RefreshToken: "rt", Generation: 1}}
+	})
+	srv.kimiFetch = nil
+	var (
+		mu          sync.Mutex
+		inFlight    int
+		maxInFlight int
+		calls       int
+	)
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+		mu.Lock()
+		inFlight++
+		if inFlight > maxInFlight {
+			maxInFlight = inFlight
+		}
+		calls++
+		mu.Unlock()
+		// Hold long enough that a non-serialized peer would overlap.
+		time.Sleep(40 * time.Millisecond)
+		mu.Lock()
+		inFlight--
+		mu.Unlock()
+		return &quota.KimiQuotaData{
+			Total:    quota.KimiTotalUsage{TotalPercent: 1},
+			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0},
+			SevenDay: quota.KimiQuotaUsage{UsagePercent: 2},
+		}, nil, nil
+	}
+	// No save callback (no rotation) so we isolate the serialization check.
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, r)
+		}()
+	}
+	wg.Wait()
+
+	if maxInFlight > 1 {
+		t.Fatalf("per-account refresh was concurrent: max in-flight = %d (must be serialized to 1)", maxInFlight)
+	}
+	if calls != 4 {
+		t.Fatalf("expected 4 fetch calls, got %d", calls)
+	}
+}

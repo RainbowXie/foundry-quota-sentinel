@@ -241,3 +241,87 @@ func TestKimiQuerierEndpointIsExactProtectedPath(t *testing.T) {
 		t.Fatalf("endpoint host = %q, want www.kimi.com", got)
 	}
 }
+
+// (weak redirect tests replaced by redirectTransport-based tests below.)
+
+// redirectTransport simulates a server that returns a 302 redirect on the
+// protected endpoint to an evil host, then (if the client follows) answers
+// the evil host with a 200. It records every host a request was sent to, so
+// a test can prove the Bearer token was NOT carried to the redirect target.
+type redirectTransport struct {
+	target     string // the evil host the 302 points at
+	followedTo string // host captured if the client followed the redirect
+	hadBearer  bool   // whether the followed request carried Authorization
+	statsBody  string
+}
+
+func (r *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Both the protected quota host (www.kimi.com) and the refresh auth host
+	// (auth.kimi.com) redirect to the evil target. Any request reaching a
+	// different host = the client followed the redirect.
+	if req.URL.Host == "www.kimi.com" || req.URL.Host == "auth.kimi.com" {
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Header:     http.Header{"Location": []string{r.target + "/apiv2/x"}, "Content-Type": []string{"text/plain"}},
+			Body:       io.NopCloser(strings.NewReader("moved")),
+		}, nil
+	}
+	// Any other host = the redirect target was followed.
+	r.followedTo = req.URL.Host
+	r.hadBearer = req.Header.Get("Authorization") != ""
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(r.statsBody)),
+	}, nil
+}
+
+// TestKimiQuerierDoesNotFollowRedirectToEvilHost (task 3.1) proves the quota
+// client refuses to follow a redirect off the Kimi host, so the Bearer token
+// is never sent to the redirect target. With the default http.Client the
+// redirect WOULD be followed with Authorization attached (RED); the fix sets a
+// CheckRedirect that stops following.
+func TestKimiQuerierDoesNotFollowRedirectToEvilHost(t *testing.T) {
+	rt := &redirectTransport{
+		target:    "https://evil.example.com",
+		statsBody: kimiValidStatsBody(),
+	}
+	q := &KimiQuerier{
+		AccessToken: "synthetic-bearer-token-for-tests",
+		Client:      &http.Client{Transport: rt},
+	}
+	_, err := q.FetchQuota(context.Background())
+	// The redirect must be rejected (quota fails), NOT followed.
+	if err == nil {
+		if rt.followedTo != "" {
+			t.Fatalf("Bearer token was carried to redirect target %q — redirect must be refused, not followed", rt.followedTo)
+		}
+	}
+	if rt.followedTo != "" && rt.hadBearer {
+		t.Fatalf("FATAL: Bearer Authorization leaked to redirect host %q", rt.followedTo)
+	}
+}
+
+// TestKimiRefreshDoesNotFollowRedirectToEvilHost (task 3.1) proves the refresh
+// client also refuses to follow a redirect off the auth host, so the
+// refresh_token is never sent to a redirect target.
+func TestKimiRefreshDoesNotFollowRedirectToEvilHost(t *testing.T) {
+	rt := &redirectTransport{
+		target:    "https://evil.example.com",
+		statsBody: `{"accessToken":"x","refreshToken":"y"}`,
+	}
+	q := &KimiQuerier{
+		AccessToken:  "tok",
+		RefreshToken: "synthetic-refresh-token",
+		Client:       &http.Client{Transport: rt},
+	}
+	_, err := q.Refresh(context.Background())
+	if err == nil {
+		if rt.followedTo != "" {
+			t.Fatalf("refresh_token was carried to redirect target %q — redirect must be refused", rt.followedTo)
+		}
+	}
+	if rt.followedTo != "" {
+		t.Fatalf("FATAL: request reached redirect host %q — refresh_token could leak there", rt.followedTo)
+	}
+}

@@ -38,6 +38,42 @@ const kimiRefreshTokenURL = "https://auth.kimi.com/api/account.gateway.v1.AuthSe
 // kimiRequestTimeout bounds the protected quota request.
 var kimiRequestTimeout = 15 * time.Second
 
+// kimiHTTPClient returns an http.Client that NEVER follows redirects. The
+// Bearer accessToken (quota) and the refresh_token (refresh) are credentials
+// scoped to www.kimi.com / auth.kimi.com only; a redirect off those hosts
+// could carry the credential to an attacker-controlled host. The OBSERVED
+// Connect endpoints never redirect, so any redirect is treated as anomalous
+// and refused: the 3xx response is returned to the caller, which classifies
+// it as an unsupported/non-2xx response. CheckRedirect stops following by
+// returning http.ErrUseLastResponse (the default would follow up to 10 hops
+// with Authorization re-attached per Go's redirect rules).
+func kimiHTTPClient(transport http.RoundTripper) *http.Client {
+	return &http.Client{
+		Timeout:       kimiRequestTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Transport:     transport,
+	}
+}
+
+// kimiEnforceNoRedirect returns a client equivalent to c but guaranteed to
+// refuse redirects. Production constructs the client via kimiHTTPClient, but a
+// test may inject its own client (with a fake transport) whose CheckRedirect
+// is the unsafe default. The credential-safety rule must hold regardless of
+// the injected client, so this wraps any client to force the no-redirect
+// policy while preserving its timeout and transport. If c is nil it returns
+// the canonical no-redirect client.
+func kimiEnforceNoRedirect(c *http.Client) *http.Client {
+	if c == nil {
+		return kimiHTTPClient(nil)
+	}
+	clone := *c
+	clone.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if clone.Timeout == 0 {
+		clone.Timeout = kimiRequestTimeout
+	}
+	return &clone
+}
+
 // kimiMaxResponseSize bounds the response body so an oversized or streaming
 // response cannot be read indefinitely.
 const kimiMaxResponseSize = 1 << 20
@@ -149,10 +185,7 @@ func (q *KimiQuerier) FetchQuota(ctx context.Context) (*KimiQuotaData, error) {
 		req.Header.Set(name, value)
 	}
 
-	client := q.Client
-	if client == nil {
-		client = &http.Client{Timeout: kimiRequestTimeout}
-	}
+	client := kimiEnforceNoRedirect(q.Client)
 	resp, err := client.Do(req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -240,10 +273,7 @@ func (q *KimiQuerier) Refresh(ctx context.Context) (RefreshResult, error) {
 		}
 		req.Header.Set(name, value)
 	}
-	client := q.Client
-	if client == nil {
-		client = &http.Client{Timeout: kimiRequestTimeout}
-	}
+	client := kimiEnforceNoRedirect(q.Client)
 	resp, err := client.Do(req)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

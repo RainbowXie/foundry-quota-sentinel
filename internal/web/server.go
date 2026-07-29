@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -77,13 +78,26 @@ type Server struct {
 	// kimiFetch retrieves one Kimi account's two-meter quota. Injected by
 	// tests; the default builds a KimiQuerier from the account's token.
 	kimiFetch func(KimiAccount) (*quota.KimiQuotaData, error)
+	// kimiFetchWithRefresh is the production per-account fetch path used when
+	// kimiFetch is nil: it returns the quota data plus any rotated tokens so
+	// the caller can atomically persist them under the per-account refresh
+	// lock. Tests inject this to exercise refresh rotation + persistence
+	// failure without a live Kimi server.
+	kimiFetchWithRefresh func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error)
 	// kimiRefreshSave persists rotated access/refresh tokens for a named Kimi
 	// account after a successful auto-refresh. nil in tests (no persistence);
 	// production wires it to a config save of the rotated envelope.
 	kimiRefreshSave func(name, accessToken, refreshToken string) error
-	deepseek        *quota.DeepSeekQuerier
-	onWinSize       func(w, h int)
-	onDelete        func(provider, name string) error
+	// kimiRefreshLocks serializes refresh+persist per Kimi account so two
+	// concurrent card requests for the SAME account cannot race the
+	// RefreshToken endpoint (double rotation, one rotated refresh_token
+	// invalidated, partial overwrites). Each account name maps to its own
+	// mutex; the map itself is guarded by kimiLocksMu.
+	kimiRefreshLocksMu sync.Mutex
+	kimiRefreshLocks   map[string]*sync.Mutex
+	deepseek           *quota.DeepSeekQuerier
+	onWinSize          func(w, h int)
+	onDelete           func(provider, name string) error
 	// spawnDeepSeekLogin launches the login-deepseek subprocess. The
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
@@ -168,6 +182,25 @@ func (s *Server) curKimi() []KimiAccount {
 		return s.kimiFn()
 	}
 	return s.kimiAccounts
+}
+
+// kimiRefreshLock returns the per-account mutex that serializes refresh +
+// persist for one Kimi account. Concurrent card requests for the same account
+// share one mutex, so only one can call RefreshToken + save at a time (no
+// double rotation, no partial overwrites). Different accounts get different
+// mutexes, so one account's refresh never blocks another.
+func (s *Server) kimiRefreshLock(name string) *sync.Mutex {
+	s.kimiRefreshLocksMu.Lock()
+	defer s.kimiRefreshLocksMu.Unlock()
+	if s.kimiRefreshLocks == nil {
+		s.kimiRefreshLocks = make(map[string]*sync.Mutex)
+	}
+	mu, ok := s.kimiRefreshLocks[name]
+	if !ok {
+		mu = &sync.Mutex{}
+		s.kimiRefreshLocks[name] = mu
+	}
+	return mu
 }
 
 func (s *Server) Start(addr string) error {
@@ -427,15 +460,39 @@ func (s *Server) Handler() http.Handler {
 		cards := make([]card, len(accs))
 		fetch := s.kimiFetch
 		if fetch == nil {
+			// Production path: per-account refresh serialization + atomic
+			// persist with failure propagation. The per-account mutex stops
+			// two concurrent requests for the same account from racing the
+			// RefreshToken endpoint (double rotation / partial overwrite). If
+			// the refresh succeeded but persisting the rotated tokens failed,
+			// the rotated state is NOT trusted and the card surfaces a
+			// re-login-required error (old record preserved) instead of a
+			// silent success with unpersisted rotated tokens.
 			fetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
-				q := &quota.KimiQuerier{AccessToken: a.AccessToken, RefreshToken: a.RefreshToken, Headers: a.Headers}
-				data, rotated, err := q.FetchQuotaWithRefresh(r.Context())
+				mu := s.kimiRefreshLock(a.Name)
+				mu.Lock()
+				defer mu.Unlock()
+				fetchRefresh := s.kimiFetchWithRefresh
+				if fetchRefresh == nil {
+					fetchRefresh = func(ctx context.Context, acc KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+						q := &quota.KimiQuerier{AccessToken: acc.AccessToken, RefreshToken: acc.RefreshToken, Headers: acc.Headers}
+						return q.FetchQuotaWithRefresh(ctx)
+					}
+				}
+				data, rotated, err := fetchRefresh(r.Context(), a)
 				if err != nil {
 					return nil, err
 				}
-				// Persist rotated tokens if the refresh ran and a save callback is wired.
+				// Persist rotated tokens if the refresh ran and a save callback
+				// is wired. A persist failure must surface, not be swallowed:
+				// rotated tokens left unpersisted would make the saved envelope
+				// stale, so the card reports re-login-required rather than a
+				// success backed by un-saved credentials. The error never
+				// carries the token.
 				if rotated != nil && s.kimiRefreshSave != nil {
-					_ = s.kimiRefreshSave(a.Name, rotated.AccessToken, rotated.RefreshToken)
+					if saveErr := s.kimiRefreshSave(a.Name, rotated.AccessToken, rotated.RefreshToken); saveErr != nil {
+						return nil, fmt.Errorf("Kimi 账户 %q token 轮换保存失败，请重新登录", a.Name)
+					}
 				}
 				return data, nil
 			}
