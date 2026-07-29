@@ -90,6 +90,12 @@ type Server struct {
 	// config read so a concurrent rotation that already saved a new token is
 	// observed instead of refreshing with a stale snapshot.
 	kimiReloadAccount func(name string) (KimiAccount, bool)
+	// kimiAccountLock acquires a cross-process per-account exclusive lock for
+	// the named Kimi account, serializing reload→refresh→persist across
+	// processes (a CLI quota-kimi and a web request for the same account cannot
+	// double-rotate). It returns a release func. nil in tests (the in-process
+	// per-account mutex is used); production wires it to a file flock.
+	kimiAccountLock func(name string) (release func(), err error)
 	// kimiRefreshSave persists rotated access/refresh tokens for a named Kimi
 	// account after a successful auto-refresh. nil in tests (no persistence);
 	// production wires it to a config save of the rotated envelope.
@@ -155,6 +161,13 @@ func (s *Server) SetKimiProvider(fn func() []KimiAccount) { s.kimiFn = fn }
 // rotation's saved token instead of a stale request-time snapshot.
 func (s *Server) SetKimiReloadAccount(fn func(name string) (KimiAccount, bool)) {
 	s.kimiReloadAccount = fn
+}
+
+// SetKimiAccountLock wires the cross-process per-account exclusive lock used to
+// serialize reload→refresh→persist across processes. The release func drops
+// the lock.
+func (s *Server) SetKimiAccountLock(fn func(name string) (release func(), err error)) {
+	s.kimiAccountLock = fn
 }
 
 // SetKimiRefreshSave wires the callback that persists rotated access/refresh
@@ -482,20 +495,39 @@ func (s *Server) Handler() http.Handler {
 			// re-login-required error (old record preserved) instead of a
 			// silent success with unpersisted rotated tokens.
 			fetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
-				mu := s.kimiRefreshLock(a.Name)
-				mu.Lock()
-				defer mu.Unlock()
+				// Serialize reload→refresh→persist for this account. The
+				// cross-process file lock (when wired) stops a CLI quota-kimi
+				// and a web request for the SAME account from racing the
+				// RefreshToken endpoint / double-rotating across processes.
+				// The in-process per-account mutex covers concurrent web
+				// requests when no file lock is wired (tests).
+				if s.kimiAccountLock != nil {
+					release, lerr := s.kimiAccountLock(a.Name)
+					if lerr != nil {
+						return nil, fmt.Errorf("Kimi 账户 %q 刷新锁失败: %v", a.Name, lerr)
+					}
+					defer release()
+				} else {
+					mu := s.kimiRefreshLock(a.Name)
+					mu.Lock()
+					defer mu.Unlock()
+				}
 				// Re-read the LATEST saved credential inside the per-account
 				// lock. A concurrent rotation may have already rotated+saved
 				// this account's token since this request started; using the
 				// request-time snapshot would refresh with a now-stale token
-				// and fail. When no reloader is wired (tests without a live
-				// config), fall back to the snapshot.
+				// and fail. When the reloader is wired and the account is NOT
+				// found (deleted mid-flight), FAIL HARD — do not fall back to
+				// the stale snapshot and refresh a just-deleted account's
+				// credential. When no reloader is wired (tests without a live
+				// config), use the snapshot.
 				acc := a
 				if s.kimiReloadAccount != nil {
-					if latest, ok := s.kimiReloadAccount(a.Name); ok {
-						acc = latest
+					latest, ok := s.kimiReloadAccount(a.Name)
+					if !ok {
+						return nil, fmt.Errorf("Kimi 账户 %q 已不存在", a.Name)
 					}
+					acc = latest
 				}
 				fetchRefresh := s.kimiFetchWithRefresh
 				if fetchRefresh == nil {

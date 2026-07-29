@@ -433,3 +433,44 @@ func TestKimiCardsReloadsLatestTokenInLock(t *testing.T) {
 		t.Fatalf("refresh used stale token %q; must reload latest in lock (want v2-access)", seenToken)
 	}
 }
+
+// TestKimiCardsReloadAccountNotFoundFailsHard (hardening) proves that when the
+// per-account reloader is wired and the account is NOT found (e.g. deleted
+// mid-request), the refresh fails hard instead of falling back to the stale
+// request-time snapshot. Refreshing a just-deleted account's credential is
+// wrong; the card must surface a failure, not a silent stale-token refresh.
+func TestKimiCardsReloadAccountNotFoundFailsHard(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: "stale-snapshot", RefreshToken: "rt", Generation: 1}}
+	})
+	srv.kimiFetch = nil
+	var called bool
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+		called = true
+		return &quota.KimiQuotaData{}, nil, nil
+	}
+	// The reloader reports the account is gone (deleted mid-flight).
+	srv.kimiReloadAccount = func(name string) (KimiAccount, bool) { return KimiAccount{}, false }
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if called {
+		t.Fatal("refresh must NOT run when the account is gone; the reloader must fail hard, not fall back to the stale snapshot")
+	}
+	var got struct {
+		Data []struct {
+			Name    string `json:"name"`
+			Success bool   `json:"success"`
+			Error   string `json:"error,omitempty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Data) != 1 || got.Data[0].Success {
+		t.Fatalf("card must surface a failure when the account was deleted, got %#v", got.Data)
+	}
+}

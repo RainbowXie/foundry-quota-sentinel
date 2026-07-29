@@ -2,9 +2,100 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+
+	"foundry-quota-sentinel/internal/config"
 )
+
+// buildTestBinary builds the current main package into a temp binary and
+// returns its path. Cross-process lock tests fork this binary as `_locktest`
+// subprocesses.
+func buildTestBinary(t *testing.T) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "fqs-locktest")
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build test binary: %v\n%s", err, out)
+	}
+	return bin
+}
+
+// lockEvent is one HELD/DONE line from a _locktest subprocess, with its
+// monotonic-ms timestamp for serialization-order assertions.
+type lockEvent struct {
+	kind string // "HELD" or "DONE"
+	pid  int
+	ms   int64
+}
+
+// parseLockEvents extracts the HELD/DONE events (with ms timestamps) from a
+// _locktest combined output.
+func parseLockEvents(t *testing.T, out string) []lockEvent {
+	t.Helper()
+	var evs []lockEvent
+	for _, line := range strings.Split(out, "\n") {
+		var kind string
+		var pid int
+		var ms int64
+		if strings.HasPrefix(line, "HELD ") {
+			kind = "HELD"
+		} else if strings.HasPrefix(line, "DONE ") {
+			kind = "DONE"
+		} else {
+			continue
+		}
+		rest := strings.TrimPrefix(line, kind+" ")
+		// "HELD <pid> <ms>"
+		fields := strings.Fields(rest)
+		if len(fields) >= 2 {
+			pid, _ = strconv.Atoi(fields[0])
+			ms, _ = strconv.ParseInt(fields[1], 10, 64)
+		} else if len(fields) == 1 {
+			pid, _ = strconv.Atoi(fields[0])
+		}
+		evs = append(evs, lockEvent{kind: kind, pid: pid, ms: ms})
+	}
+	return evs
+}
+
+// assertSerializedAcrossProcesses proves two concurrent _locktest processes
+// serialized on the cross-process lock: the second HELD timestamp is NOT
+// before the first DONE timestamp. If the lock were broken, both HELDs would
+// print before either DONE (overlap), i.e. min(HELD) < max(DONE) for both
+// processes' HELDs landing inside the other's hold window.
+func assertSerializedAcrossProcesses(t *testing.T, outA, outB string) {
+	t.Helper()
+	all := append(parseLockEvents(t, outA), parseLockEvents(t, outB)...)
+	var heldMs, doneMs []int64
+	for _, e := range all {
+		if e.kind == "HELD" {
+			heldMs = append(heldMs, e.ms)
+		} else {
+			doneMs = append(doneMs, e.ms)
+		}
+	}
+	if len(heldMs) != 2 || len(doneMs) != 2 {
+		t.Fatalf("want 2 HELD + 2 DONE, got held=%d done=%d in %q%s", len(heldMs), len(doneMs), outA, outB)
+	}
+	// Serialization: the later HELD must be >= the earlier DONE (no overlap).
+	// Sort the two HELD times and the two DONE times.
+	sortHeld := append([]int64(nil), heldMs...)
+	sortDone := append([]int64(nil), doneMs...)
+	sort.Slice(sortHeld, func(i, j int) bool { return sortHeld[i] < sortHeld[j] })
+	sort.Slice(sortDone, func(i, j int) bool { return sortDone[i] < sortDone[j] })
+	// The second (later) HELD must not precede the first (earlier) DONE.
+	if sortHeld[1] < sortDone[0] {
+		t.Fatalf("cross-process lock did NOT serialize: 2nd HELD at %d < 1st DONE at %d (both processes held the lock concurrently)", sortHeld[1], sortDone[0])
+	}
+}
 
 // TestUsageListsKimiCommands (task 5.4) proves the help text lists the Kimi
 // login and quota commands with the membership metric semantics: total usage
@@ -40,5 +131,119 @@ func TestUsageOpenPageListsKimi(t *testing.T) {
 	got := buf.String()
 	if !strings.Contains(got, "login-kimi") {
 		t.Fatalf("help text must mention the kimi provider: %s", got)
+	}
+}
+
+// TestCrossProcessAccountLockSerializes (round-4 RED→GREEN) proves the
+// per-account cross-process file lock serializes reload→refresh→persist for
+// the SAME account across TWO SEPARATE PROCESSES. Two concurrent _locktest
+// account processes for the same account must NOT interleave their HELD/DONE:
+// the second HELD only after the first DONE (serialized), and the final token
+// is one of the two marks (no double-rotation / lost write). Under a broken
+// (non-serialized) lock both HELD would print before either DONE.
+func TestCrossProcessAccountLockSerializes(t *testing.T) {
+	dir := t.TempDir()
+	// Seed a Kimi account with an initial token in the temp config. The
+	// _locktest subprocess sets HOME=dir, so configPath resolves to
+	// <dir>/.foundry-quota-sentinel/config.json — the seed must live there.
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	_ = env.SetField("accessToken", "initial-access-AAAAAAAAAAAA")
+	_ = env.SetField("refreshToken", "initial-refresh-BBBBBBBBBBBB")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "lockacct", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := buildTestBinary(t)
+	run := func(mark string) string {
+		cmd := exec.Command(bin, "_locktest")
+		cmd.Env = append(os.Environ(),
+			"HOME="+dir,
+			"LOCKTEST_MODE=account",
+			"LOCKTEST_NAME=lockacct",
+			"LOCKTEST_HOLD_MS=300",
+			"LOCKTEST_MARK="+mark,
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("_locktest %s: %v\n%s", mark, err, out)
+		}
+		return string(out)
+	}
+	// Two concurrent processes rotate the same account with distinct marks.
+	var wg sync.WaitGroup
+	var outA, outB string
+	wg.Add(2)
+	go func() { defer wg.Done(); outA = run("markA") }()
+	go func() { defer wg.Done(); outB = run("markB") }()
+	wg.Wait()
+
+	// Serialized proof: the second HELD must be at/after the first DONE (no
+	// overlap). Under a broken cross-process lock both HELDs print before
+	// either DONE.
+	assertSerializedAcrossProcesses(t, outA, outB)
+	// Both writes persist (atomic save + serialization): the final token is one
+	// of the marks, not the initial token, and the account survives.
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+	c := config.Load()
+	if len(c.KimiAccounts) != 1 {
+		t.Fatalf("account lost; got %d accounts", len(c.KimiAccounts))
+	}
+	tok := c.KimiAccounts[0].Auth.AccessToken()
+	if tok != "markA" && tok != "markB" {
+		t.Fatalf("final token = %q, want markA or markB (writes did not serialize)", tok)
+	}
+}
+
+// TestCrossProcessConfigLockSerializes (round-4 RED→GREEN) proves the global
+// cross-process config lock transactionalizes Load→Mutate→Save across TWO
+// SEPARATE PROCESSES. Two concurrent _locktest global processes writing window
+// sizes must serialize: both writes persist (the final window size is one of
+// the two, and no write is lost).
+func TestCrossProcessConfigLockSerializes(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	if err := os.WriteFile(seed, []byte(`{"active_profile":"default","profiles":{}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	bin := buildTestBinary(t)
+	run := func(w int) string {
+		cmd := exec.Command(bin, "_locktest")
+		cmd.Env = append(os.Environ(),
+			"HOME="+dir,
+			"LOCKTEST_MODE=global",
+			"LOCKTEST_HOLD_MS=300",
+			"LOCKTEST_W="+strconv.Itoa(w),
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("_locktest global %d: %v\n%s", w, err, out)
+		}
+		return string(out)
+	}
+	var wg sync.WaitGroup
+	var outA, outB string
+	wg.Add(2)
+	go func() { defer wg.Done(); outA = run(111) }()
+	go func() { defer wg.Done(); outB = run(222) }()
+	wg.Wait()
+	assertSerializedAcrossProcesses(t, outA, outB)
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+	c := config.Load()
+	if c.WindowW != 111 && c.WindowW != 222 {
+		t.Fatalf("final window = %d, want 111 or 222 (writes did not serialize)", c.WindowW)
 	}
 }

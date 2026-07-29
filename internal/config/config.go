@@ -66,6 +66,14 @@ var (
 	configPathOverride string
 )
 
+// SetPathOverrideForTest redirects the config file path (tests only). Pass ""
+// to restore production resolution. Not safe for production use.
+func SetPathOverrideForTest(path string) {
+	configPathMu.Lock()
+	configPathOverride = path
+	configPathMu.Unlock()
+}
+
 func configDir() (string, error) {
 	configPathMu.RLock()
 	override := configPathOverride

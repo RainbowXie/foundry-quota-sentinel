@@ -230,6 +230,15 @@ func main() {
 		cmdQuotaKimi()
 	case "open-page":
 		cmdOpenPage()
+	case "_locktest":
+		// Hidden cross-process-lock test helper. Usage: _locktest <mode> <name>
+		//   account: acquire the per-account cross-process lock, hold <holdMs>,
+		//           then write a marker field into the account's token. Used by
+		//   TestCrossProcessAccountLockSerializes to prove two processes do not
+		//   double-rotate the same account.
+		//   global: acquire the global config lock, hold, then Mutate a window
+		//           size. Used by TestCrossProcessConfigLockSerializes.
+		cmdLockTest()
 	case "version", "-v", "--version":
 		fmt.Println("foundry-quota-sentinel v" + version)
 	case "help", "-h", "--help":
@@ -269,6 +278,7 @@ func startSidebar() {
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetKimiReloadAccount(kimiAccountFromConfig)
+	srv.SetKimiAccountLock(config.AcquireKimiAccountLock)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
 		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
 		// serialized reload + atomic save, so concurrent different-account
@@ -444,6 +454,7 @@ func cmdServe() {
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetKimiReloadAccount(kimiAccountFromConfig)
+	srv.SetKimiAccountLock(config.AcquireKimiAccountLock)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
 		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
 		// serialized reload + atomic save, so concurrent different-account
@@ -1072,4 +1083,71 @@ func cmdConfigDelete() {
 	}
 	fmt.Printf("OK 已删除账户: %s\n", name)
 	fmt.Printf("当前账户: %s\n", cfg.ActiveProfile)
+}
+
+// cmdLockTest is a hidden cross-process-lock test helper invoked as
+// `_locktest`. It is controlled by environment variables so the test can fork
+// two concurrent copies and observe serialization. It is NOT user-facing.
+//
+//	LOCKTEST_MODE=account LOCKTEST_NAME=<name> LOCKTEST_HOLD_MS=<n> LOCKTEST_MARK=<token>
+//	  acquires the per-account cross-process lock, holds it <holdMs>, then
+//	  rotates the named account's accessToken to <mark> via SaveKimiTokens.
+//	LOCKTEST_MODE=global LOCKTEST_HOLD_MS=<n> LOCKTEST_W=<w>
+//	  holds the global config lock <holdMs> (via Mutate), then sets window size.
+//
+// It prints "HELD <pid>" once the lock is acquired, then "DONE <pid>" after the
+// write, so a test can observe that the second process only HELD after the
+// first DONE (serialized), proving the cross-process lock works.
+func cmdLockTest() {
+	mode := os.Getenv("LOCKTEST_MODE")
+	hold := 0
+	fmt.Sscanf(os.Getenv("LOCKTEST_HOLD_MS"), "%d", &hold)
+	pid := os.Getpid()
+	// nowMs is a monotonic-ish timestamp for the test to assert serialization
+	// order: the second process's HELD time must be after the first's DONE.
+	nowMs := func() int64 { return time.Now().UnixNano() / int64(time.Millisecond) }
+	switch mode {
+	case "account":
+		name := os.Getenv("LOCKTEST_NAME")
+		mark := os.Getenv("LOCKTEST_MARK")
+		release, err := config.AcquireKimiAccountLock(name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "LOCK-ERR %d %v\n", pid, err)
+			os.Exit(1)
+		}
+		fmt.Printf("HELD %d %d\n", pid, nowMs())
+		if hold > 0 {
+			time.Sleep(time.Duration(hold) * time.Millisecond)
+		}
+		// Write the mark through the global config lock (SaveKimiTokens).
+		if err := config.SaveKimiTokens(name, mark, mark+"-refresh"); err != nil {
+			fmt.Fprintf(os.Stderr, "WRITE-ERR %d %v\n", pid, err)
+			release()
+			os.Exit(1)
+		}
+		release()
+		fmt.Printf("DONE %d %d\n", pid, nowMs())
+	case "global":
+		w := 0
+		fmt.Sscanf(os.Getenv("LOCKTEST_W"), "%d", &w)
+		// Acquire the global lock via WithConfigLock but hold before saving.
+		// We simulate hold by sleeping inside the mutate fn before the save.
+		err := config.WithConfigLock(func(c *config.Config) error {
+			fmt.Printf("HELD %d %d\n", pid, nowMs())
+			if hold > 0 {
+				time.Sleep(time.Duration(hold) * time.Millisecond)
+			}
+			c.WindowW = w
+			c.WindowH = w
+			return nil
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "LOCK-ERR %d %v\n", pid, err)
+			os.Exit(1)
+		}
+		fmt.Printf("DONE %d %d\n", pid, nowMs())
+	default:
+		fmt.Fprintln(os.Stderr, "unknown LOCKTEST_MODE")
+		os.Exit(1)
+	}
 }

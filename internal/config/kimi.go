@@ -200,19 +200,16 @@ func (c *Config) KimiAccountNames() []string {
 // concurrent writers serialize and each sees the other's prior write.
 var configWriteMu sync.Mutex
 
-// Mutate is the shared config-write transaction: under configWriteMu it
-// re-loads the LATEST on-disk config, applies fn (which may modify c in place),
-// and saves atomically. fn returning an error aborts the save (no partial
-// write). All config-mutating paths should go through Mutate so they share one
-// transaction lock and never overwrite each other with stale snapshots.
+// Mutate is the shared config-write transaction: it holds BOTH the in-process
+// configWriteMu and the cross-process file lock (WithConfigLock), re-loads the
+// LATEST on-disk config, applies fn (which may modify c in place), and saves
+// atomically. fn returning an error aborts the save (no partial write). All
+// config-mutating paths go through Mutate so they share one transaction lock
+// (in-process + cross-process) and never overwrite each other with stale
+// snapshots — including across separate processes (CLI vs web server vs
+// open-page) that share the same config file.
 func Mutate(fn func(c *Config) error) error {
-	configWriteMu.Lock()
-	defer configWriteMu.Unlock()
-	c := Load()
-	if err := fn(c); err != nil {
-		return err
-	}
-	return c.Save()
+	return WithConfigLock(fn)
 }
 
 // SaveKimiTokens atomically persists rotated access + refresh tokens for one
