@@ -212,6 +212,37 @@ Two more gaps found and fixed (RED→GREEN where deterministic):
    `tab=quota`. RED: a missing tab and a trailing path were wrongly accepted;
    GREEN: rejected.
 
+## Credential-safety hardening round 4 (tasks 3.2/3.4) — commit `0e73338`
+
+Three more gaps found and fixed; two are deterministic two-process REDs:
+
+1. **Per-account cross-process lock** — `config.AcquireKimiAccountLock(name)`
+   takes a file `flock` (Unix `LOCK_EX`) per sanitized account name, serializing
+   reload→refresh→persist for the SAME account across SEPARATE processes (CLI
+   `quota-kimi` vs web request vs `open-page`). The web refresh closure now
+   holds this lock (`kimiAccountLock`, wired in production) around
+   reload→refresh→save. `TestCrossProcessAccountLockSerializes` forks two
+   `_locktest` subprocesses for the same account and asserts the 2nd HELD
+   timestamp ≥ the 1st DONE (serialized). RED proved by removing the file lock:
+   2nd HELD (ms 1785338324946) < 1st DONE (ms 1785338325248) → both held
+   concurrently; GREEN with the lock.
+2. **Global cross-process config lock** — `config.Mutate` now goes through
+   `WithConfigLock`, which holds BOTH the in-process `configWriteMu` AND a file
+   `flock` on `config.lock`, so ALL config writes (rotation, login, delete,
+   window-save, config add/use/delete) transactionalize across processes too.
+   `TestCrossProcessConfigLockSerializes` forks two `_locktest` subprocesses
+   writing window sizes and asserts serialization. RED proved by removing the
+   file lock: 2nd HELD (ms 1785338341774) < 1st DONE (ms 1785338342103); GREEN
+   with the lock.
+3. **kimiReloadAccount fails hard** — when the reloader is wired and the
+   account is NOT found (deleted mid-flight), the refresh fails immediately
+   instead of falling back to the stale request-time snapshot (no refreshing a
+   just-deleted account). RED: refresh ran on the stale snapshot; GREEN: hard
+   failure (`TestKimiCardsReloadAccountNotFoundFailsHard`).
+
+OpenSpec proposal/design/spec committed (previously untracked, sanitized — no
+credentials).
+
 ## Fresh canonical build verification (task 6.3)
 
 - Toolchain: Go 1.26.4 linux/amd64; OpenSpec CLI 1.6.0.
