@@ -151,22 +151,15 @@ func kimiFromConfig(conf *config.Config) []web.KimiAccount {
 }
 
 // kimiPersistRotated atomically persists rotated access/refresh tokens for a
-// named Kimi account after an auto-refresh. It re-loads config, updates only
-// that account's envelope tokens, and saves — other accounts and providers are
-// untouched. A failed save does not block the current quota result.
+// named Kimi account after an auto-refresh. It delegates to the shared,
+// config-wide-locked config.SaveKimiTokens (serialized reload + atomic save),
+// so concurrent different-account rotations never overwrite each other's
+// freshly-rotated token with a stale snapshot. The caller (printKimiQuota)
+// treats a returned error as a HARD failure per the credential-safety rule:
+// rotated tokens left unpersisted must not be trusted, so the CLI surfaces the
+// error rather than printing a quota backed by un-saved credentials.
 func kimiPersistRotated(name string, rotated *quota.RefreshResult) error {
-	c := config.Load()
-	for i := range c.KimiAccounts {
-		if c.KimiAccounts[i].Name != name {
-			continue
-		}
-		env := c.KimiAccounts[i].Auth
-		_ = env.SetField("accessToken", rotated.AccessToken)
-		_ = env.SetField("refreshToken", rotated.RefreshToken)
-		c.KimiAccounts[i].Auth = env
-		return c.Save()
-	}
-	return fmt.Errorf("Kimi 账户 %q 不存在", name)
+	return config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken)
 }
 func kimiEnvelopeHeaders(env *config.KimiAuthEnvelope) map[string]string {
 	if env == nil {
@@ -262,18 +255,10 @@ func startSidebar() {
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
-		c := config.Load()
-		for i := range c.KimiAccounts {
-			if c.KimiAccounts[i].Name != name {
-				continue
-			}
-			env := c.KimiAccounts[i].Auth
-			_ = env.SetField("accessToken", accessToken)
-			_ = env.SetField("refreshToken", refreshToken)
-			c.KimiAccounts[i].Auth = env
-			return c.Save()
-		}
-		return fmt.Errorf("Kimi 账户 %q 不存在", name)
+		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
+		// serialized reload + atomic save, so concurrent different-account
+		// rotations never overwrite each other's freshly-rotated token.
+		return config.SaveKimiTokens(name, accessToken, refreshToken)
 	})
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
@@ -444,18 +429,10 @@ func cmdServe() {
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
-		c := config.Load()
-		for i := range c.KimiAccounts {
-			if c.KimiAccounts[i].Name != name {
-				continue
-			}
-			env := c.KimiAccounts[i].Auth
-			_ = env.SetField("accessToken", accessToken)
-			_ = env.SetField("refreshToken", refreshToken)
-			c.KimiAccounts[i].Auth = env
-			return c.Save()
-		}
-		return fmt.Errorf("Kimi 账户 %q 不存在", name)
+		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
+		// serialized reload + atomic save, so concurrent different-account
+		// rotations never overwrite each other's freshly-rotated token.
+		return config.SaveKimiTokens(name, accessToken, refreshToken)
 	})
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
@@ -635,10 +612,13 @@ func printKimiQuota(acc *config.KimiAccount) error {
 	if err != nil {
 		return err
 	}
-	// Persist rotated tokens if the access token was auto-refreshed.
+	// Persist rotated tokens if the access token was auto-refreshed. A save
+	// failure is a HARD failure: rotated tokens left unpersisted would make the
+	// saved envelope stale, so the CLI must surface the error rather than print
+	// a quota backed by un-saved credentials. The error never carries the token.
 	if rotated != nil {
 		if saveErr := kimiPersistRotated(acc.Name, rotated); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "Kimi 账户 %q token 轮换保存失败（不影响本次查询）: %v\n", acc.Name, saveErr)
+			return fmt.Errorf("Kimi 账户 %q token 轮换保存失败，请重新登录", acc.Name)
 		}
 	}
 	fmt.Println()

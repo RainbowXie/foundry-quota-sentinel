@@ -651,8 +651,15 @@ func validateKimiPageURL(rawURL string) error {
 	if err != nil {
 		return fmt.Errorf("Kimi 账户页地址无效: %w", err)
 	}
-	if u.Scheme != "https" || !cookieDomainMatches(u.Hostname(), kimiHost) {
-		return fmt.Errorf("Kimi 账户页地址无效")
+	if u.Scheme != "https" {
+		return fmt.Errorf("Kimi 账户页地址必须为 https")
+	}
+	// Replay must target EXACTLY the membership quota page: host www.kimi.com,
+	// path /membership/subscription, tab=quota. A looser host-only check would
+	// allow replaying cookies/storage at /code/console or an arbitrary Kimi
+	// path; the account/data page is pinned to the membership quota page.
+	if !isKimiMembershipPage(rawURL) {
+		return fmt.Errorf("Kimi 账户页地址必须是 %s?tab=quota", kimiMembershipURL)
 	}
 	return nil
 }

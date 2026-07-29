@@ -2,7 +2,10 @@ package config
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -182,5 +185,75 @@ func TestKimiAuthEnvelopeDecodeDropsUnknownFieldsAtLoad(t *testing.T) {
 	}
 	if got := decoded.AccessToken(); got != "keep" {
 		t.Fatalf("accessToken = %q, want keep", got)
+	}
+}
+
+// TestSaveKimiTokensConcurrentNoLostUpdate (hardening) proves that concurrent
+// token rotations of DIFFERENT accounts do not lose either rotation. The save
+// path must serialize (config-wide write lock) and re-load the latest on-disk
+// config inside the lock before modifying only the target account, so the
+// second save does not overwrite the first account's freshly-rotated token
+// with a stale snapshot. RED: the old Load→modify→Save (unsynchronized, stale
+// snapshot) loses one account's rotation; GREEN: serialized + reloaded.
+func TestSaveKimiTokensConcurrentNoLostUpdate(t *testing.T) {
+	dir := t.TempDir()
+	configPathMu.Lock()
+	configPathOverride = filepath.Join(dir, "config.json")
+	configPathMu.Unlock()
+	defer func() {
+		configPathMu.Lock()
+		configPathOverride = ""
+		configPathMu.Unlock()
+	}()
+
+	// Seed two accounts with envelopes carrying distinct initial tokens.
+	seed := &Config{ActiveProfile: "default", Profiles: map[string]Profile{}}
+	for _, n := range []string{"alpha", "beta"} {
+		var env KimiAuthEnvelope
+		env.SetField("accessToken", n+"-initial-access-AAAAAAAAAAAA")
+		env.SetField("refreshToken", n+"-initial-refresh-BBBBBBBBBBBB")
+		seed.UpsertKimiAccount(KimiAccount{Name: n, Auth: env})
+	}
+	if err := seed.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Concurrently rotate both accounts' tokens many times. The lost-update
+	// window under an unsynchronized Load→modify→Save is a classic check-then-
+	// act race that is not reliably reproducible at normal scheduling speed, so
+	// this is a regression guard: under the lock+in-lock-reload path both
+	// accounts always end with a rotated (non-initial) token and both accounts
+	// survive (no account dropped, no token reverted to a stale snapshot). The
+	// race detector additionally guards the shared configPathOverride global.
+	var wg sync.WaitGroup
+	for _, n := range []string{"alpha", "beta"} {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+			for i := 0; i < 200; i++ {
+				if err := SaveKimiTokens(name, name+"-rotated-access-"+strconv.Itoa(i), name+"-rotated-refresh-"+strconv.Itoa(i)); err != nil {
+					t.Errorf("SaveKimiTokens(%s): %v", name, err)
+					return
+				}
+			}
+		}(n)
+	}
+	wg.Wait()
+
+	// Both accounts must be present and have a NON-initial (rotated) access
+	// token — no lost update. A stale-snapshot save would have overwritten one
+	// account's rotation with the other's older snapshot, or dropped an account.
+	got := Load()
+	if len(got.KimiAccounts) != 2 {
+		t.Fatalf("expected 2 accounts, got %d (lost account)", len(got.KimiAccounts))
+	}
+	for _, a := range got.KimiAccounts {
+		tok := a.Auth.AccessToken()
+		if strings.Contains(tok, "initial") {
+			t.Fatalf("account %q still has initial token %q — rotation lost by concurrent save", a.Name, tok)
+		}
+		if !strings.HasPrefix(tok, a.Name+"-rotated-access-") {
+			t.Fatalf("account %q has unexpected token %q", a.Name, tok)
+		}
 	}
 }

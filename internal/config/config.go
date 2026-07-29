@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type Profile struct {
@@ -52,7 +53,22 @@ func SaveWindowSize(w, h int) {
 	_ = c.Save()
 }
 
+// configPathOverride lets tests redirect the config file to a temp location
+// without touching the real user config. Empty in production. Guarded by
+// configPathMu because Load/Save may run concurrently (e.g. window-size save
+// alongside a credential rotation) and all read this override.
+var (
+	configPathMu       sync.RWMutex
+	configPathOverride string
+)
+
 func configDir() (string, error) {
+	configPathMu.RLock()
+	override := configPathOverride
+	configPathMu.RUnlock()
+	if override != "" {
+		return filepath.Dir(override), nil
+	}
 	h, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot find home dir: %w", err)
@@ -61,6 +77,12 @@ func configDir() (string, error) {
 }
 
 func configPath() (string, error) {
+	configPathMu.RLock()
+	override := configPathOverride
+	configPathMu.RUnlock()
+	if override != "" {
+		return override, nil
+	}
 	d, err := configDir()
 	if err != nil {
 		return "", err
@@ -122,7 +144,35 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0600)
+	// Atomic write: serialize to a temp file in the same directory, then
+	// rename. A plain os.WriteFile truncates the target first, so a crash or a
+	// concurrent reader mid-write can observe a torn/partial/empty config.
+	// temp+rename guarantees a reader sees either the old or the new complete
+	// file, never a half-written one — critical for rotated-credential
+	// persistence (a torn save must not lose the prior envelope).
+	tmp, err := os.CreateTemp(dir, ".config-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	// Clean up the temp file on any failure path below.
+	defer func() {
+		if _, statErr := os.Stat(tmpName); statErr == nil {
+			_ = os.Remove(tmpName)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (c *Config) GetActiveProfile() (Profile, bool) {

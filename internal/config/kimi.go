@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // KimiAccount is one saved Kimi Code account. Auth holds the versioned,
@@ -188,4 +189,44 @@ func (c *Config) KimiAccountNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// kimiTokenSaveMu serializes rotated-token persistence across ALL Kimi accounts
+// (and the CLI + web paths). The per-account web refresh lock stops two
+// requests for the SAME account racing the RefreshToken endpoint, but two
+// DIFFERENT accounts rotating concurrently each did Load→modify→Save on the
+// whole config; the second save overwrote the first account's freshly-rotated
+// token with a stale snapshot (lost update). This config-wide lock plus an
+// in-lock reload of the latest on-disk config means each save re-applies only
+// its target account's tokens on top of the current disk state, so concurrent
+// different-account rotations both persist.
+var kimiTokenSaveMu sync.Mutex
+
+// SaveKimiTokens atomically persists rotated access + refresh tokens for one
+// named Kimi account. It is the shared production persistence path used by both
+// the CLI (kimiPersistRotated) and the web server (SetKimiRefreshSave): under
+// the config-wide write lock it re-loads the LATEST on-disk config, updates
+// ONLY the target account's accessToken + refreshToken (every other account,
+// provider section, and field is untouched), then saves atomically. A missing
+// account is an error (the caller surfaces re-login); a SetField rejection
+// (CR/LF) is an error. The tokens never appear in the returned error.
+func SaveKimiTokens(name, accessToken, refreshToken string) error {
+	kimiTokenSaveMu.Lock()
+	defer kimiTokenSaveMu.Unlock()
+	c := Load()
+	for i := range c.KimiAccounts {
+		if c.KimiAccounts[i].Name != name {
+			continue
+		}
+		env := c.KimiAccounts[i].Auth
+		if err := env.SetField("accessToken", accessToken); err != nil {
+			return fmt.Errorf("Kimi 账户 %q 保存失败", name)
+		}
+		if err := env.SetField("refreshToken", refreshToken); err != nil {
+			return fmt.Errorf("Kimi 账户 %q 保存失败", name)
+		}
+		c.KimiAccounts[i].Auth = env
+		return c.Save()
+	}
+	return fmt.Errorf("Kimi 账户 %q 不存在", name)
 }

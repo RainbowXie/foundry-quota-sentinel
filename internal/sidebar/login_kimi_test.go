@@ -572,3 +572,37 @@ func TestIsKimiMembershipPageStrict(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateKimiPageURLRequiresExactMembership (task 4.4 pre-replay URL)
+// proves the account-page URL validator requires the EXACT membership page:
+// host www.kimi.com, path /membership/subscription, tab=quota. The previous
+// check accepted any path on the Kimi host (only scheme+host), so a replay
+// could be pointed at /code/console or an arbitrary Kimi path. Replay must
+// target exactly the membership quota page.
+func TestValidateKimiPageURLRequiresExactMembership(t *testing.T) {
+	cases := []struct {
+		name string
+		url  string
+		ok   bool
+	}{
+		{"exact", "https://www.kimi.com/membership/subscription?tab=quota", true},
+		{"missing tab", "https://www.kimi.com/membership/subscription", false},
+		{"wrong tab", "https://www.kimi.com/membership/subscription?tab=billing", false},
+		{"console path rejected", "https://www.kimi.com/code/console", false},
+		{"arbitrary path rejected", "https://www.kimi.com/something?tab=quota", false},
+		{"trailing path rejected", "https://www.kimi.com/membership/subscription/extra?tab=quota", false},
+		{"wrong host rejected", "https://evil.example.com/membership/subscription?tab=quota", false},
+		{"non-https rejected", "http://www.kimi.com/membership/subscription?tab=quota", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateKimiPageURL(c.url)
+			if c.ok && err != nil {
+				t.Fatalf("validateKimiPageURL(%q) = %v, want nil", c.url, err)
+			}
+			if !c.ok && err == nil {
+				t.Fatalf("validateKimiPageURL(%q) = nil, want error", c.url)
+			}
+		})
+	}
+}
