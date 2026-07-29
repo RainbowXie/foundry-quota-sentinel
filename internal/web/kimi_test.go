@@ -29,7 +29,7 @@ func TestKimiCardsReturnsSortedThreeMetricResults(t *testing.T) {
 			return nil, errors.New("unavailable")
 		}
 		return &quota.KimiQuotaData{
-			Total:    quota.KimiQuotaUsage{UsagePercent: 2.19, ResetDisplay: "2026-08-27"},
+			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
 			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
 			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
@@ -61,7 +61,7 @@ func TestKimiCardsReturnsSortedThreeMetricResults(t *testing.T) {
 	if got.Data[0].Name != "alpha" || !got.Data[0].Success || got.Data[0].Quota == nil {
 		t.Fatalf("first card = %#v", got.Data[0])
 	}
-	if got.Data[0].Quota.Total.UsagePercent != 2.19 || got.Data[0].Quota.SevenDay.UsagePercent != 10.42 {
+	if got.Data[0].Quota.Total.TotalPercent != 2.19 || got.Data[0].Quota.SevenDay.UsagePercent != 10.42 {
 		t.Fatalf("first card meters = %#v", got.Data[0].Quota)
 	}
 	// One account failure does not suppress the other.
@@ -80,7 +80,7 @@ func TestKimiCardsEndpointExcludesAuthFields(t *testing.T) {
 	})
 	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
 		return &quota.KimiQuotaData{
-			Total:    quota.KimiQuotaUsage{UsagePercent: 2.19, ResetDisplay: "2026-08-27"},
+			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
 			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
 			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil

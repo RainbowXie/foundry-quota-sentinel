@@ -489,7 +489,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" && provider != "kimi-addon" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}

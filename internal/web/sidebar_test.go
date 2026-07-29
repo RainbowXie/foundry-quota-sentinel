@@ -107,8 +107,9 @@ func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 	for _, want := range []string{
 		`id="kimiCards"`,
 		`function kcard`,
-		`本周用量`,
-		`频率限制`,
+		`总使用量`,
+		`5 小时用量`,
+		`7 天用量`,
 		`kimiAddon`,
 		`购买加油包`,
 		`data-type="kimi"`,
@@ -119,9 +120,10 @@ func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 			t.Fatalf("sidebar HTML missing %q (Kimi card/addon/modal wiring)", want)
 		}
 	}
-	// The add-on must open the kimi-addon provider, not submit a purchase.
-	if !strings.Contains(s, `openPage("kimi-addon"`) {
-		t.Fatal("购买加油包 must route through openPage(\"kimi-addon\", ...) without purchasing")
+	// The account/details action opens the membership quota page (kimi
+	// provider), not a separate purchase route; no purchase is automated.
+	if !strings.Contains(s, `openPage("kimi"`) {
+		t.Fatal("购买加油包 must route through openPage(\"kimi\", ...) (membership page) without purchasing")
 	}
 }
 

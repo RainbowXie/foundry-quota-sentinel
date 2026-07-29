@@ -68,7 +68,7 @@ func newKimiTestQuerier(t *testing.T, transport *fakeKimiTransport) *KimiQuerier
 // ratios, absolute ISO resetTime). resetTime built at test time → future.
 func kimiValidStatsBody() string {
 	now := time.Now()
-	return kimiStatsFixture(now, 0.0219, kimiResetAt(now, 30*24*time.Hour), nil, kimiResetAt(now, 5*time.Hour), 0.1042, kimiResetAt(now, 7*24*time.Hour))
+	return kimiStatsFixture(now, 0.0219, 0.0199, kimiResetAt(now, 30*24*time.Hour), nil, kimiResetAt(now, 5*time.Hour), 0.1042, kimiResetAt(now, 7*24*time.Hour))
 }
 
 // TestKimiQuerierSendsExactProtectedRequest (task 3.1) proves the querier
@@ -109,7 +109,7 @@ func TestKimiQuerierParsesThreeMetricsOnSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchQuota: %v", err)
 	}
-	if got.Total.UsagePercent != 2.19 || got.FiveHour.UsagePercent != 0 || got.SevenDay.UsagePercent != 10.42 {
+	if got.Total.TotalPercent != 2.19 || got.FiveHour.UsagePercent != 0 || got.SevenDay.UsagePercent != 10.42 {
 		t.Fatalf("meters = %#v", got)
 	}
 	if got.FetchedAt.IsZero() {

@@ -33,7 +33,7 @@ func TestKimiSecretAuditAcrossAllBoundaries(t *testing.T) {
 			return nil, errKimiAudit(a.AccessToken)
 		}
 		return &quota.KimiQuotaData{
-			Total:    quota.KimiQuotaUsage{UsagePercent: 2.19, ResetDisplay: "2026-08-27"},
+			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
 			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
 			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil

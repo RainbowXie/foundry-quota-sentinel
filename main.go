@@ -644,9 +644,9 @@ func printKimiQuota(acc *config.KimiAccount) error {
 	fmt.Println("========================================")
 	fmt.Printf("  Kimi Code 账户 %q\n", acc.Name)
 	fmt.Println("----------------------------------------")
-	fmt.Printf("  总使用量:   %s  reset %s\n", quota.FormatKimiPercent(data.Total.UsagePercent), data.Total.ResetDisplay)
-	fmt.Printf("  5 小时用量: %s  reset %s\n", quota.FormatKimiPercent(data.FiveHour.UsagePercent), data.FiveHour.ResetDisplay)
-	fmt.Printf("  7 天用量:   %s  reset %s\n", quota.FormatKimiPercent(data.SevenDay.UsagePercent), data.SevenDay.ResetDisplay)
+	fmt.Printf("  总使用量:   %s  (Kimi %s / Code %s)  reset %s\n", quota.FormatKimiPercent(data.Total.TotalPercent), quota.FormatKimiPercent(data.Total.KimiPercent), quota.FormatKimiPercent(data.Total.CodePercent), data.Total.ResetDisplay)
+	fmt.Printf("  5 小时用量 · Code: %s  reset %s\n", quota.FormatKimiPercent(data.FiveHour.UsagePercent), data.FiveHour.ResetDisplay)
+	fmt.Printf("  7 天用量 · Code:   %s  reset %s\n", quota.FormatKimiPercent(data.SevenDay.UsagePercent), data.SevenDay.ResetDisplay)
 	fmt.Println("========================================")
 	fmt.Printf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05"))
 	return nil
@@ -656,7 +656,7 @@ func printKimiQuota(acc *config.KimiAccount) error {
 // 用法: open-page <opencode|deepseek|ollama> <账户名>。由侧边栏右键菜单经 /api/open 拉起。
 func cmdOpenPage() {
 	if len(os.Args) < 4 {
-		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi|kimi-addon> <账户名>")
+		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi> <账户名>")
 		os.Exit(1)
 	}
 	provider, name := os.Args[2], strings.TrimSpace(os.Args[3])
@@ -738,31 +738,9 @@ func cmdOpenPage() {
 		if err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
 		}
-		url := "https://www.kimi.com/code/console"
+		url := "https://www.kimi.com/membership/subscription?tab=quota"
 		if err := sidebar.RunKimiPage(url, string(envJSON)); err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户页浏览器不可用: %v", err))
-		}
-	case "kimi-addon":
-		// "购买加油包": open the OBSERVED canonical Kimi booster destination
-		// for the user WITHOUT submitting a purchase. The URL is allowlisted
-		// (HTTPS + www.kimi.com) and never followed from arbitrary response
-		// data.
-		var acc *config.KimiAccount
-		for i := range cfg.KimiAccounts {
-			if cfg.KimiAccounts[i].Name == name {
-				acc = &cfg.KimiAccounts[i]
-				break
-			}
-		}
-		if acc == nil {
-			pageErr(fmt.Sprintf("Kimi 账户 %q 不存在", name))
-		}
-		envJSON, err := acc.Auth.Encode()
-		if err != nil {
-			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
-		}
-		if err := sidebar.RunKimiAddonPage(string(envJSON)); err != nil {
-			pageErr(fmt.Sprintf("Kimi 加油包页面不可用: %v", err))
 		}
 	default:
 		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek、ollama 或 kimi）", provider))

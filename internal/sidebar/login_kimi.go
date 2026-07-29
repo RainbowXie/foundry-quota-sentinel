@@ -20,26 +20,25 @@ import (
 // cannot leak through.
 const kimiHost = "www.kimi.com"
 
-// kimiLoginURL is where the temporary login browser starts. The OBSERVED
-// Kimi console is a client-side-gated SPA (no HTTP redirect for
-// unauthenticated visitors), so starting at the console surfaces the login
-// prompt in-page.
+// kimiLoginURL is where the temporary login browser starts. The OBSERVED Kimi
+// console is a client-side-gated SPA (no HTTP redirect for unauthenticated
+// visitors), so starting at the console surfaces the login prompt in-page.
 const kimiLoginURL = "https://www.kimi.com/code/console"
 
-// kimiConsoleURL is the authenticated account page the saved-account replay
-// navigates to.
-const kimiConsoleURL = "https://www.kimi.com/code/console"
+// kimiMembershipURL is the authoritative membership quota page (the new
+// account/data page), the OBSERVED target for saved-account replay.
+const kimiMembershipURL = "https://www.kimi.com/membership/subscription?tab=quota"
+
+// kimiConsoleURL kept as an alias for the membership page for backward
+// compatibility with existing tests; the account/data page is now the
+// membership quota page, not /code/console.
+var kimiConsoleURL = kimiMembershipURL
 
 // kimiProtectedQuotaURL is the OBSERVED protected quota endpoint the SPA
 // calls when authenticated. Mirrors the constant in internal/quota/kimi_web.go;
 // duplicated here because the sidebar must not import the quota package's
 // private constant, and the URL is the provider contract both layers share.
 const kimiProtectedQuotaURL = "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
-
-// kimiAddonURL is the OBSERVED canonical "购买加油包" (booster) destination.
-// The add-on action opens this HTTPS Kimi page for the user without
-// submitting a purchase. It passes the host/path allowlist.
-const kimiAddonURL = "https://www.kimi.com/membership/subscription?tab=quota&from=kfc_console_booster"
 
 // kimiSettleTimeout is the deadline for waiting on observable CDP events
 // during the account-page auth-decision wait.
@@ -445,6 +444,16 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 		result := cdp.SetCookiesBestEffort(ctx, cookies)
 		log.Printf("kimi: 账户页 cookie 回放完成，注入 %d 个，失败 %d 个", result.Injected, len(result.Failed))
 	}
+	// Restore the durable SPA session into localStorage at document start.
+	// The membership SPA reads localStorage["access_token"] + ["refresh_token"]
+	// to make authenticated calls; cookies alone are NOT enough (confirmed: a
+	// cookie-only replay did not trigger the protected response). The script is
+	// JSON-encoded so the tokens are never concatenated into executable code.
+	if script := kimiStorageRestoreScript(env); script != "" {
+		if err := cdp.AddScriptOnNewDocument(ctx, script); err != nil {
+			return failAndWait(fmt.Errorf("准备 Kimi 登录态脚本失败: %w", err))
+		}
+	}
 	if err := cdp.EnableNetwork(ctx); err != nil {
 		return failAndWait(fmt.Errorf("启用 Kimi 账户页网络事件失败: %w", err))
 	}
@@ -467,17 +476,58 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 
 	postURL, _ := cdp.PageURL(ctx, kimiHost)
 	log.Printf("kimi: 最终 URL host=%s path=%s", hostOnly(postURL), pathOnly(postURL))
-	if !isKimiConsolePage(postURL) {
-		return failAndWait(fmt.Errorf("Kimi 登录态恢复失败：页面未停留在 console（path=%s），请重新登录", pathOnly(postURL)))
+	if !isKimiMembershipPage(postURL) {
+		return failAndWait(fmt.Errorf("Kimi 登录态恢复失败：页面未停留在 membership（path=%s），请重新登录", pathOnly(postURL)))
 	}
 
-	log.Printf("kimi: 账户页已认证（console 页，受保护接口 200，双 meter 有效）")
+	log.Printf("kimi: 账户页已认证（membership 页，受保护接口 200，三 metric 有效）")
 	signalOpenPageReady()
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("Kimi 账户页浏览器异常退出: %w", err)
 	}
 	return nil
 }
+
+// kimiStorageRestoreScript builds a document-start script that installs the
+// saved access_token + refresh_token into localStorage before the membership
+// SPA boots, so it makes authenticated calls. The tokens are JSON-encoded
+// (never concatenated into executable code) and the keys are the OBSERVED
+// localStorage names ("access_token", "refresh_token").
+func kimiStorageRestoreScript(env *config.KimiAuthEnvelope) string {
+	at := env.AccessToken()
+	rt := env.RefreshToken()
+	if at == "" && rt == "" {
+		return ""
+	}
+	atJSON, _ := json.Marshal(at)
+	rtJSON, _ := json.Marshal(rt)
+	return `(function(){try{` +
+		`if(localStorage){` +
+		fmt.Sprintf(`localStorage.setItem("access_token",%s);`, string(atJSON)) +
+		fmt.Sprintf(`localStorage.setItem("refresh_token",%s);`, string(rtJSON)) +
+		`}}catch(e){}})();`
+}
+
+// isKimiMembershipPage reports whether the page URL is the authenticated
+// membership quota page (the account/data page). The path must be
+// /membership/subscription with tab=quota.
+func isKimiMembershipPage(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	if parsed.Host != kimiHost {
+		return false
+	}
+	if parsed.Path != "/membership/subscription" && !strings.HasPrefix(parsed.Path, "/membership/subscription") {
+		return false
+	}
+	return parsed.Query().Get("tab") == "quota" || parsed.Query().Get("tab") == ""
+}
+
+// isKimiConsolePage is retained as an alias for isKimiMembershipPage for
+// backward compatibility with tests that assert on the account-page boundary.
+func isKimiConsolePage(u string) bool { return isKimiMembershipPage(u) }
 
 // kimiWaitForAuthDecision waits for the real Kimi auth-decision signal:
 // Network.responseReceived 200 on the protected GetSubscriptionStats URL
@@ -583,19 +633,6 @@ func isKimiProtectedURL(u string) bool {
 	return parsed.Path == "/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
 }
 
-// isKimiConsolePage reports whether the page URL is the authenticated Kimi
-// code console.
-func isKimiConsolePage(u string) bool {
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return false
-	}
-	if parsed.Host != kimiHost {
-		return false
-	}
-	return parsed.Path == "/code/console" || strings.HasPrefix(parsed.Path, "/code/console")
-}
-
 func isOnKimiHost(pageURL string) bool {
 	u, err := url.Parse(pageURL)
 	if err != nil {
@@ -658,22 +695,10 @@ func kimiAuthEnvelopeForTest() config.KimiAuthEnvelope {
 	return env
 }
 
-// RunKimiAddonPage opens the OBSERVED canonical add-on destination for the
-// user without submitting a purchase. It reuses the saved auth state so the
-// page opens authenticated.
+// RunKimiAddonPage is retained as a thin alias for RunKimiPage: the membership
+// quota page itself contains the user-controlled booster/purchase UI, so the
+// account/details action opens that page. No separate automated purchase route
+// exists or is desired.
 func RunKimiAddonPage(envelopeJSON string) error {
-	var env config.KimiAuthEnvelope
-	if err := env.Decode([]byte(envelopeJSON)); err != nil {
-		return err
-	}
-	if err := validateKimiPageURL(kimiAddonURL); err != nil {
-		return err
-	}
-	browser, err := launchKimiBrowser(context.Background(), "about:blank")
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	return runKimiPage(ctx, browser, kimiAddonURL, &env)
+	return RunKimiPage(kimiMembershipURL, envelopeJSON)
 }
