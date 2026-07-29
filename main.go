@@ -654,7 +654,7 @@ func printKimiQuota(acc *config.KimiAccount) error {
 }
 
 // cmdOpenPage 打开对应账户的服务商页面，并注入该账户登录态。
-// 用法: open-page <opencode|deepseek|ollama> <账户名>。由侧边栏右键菜单经 /api/open 拉起。
+// 用法: open-page <opencode|deepseek|ollama|kimi> <账户名>。由侧边栏右键菜单经 /api/open 拉起。
 func cmdOpenPage() {
 	if len(os.Args) < 4 {
 		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi> <账户名>")
