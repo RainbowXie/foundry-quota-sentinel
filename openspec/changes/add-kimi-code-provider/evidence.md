@@ -152,7 +152,7 @@ or account identifier is logged or output.
 The acceptance driver was exercised against a canonical `go build` binary
 launched as `login-kimi <name>` under a disposable throwaway `HOME` (config
 lived only in `/tmp/fqs-accept-home.*`; the real user config was never written
-or read; isolated at the OS level). Two isolated-browser runs were attempted:
+or read; isolated at the OS level). Three isolated-browser runs were attempted:
 
 1. The login window launched correctly (isolated Chrome, `--user-data-dir=<tmp>`
    temp profile, `--remote-debugging-pipe` loopback CDP only — the user's
@@ -166,12 +166,17 @@ or read; isolated at the OS level). Two isolated-browser runs were attempted:
    login window launched correctly again but the Kimi interactive login was
    not completed within the idle window, so no account was saved and the
    downstream steps did not run.
+3. A third run with the teardown fix confirmed it in production: the window
+   launched and, on close without a captured login, exited cleanly with the
+   `未捕获到有效凭证（窗口已关闭）` sentinel — **no `unlinkat: directory not
+   empty` abort**. This proves the teardown-fix (1→2 regression, 2→3 clean) is
+   effective in the real browser, not only under RED→GREEN unit simulation.
 
 Verified by the acceptance driver (start-to-launch path, isolated):
 - `login-kimi` launches an isolated one-shot browser on the loopback CDP with a
   private temp profile; the protected-response capture + `refresh_token`
   durable-state pipeline is wired; after teardown fix, teardown no longer aborts
-  capture.
+  capture, even when the window closes without a login.
 
 Not yet run end-to-end (require a completed interactive Kimi login to produce
 a saved account first):
