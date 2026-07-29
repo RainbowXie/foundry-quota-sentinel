@@ -167,7 +167,7 @@ func (c *fakeKimiCDP) NavigateWithLoader(context.Context, string, ...string) (st
 				c.responseBodies = map[string]string{}
 			}
 			if _, hasBody := c.responseBodies[rid]; !hasBody {
-				c.responseBodies[rid] = kimiSuccessBodyFixture
+				c.responseBodies[rid] = kimiSuccessBodyFixture()
 			}
 		}
 	}
@@ -207,8 +207,12 @@ func (c *fakeKimiCDP) navigatedSnapshot() bool {
 }
 
 // kimiSuccessBodyFixture is a synthetic Connect-JSON success body (no "code"
-// string) with both meters, mirroring the parser fixture.
-const kimiSuccessBodyFixture = `{"weekly":{"usedPercent":10,"reset_seconds":562800},"rate_limit":{"usedPercent":52,"reset_seconds":12000}}`
+// string) with both meters, mirroring the REAL captured structure
+// (ratelimitCode7d/ratelimitCode5h + ratio + absolute ISO resetTime). The
+// resetTime is built at call time so it is always in the future.
+func kimiSuccessBodyFixture() string {
+	return `{"ratelimitCode5h":{"ratio":0.52,"enabled":true,"resetTime":"` + time.Now().Add(12000*time.Second).UTC().Format(time.RFC3339Nano) + `"},"ratelimitCode7d":{"ratio":0.10,"enabled":true,"resetTime":"` + time.Now().Add(562800*time.Second).UTC().Format(time.RFC3339Nano) + `"},"subscriptionBalance":{"id":"synthetic-id"}}`
+}
 
 // kimiPageTestSetup is the common setup for RunKimiPage tests: saves the
 // launch override and injects the fake browser. Returns the cdp + browser.
@@ -377,7 +381,7 @@ func TestRunKimiPageRejectsUnfinishedBody(t *testing.T) {
 	cdp, browser, cleanup := kimiPageTestSetup(t)
 	defer cleanup()
 	cdp.skipLoadingFinishedForNav = map[int]bool{1: true}
-	cdp.responseBodies = map[string]string{"r1": kimiSuccessBodyFixture}
+	cdp.responseBodies = map[string]string{"r1": kimiSuccessBodyFixture()}
 	err := RunKimiPage(kimiConsoleURL, kimiTestEnvelope())
 	if err == nil {
 		t.Fatal("RunKimiPage must fail when loadingFinished never fires (body not ready)")
@@ -438,7 +442,7 @@ func TestRunKimiPageRejectsUnrelatedEndpoint(t *testing.T) {
 		if cdp.responseBodies == nil {
 			cdp.responseBodies = map[string]string{}
 		}
-		cdp.responseBodies[rid] = kimiSuccessBodyFixture
+		cdp.responseBodies[rid] = kimiSuccessBodyFixture()
 	}
 	err := RunKimiPage(kimiConsoleURL, kimiTestEnvelope())
 	if err == nil {
@@ -476,12 +480,12 @@ func TestRunKimiLoginCapturesBearerAndValidatesBeforeSave(t *testing.T) {
 		return browser, nil
 	}
 	validate := func(token string) bool { return token == "synthetic-kimi-access-token-1234567890" }
-	token, _, err := runKimiLogin(context.Background(), browser, validate)
+	env, err := runKimiLogin(context.Background(), browser, validate)
 	if err != nil {
 		t.Fatalf("runKimiLogin: %v", err)
 	}
-	if token != "synthetic-kimi-access-token-1234567890" {
-		t.Fatalf("token = %q", token)
+	if got := env.AccessToken(); got != "synthetic-kimi-access-token-1234567890" {
+		t.Fatalf("token = %q", got)
 	}
 	if !browser.closed {
 		t.Fatal("login browser must be closed before returning (reaped before validation)")
@@ -509,7 +513,7 @@ func TestRunKimiLoginRejectsNonKimiOriginToken(t *testing.T) {
 		return browser, nil
 	}
 	validate := func(string) bool { return true }
-	_, _, err := runKimiLogin(context.Background(), browser, validate)
+	_, err := runKimiLogin(context.Background(), browser, validate)
 	if err == nil {
 		t.Fatal("runKimiLogin must reject a token from a non-Kimi origin")
 	}
@@ -526,7 +530,7 @@ func TestRunKimiLoginReportsCancellationOnEarlyClose(t *testing.T) {
 	launchKimiBrowser = func(context.Context, string) (kimiLoginBrowser, error) {
 		return browser, nil
 	}
-	_, _, err := runKimiLogin(context.Background(), browser, func(string) bool { return true })
+	_, err := runKimiLogin(context.Background(), browser, func(string) bool { return true })
 	if err == nil {
 		t.Fatal("runKimiLogin must error when the browser closes before a credential is captured")
 	}

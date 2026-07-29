@@ -49,13 +49,17 @@ type OllamaAccount struct {
 }
 
 // KimiAccount is the web-layer view of a saved Kimi account. It carries the
-// access token for the fetcher but the cards/accounts endpoints NEVER
-// serialize it — only the name, quota meters, generation, and status/error
-// leave the API.
+// access token + saved browser headers for the fetcher, but the cards/accounts
+// endpoints NEVER serialize them — only the name, quota meters, generation,
+// and status/error leave the API.
 type KimiAccount struct {
 	Name        string
 	AccessToken string
-	Generation  int
+	// Headers are the saved browser headers (cookie + x-msh-* + user-agent)
+	// the querier replays alongside the Bearer token. Keys are HTTP header
+	// names. Never serialized to the API.
+	Headers    map[string]string
+	Generation int
 }
 
 type Server struct {
@@ -413,7 +417,7 @@ func (s *Server) Handler() http.Handler {
 		fetch := s.kimiFetch
 		if fetch == nil {
 			fetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
-				return (&quota.KimiQuerier{AccessToken: a.AccessToken}).FetchQuota(r.Context())
+				return (&quota.KimiQuerier{AccessToken: a.AccessToken, Headers: a.Headers}).FetchQuota(r.Context())
 			}
 		}
 		var wg sync.WaitGroup

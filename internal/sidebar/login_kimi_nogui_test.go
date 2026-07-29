@@ -23,7 +23,7 @@ func TestRunKimiLoginWithoutGUIUsesExternalBrowserFlow(t *testing.T) {
 		return browser, nil
 	}
 
-	_, _, err := RunKimiLogin(func(string) bool { return false })
+	_, err := RunKimiLogin(func(string) bool { return false })
 	if err == nil || strings.Contains(err.Error(), "图形界面") {
 		t.Fatalf("RunKimiLogin() error = %v, want external-browser result (no GUI dependency)", err)
 	}

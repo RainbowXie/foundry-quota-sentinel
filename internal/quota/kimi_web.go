@@ -62,6 +62,13 @@ type KimiQuerier struct {
 	// only by tests that want to point at a fake server — production always
 	// hits www.kimi.com over HTTPS.
 	BaseURL string
+	// Headers carries the saved browser headers required for replay
+	// (cookie + x-msh-device-id + x-traffic-id + x-msh-platform + x-msh-version
+	// + x-language + r-timezone + user-agent), keyed by their HTTP header
+	// names. Empty/absent entries are skipped. Verified: a Go client sending
+	// the Bearer token + these headers reaches GetSubscriptionStats and gets
+	// a 200. An empty map replays token-only (still works for fresh sessions).
+	Headers map[string]string
 	// Client is injectable for tests; nil constructs a default client with
 	// kimiRequestTimeout.
 	Client *http.Client
@@ -110,6 +117,15 @@ func (q *KimiQuerier) FetchQuota(ctx context.Context) (*KimiQuotaData, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("Authorization", "Bearer "+q.AccessToken)
+	// Replay the saved browser headers (cookie + x-msh-* + user-agent + ...).
+	// Each value was allowlisted + CR/LF-rejected at capture; set them
+	// best-effort — a token-only replay still works for fresh sessions.
+	for name, value := range q.Headers {
+		if value == "" || strings.ContainsAny(value, "\r\n") {
+			continue
+		}
+		req.Header.Set(name, value)
+	}
 
 	client := q.Client
 	if client == nil {
@@ -155,7 +171,7 @@ func (q *KimiQuerier) FetchQuota(ctx context.Context) (*KimiQuotaData, error) {
 // "unauthenticated" code, so a 2xx auth failure is classified as auth-expiry
 // rather than unsupported-response.
 func isKimiAuthErrorCode(body string) bool {
-	var cerr kimiConnectErrorRaw
+	var cerr kimiConnectError
 	if err := json.Unmarshal([]byte(body), &cerr); err != nil {
 		return false
 	}

@@ -141,11 +141,39 @@ func ollamaFromConfig(conf *config.Config) []web.OllamaAccount {
 func kimiFromConfig(conf *config.Config) []web.KimiAccount {
 	out := make([]web.KimiAccount, 0, len(conf.KimiAccounts))
 	for _, a := range conf.KimiAccounts {
-		token, ok := a.Auth.Cookie("kimi_session")
-		if !ok || token == "" {
+		token := a.Auth.AccessToken()
+		if token == "" {
 			continue
 		}
-		out = append(out, web.KimiAccount{Name: a.Name, AccessToken: token, Generation: a.Generation})
+		out = append(out, web.KimiAccount{Name: a.Name, AccessToken: token, Headers: kimiEnvelopeHeaders(&a.Auth), Generation: a.Generation})
+	}
+	return out
+}
+
+// kimiEnvelopeHeaders turns the saved envelope's browser-header fields into an
+// HTTP header map the querier replays alongside the Bearer token. Field names
+// (underscore form) map back to their HTTP header names. Empty/absent fields
+// are omitted.
+func kimiEnvelopeHeaders(env *config.KimiAuthEnvelope) map[string]string {
+	if env == nil {
+		return nil
+	}
+	// envelope field name → HTTP header name.
+	f2h := map[string]string{
+		"cookie":          "cookie",
+		"x_msh_device_id": "x-msh-device-id",
+		"x_traffic_id":    "x-traffic-id",
+		"x_msh_platform":  "x-msh-platform",
+		"x_msh_version":   "x-msh-version",
+		"x_language":      "x-language",
+		"r_timezone":      "r-timezone",
+		"user_agent":      "user-agent",
+	}
+	out := map[string]string{}
+	for field, header := range f2h {
+		if v, ok := env.Field(field); ok && v != "" {
+			out[header] = v
+		}
 	}
 	return out
 }
@@ -488,17 +516,10 @@ func cmdLoginKimi() {
 		_, err := q.FetchQuota(context.Background())
 		return err == nil
 	}
-	accessToken, cookies, err := sidebar.RunKimiLogin(validate)
+	env, err := sidebar.RunKimiLogin(validate)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
-	}
-	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
-	_ = env.SetCookie("kimi_session", accessToken)
-	for _, cookie := range cookies {
-		// Only allowlisted names are accepted by SetCookie; others are
-		// dropped so unrelated captured state never reaches the credential.
-		_ = env.SetCookie(cookie.Name, cookie.Value)
 	}
 	cfg.UpsertKimiAccount(config.KimiAccount{Name: name, Auth: env})
 	if err := cfg.Save(); err != nil {
@@ -562,11 +583,11 @@ func cmdQuotaKimi() {
 
 // printKimiQuota fetches and prints one Kimi account's two meters.
 func printKimiQuota(acc *config.KimiAccount) error {
-	token, ok := acc.Auth.Cookie("kimi_session")
-	if !ok || token == "" {
+	token := acc.Auth.AccessToken()
+	if token == "" {
 		return fmt.Errorf("Kimi 账户 %q 缺少凭证，请重新登录", acc.Name)
 	}
-	q := &quota.KimiQuerier{AccessToken: token}
+	q := &quota.KimiQuerier{AccessToken: token, Headers: kimiEnvelopeHeaders(&acc.Auth)}
 	data, err := q.FetchQuota(context.Background())
 	if err != nil {
 		return err

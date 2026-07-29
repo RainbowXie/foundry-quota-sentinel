@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeKimiTransport is an http.RoundTripper that returns a canned response
@@ -56,11 +57,19 @@ func newKimiTestQuerier(t *testing.T, transport *fakeKimiTransport) *KimiQuerier
 	return q
 }
 
+// kimiValidStatsBody is a synthetic GetSubscriptionStats 200 body mirroring
+// the REAL captured structure (ratelimitCode7d/ratelimitCode5h + ratio +
+// absolute ISO resetTime, no top-level "code"). resetTime is built at test
+// time so it is always in the future.
+func kimiValidStatsBody() string {
+	return kimiFixture(0.10, kimiResetOffset(562800*time.Second), 0.52, kimiResetOffset(12000*time.Second))
+}
+
 // TestKimiQuerierSendsExactProtectedRequest (task 3.1) proves the querier
 // POSTs to the OBSERVED protected endpoint with the Bearer header and
 // Connect-Protocol-Version, body {}.
 func TestKimiQuerierSendsExactProtectedRequest(t *testing.T) {
-	tr := &fakeKimiTransport{body: kimiValidWeeklyFixture}
+	tr := &fakeKimiTransport{body: kimiValidStatsBody()}
 	q := newKimiTestQuerier(t, tr)
 	if _, err := q.FetchQuota(context.Background()); err != nil {
 		t.Fatalf("FetchQuota: %v", err)
@@ -88,7 +97,7 @@ func TestKimiQuerierSendsExactProtectedRequest(t *testing.T) {
 // TestKimiQuerierParsesBothMetersOnSuccess (task 3.2) proves transport +
 // business success (HTTP 200, no Connect code) yields the two meters.
 func TestKimiQuerierParsesBothMetersOnSuccess(t *testing.T) {
-	tr := &fakeKimiTransport{body: kimiValidWeeklyFixture}
+	tr := &fakeKimiTransport{body: kimiValidStatsBody()}
 	q := newKimiTestQuerier(t, tr)
 	got, err := q.FetchQuota(context.Background())
 	if err != nil {

@@ -162,26 +162,28 @@ func (c *sharedKimiClient) GetResponseBody(ctx context.Context, requestID string
 	return env.Body, nil
 }
 
-// RunKimiLogin launches the shared browser at the Kimi console, captures a
-// Bearer accessToken from Network header events on the Kimi origin, settles,
-// then closes the browser before asking the caller to validate the candidate
-// through the production quota path. The validate closure is invoked only
-// after the browser is reaped.
-func RunKimiLogin(validate func(accessToken string) bool) (string, []browserauth.Cookie, error) {
+// RunKimiLogin launches the shared browser at the Kimi console, captures the
+// Bearer accessToken (plus the cookie header and the stable browser headers)
+// from a Network header event on the protected Kimi request, settles, then
+// closes the browser before asking the caller to validate the candidate token
+// through the production quota path. Returns the filled versioned envelope.
+func RunKimiLogin(validate func(accessToken string) bool) (config.KimiAuthEnvelope, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	browser, err := launchKimiBrowser(ctx, kimiLoginURL)
 	if err != nil {
-		return "", nil, err
+		return config.KimiAuthEnvelope{}, err
 	}
 	return runKimiLogin(ctx, browser, validate)
 }
 
 // runKimiLogin is the coordinator core. It collects Bearer candidates from
-// Network header events whose requestId maps to a Kimi-origin URL, settles
-// for the window once a candidate is available, then closes the browser and
-// validates each candidate through the caller-supplied closure.
-func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(string) bool) (token string, cookies []browserauth.Cookie, err error) {
+// Network header events whose requestId maps to a Kimi-origin URL, settling
+// once a candidate is available, then closes the browser and validates each
+// candidate through the caller-supplied closure. The envelope it returns
+// carries the Bearer accessToken, the Kimi cookie header, and the stable
+// browser headers observed on the protected request — all allowlisted.
+func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(string) bool) (envelope config.KimiAuthEnvelope, err error) {
 	defer func() {
 		if closeErr := browser.Close(); err == nil && closeErr != nil {
 			err = fmt.Errorf("关闭 Kimi 登录浏览器失败: %w", closeErr)
@@ -190,17 +192,25 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 
 	cdp, err := browser.CDP(ctx)
 	if err != nil {
-		return "", nil, fmt.Errorf("连接 Kimi 登录浏览器失败: %w", err)
+		return config.KimiAuthEnvelope{}, fmt.Errorf("连接 Kimi 登录浏览器失败: %w", err)
 	}
 	if err := cdp.EnableNetwork(ctx); err != nil {
 		_ = cdp.Close()
-		return "", nil, fmt.Errorf("启用 Kimi 网络事件失败: %w", err)
+		return config.KimiAuthEnvelope{}, fmt.Errorf("启用 Kimi 网络事件失败: %w", err)
 	}
 
 	events := cdp.Events()
-	candidates := make(map[string]bool)
-	urls := make(map[string]string)    // requestId → URL from requestWillBeSent
-	pending := make(map[string]string) // token → requestId awaiting URL
+	// candidates maps a Bearer token to the full request headers captured on
+	// the matching Kimi-origin request (so the envelope can replay the stable
+	// browser headers, not just the token).
+	type candidate struct {
+		token   string
+		headers map[string]string
+	}
+	candidates := make(map[string]candidate)
+	urls := make(map[string]string)               // requestId → URL from requestWillBeSent
+	pending := make(map[string]map[string]string) // token → headers awaiting URL
+	pendingToken := make(map[string]string)       // token → requestId
 	poll := time.NewTicker(300 * time.Millisecond)
 	defer poll.Stop()
 
@@ -211,29 +221,35 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 				events = nil
 				continue
 			}
-			token, requestID, requestURL := kimiTokenFromEvent(event)
+			decoded, dOK := browserauth.DecodeRequestHeadersEvent(event)
+			if !dOK {
+				continue
+			}
+			requestID, requestURL := decoded.RequestID, decoded.URL
+			headers := decoded.Headers
+			token := browserauth.BearerToken(headers)
 			if requestID != "" && requestURL != "" {
 				urls[requestID] = requestURL
-				for t, rid := range pending {
-					if rid == requestID && isOnKimiHost(requestURL) {
-						candidates[t] = true
+				for t, h := range pending {
+					if pendingToken[t] == requestID && isOnKimiHost(requestURL) {
+						candidates[t] = candidate{token: t, headers: h}
 						delete(pending, t)
+						delete(pendingToken, t)
 					}
 				}
 			}
-			if token == "" {
+			if token == "" || requestID == "" {
 				continue
-			}
-			if requestID == "" {
-				continue // no provenance — drop
 			}
 			if u, ok := urls[requestID]; ok {
 				if isOnKimiHost(u) {
-					candidates[token] = true
+					candidates[token] = candidate{token: token, headers: headers}
 					delete(pending, token)
+					delete(pendingToken, token)
 				}
 			} else {
-				pending[token] = requestID
+				pending[token] = headers
+				pendingToken[token] = requestID
 			}
 		case <-poll.C:
 		}
@@ -241,10 +257,12 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 		// Promote pending tokens whose URL is now known and on Kimi.
 		pageURL, urlErr := cdp.PageURL(ctx, kimiHost)
 		if urlErr == nil && pageURL != "" {
-			for token, requestID := range pending {
-				if u, ok := urls[requestID]; ok && isOnKimiHost(u) {
-					candidates[token] = true
-					delete(pending, token)
+			for t, h := range pending {
+				rid := pendingToken[t]
+				if u, ok := urls[rid]; ok && isOnKimiHost(u) {
+					candidates[t] = candidate{token: t, headers: h}
+					delete(pending, t)
+					delete(pendingToken, t)
 				}
 			}
 		}
@@ -256,11 +274,11 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 			if len(candidates) > 0 {
 				break
 			}
-			return "", nil, fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
+			return config.KimiAuthEnvelope{}, fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
 		}
 		select {
 		case <-ctx.Done():
-			return "", nil, fmt.Errorf("未捕获到有效凭证（登录超时或已取消）")
+			return config.KimiAuthEnvelope{}, fmt.Errorf("未捕获到有效凭证（登录超时或已取消）")
 		default:
 		}
 	}
@@ -270,21 +288,64 @@ func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(s
 	// allowlist decides what persists, and a cookie-capture failure does not
 	// block a token-only replay.
 	capturedCookies, _ := cdp.BrowserCookies(ctx)
+	cookieHeader := kimiCookieHeader(capturedCookies)
 	_ = cdp.Close()
 	if err := browser.Close(); err != nil {
-		return "", nil, fmt.Errorf("关闭 Kimi 登录浏览器失败: %w", err)
+		return config.KimiAuthEnvelope{}, fmt.Errorf("关闭 Kimi 登录浏览器失败: %w", err)
 	}
 
-	for candidate := range candidates {
-		if validate(candidate) {
-			return candidate, filterKimiCookies(capturedCookies), nil
+	for _, c := range candidates {
+		if validate(c.token) {
+			return kimiBuildEnvelope(c.token, cookieHeader, c.headers), nil
 		}
 	}
-	return "", nil, fmt.Errorf("未找到可验证的 Kimi 凭证")
+	return config.KimiAuthEnvelope{}, fmt.Errorf("未找到可验证的 Kimi 凭证")
+}
+
+// kimiBuildEnvelope fills a versioned envelope with the allowlisted replay
+// fields from a captured protected request: the Bearer accessToken, the
+// cookie header, and the stable browser headers (x-msh-device-id,
+// x-traffic-id, x-msh-platform, x-msh-version, x-language, r-timezone,
+// user-agent). Unknown headers are ignored; SetField rejects anything outside
+// the allowlist. Only non-empty values are stored.
+func kimiBuildEnvelope(token, cookieHeader string, headers map[string]string) config.KimiAuthEnvelope {
+	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
+	// Header name → envelope field name (allowlisted).
+	h2f := map[string]string{
+		"x-msh-device-id": "x_msh_device_id",
+		"x-traffic-id":    "x_traffic_id",
+		"x-msh-platform":  "x_msh_platform",
+		"x-msh-version":   "x_msh_version",
+		"x-language":      "x_language",
+		"r-timezone":      "r_timezone",
+		"user-agent":      "user_agent",
+	}
+	_ = env.SetField("accessToken", token)
+	if cookieHeader != "" {
+		_ = env.SetField("cookie", cookieHeader)
+	}
+	for headerName, fieldName := range h2f {
+		if v, ok := headers[headerName]; ok && v != "" {
+			_ = env.SetField(fieldName, v)
+		}
+	}
+	return env
+}
+
+// kimiCookieHeader builds a "name=value; name=value" Cookie header from the
+// captured browser cookies on the Kimi host. Empty values and values with
+// control characters are dropped.
+func kimiCookieHeader(cookies []browserauth.Cookie) string {
+	parts := make([]string, 0, len(cookies))
+	for _, c := range filterKimiCookies(cookies) {
+		parts = append(parts, c.Name+"="+c.Value)
+	}
+	return strings.Join(parts, "; ")
 }
 
 // kimiTokenFromEvent pulls a Bearer accessToken from a Network header event
-// with its requestId and URL, mirroring deepSeekTokenFromEvent.
+// with its requestId and URL, mirroring deepSeekTokenFromEvent. Kept for tests
+// that drive the header event path directly.
 func kimiTokenFromEvent(event browserauth.Event) (token, requestID, requestURL string) {
 	decoded, ok := browserauth.DecodeRequestHeadersEvent(event)
 	if !ok {
@@ -519,14 +580,31 @@ func validateKimiPageURL(rawURL string) error {
 	return nil
 }
 
-// kimiEnvelopeCookies turns the saved envelope's allowlisted cookies into
-// browserauth.Cookie values for replay.
+// kimiEnvelopeCookies parses the saved envelope's raw cookie header (the
+// "cookie" field, a "name=value; name=value" string) into browserauth.Cookie
+// values for the Kimi host. An absent/empty cookie field yields no cookies
+// (a token-only replay is valid). Malformed pairs are skipped, not fatal.
 func kimiEnvelopeCookies(env *config.KimiAuthEnvelope) []browserauth.Cookie {
 	if env == nil {
 		return nil
 	}
-	out := make([]browserauth.Cookie, 0, len(env.Cookies))
-	for name, value := range env.Cookies {
+	raw, ok := env.Field("cookie")
+	if !ok || raw == "" {
+		return nil
+	}
+	out := make([]browserauth.Cookie, 0)
+	for _, part := range strings.Split(raw, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, value, ok := strings.Cut(part, "=")
+		if !ok || name == "" || value == "" {
+			continue
+		}
+		if strings.ContainsAny(name+value, ";\r\n") {
+			continue
+		}
 		out = append(out, browserauth.Cookie{
 			Name: name, Value: value, Domain: kimiHost, Path: "/", Secure: true,
 		})
@@ -538,8 +616,9 @@ func kimiEnvelopeCookies(env *config.KimiAuthEnvelope) []browserauth.Cookie {
 // so the test helper in login_kimi_test.go can construct one without
 // importing config's private allowlist.
 func kimiAuthEnvelopeForTest() config.KimiAuthEnvelope {
-	env := config.KimiAuthEnvelope{Version: 1}
-	_ = env.SetCookie("kimi_session", "synthetic-session-value")
+	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
+	_ = env.SetField("accessToken", "synthetic-bearer-jwt-1234567890")
+	_ = env.SetField("cookie", "kimi_session=synthetic-session-value")
 	return env
 }
 

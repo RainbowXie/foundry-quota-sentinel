@@ -8,8 +8,9 @@ import (
 )
 
 // KimiAccount is one saved Kimi Code account. Auth holds the versioned,
-// provider-owned authentication envelope; Generation is a non-secret login
-// counter bumped on every overwrite so the sidebar can detect a same-
+// provider-owned authentication envelope (Bearer token + cookie + the stable
+// browser headers proven necessary for replay); Generation is a non-secret
+// login counter bumped on every overwrite so the sidebar can detect a same-
 // envelope re-login without reading the credential.
 type KimiAccount struct {
 	Name       string           `json:"name"`
@@ -27,47 +28,67 @@ const kimiAuthEnvelopeVersion = 1
 // reaching into the package's private constant.
 func KimiAuthEnvelopeVersion() int { return kimiAuthEnvelopeVersion }
 
-// kimiAuthAllowlist is the closed set of cookie names the envelope may carry.
-// It starts empty and grows ONLY with names the evidence phase proves
-// necessary for Kimi replay. An unknown name is rejected at capture so
-// unrelated captured state never reaches the persisted credential. The
-// single synthetic placeholder below is EVIDENCE-GATED: replace with the
-// real minimum replay set once the CDP capture confirms it.
-var kimiAuthAllowlist = []string{"kimi_session"}
-
-// KimiAuthEnvelope is the versioned, provider-owned authentication material
-// for one Kimi account. It carries only allowlisted cookie values proven
-// necessary for replay. Cookies is a name→value map; values are validated to
-// reject control characters (CR/LF) that could inject HTTP headers.
-type KimiAuthEnvelope struct {
-	Version int               `json:"version"`
-	Cookies map[string]string `json:"cookies,omitempty"`
+// kimiAuthAllowlist is the CLOSED set of envelope fields the replay needs,
+// derived from the OBSERVED request headers of the authenticated
+// GetSubscriptionStats call (verified by a plain Go-HTTP replay returning
+// 200). accessToken is sent as `Authorization: Bearer <accessToken>`; cookie is
+// the raw Cookie header; the x-msh-* / x-traffic-id / user-agent /
+// r-timezone / x-language values are the stable browser headers. Unknown
+// captured state is rejected at capture time so unrelated data never reaches
+// the persisted credential.
+var kimiAuthAllowlist = []string{
+	"accessToken",
+	"cookie",
+	"x_msh_device_id",
+	"x_traffic_id",
+	"x_msh_platform",
+	"x_msh_version",
+	"x_language",
+	"r_timezone",
+	"user_agent",
 }
 
-// SetCookie records an allowlisted cookie value after validating it carries
-// no control characters. An unknown name or an unsafe value is rejected so
-// neither reaches the persisted credential nor the replayed cookie set.
-func (e *KimiAuthEnvelope) SetCookie(name, value string) error {
+// KimiAuthEnvelope is the versioned, provider-owned authentication material
+// for one Kimi account. Fields is a name→value map keyed by the allowlist
+// above (header names with non-alphanumeric chars use underscores). Values are
+// validated to reject control characters (CR/LF) that could inject HTTP
+// headers. Only allowlisted names are accepted by SetField.
+type KimiAuthEnvelope struct {
+	Version int               `json:"version"`
+	Fields  map[string]string `json:"fields,omitempty"`
+}
+
+// SetField records an allowlisted field value after validating it carries no
+// control characters. An unknown name or an unsafe value is rejected so
+// neither reaches the persisted credential nor the replayed request.
+func (e *KimiAuthEnvelope) SetField(name, value string) error {
 	if !kimiAllowlisted(name) {
 		return fmt.Errorf("Kimi 凭证字段 %q 不在允许列表", name)
 	}
-	if name == "" || value == "" {
+	if value == "" {
 		return fmt.Errorf("Kimi 凭证字段 %q 值为空", name)
 	}
 	if strings.ContainsAny(value, "\r\n") {
 		return fmt.Errorf("Kimi 凭证字段 %q 含非法控制字符", name)
 	}
-	if e.Cookies == nil {
-		e.Cookies = map[string]string{}
+	if e.Fields == nil {
+		e.Fields = map[string]string{}
 	}
-	e.Cookies[name] = value
+	e.Fields[name] = value
 	return nil
 }
 
-// Cookie returns an allowlisted cookie value by name.
-func (e *KimiAuthEnvelope) Cookie(name string) (string, bool) {
-	v, ok := e.Cookies[name]
+// Field returns an allowlisted field value by name.
+func (e *KimiAuthEnvelope) Field(name string) (string, bool) {
+	v, ok := e.Fields[name]
 	return v, ok
+}
+
+// AccessToken is the persisted Bearer token (sent as `Authorization: Bearer
+// <accessToken>`). Empty when not saved.
+func (e *KimiAuthEnvelope) AccessToken() string {
+	v, _ := e.Fields["accessToken"]
+	return v
 }
 
 func kimiAllowlisted(name string) bool {
@@ -90,11 +111,13 @@ func (e KimiAuthEnvelope) Encode() ([]byte, error) {
 
 // Decode parses an envelope and rejects an unsupported version. An
 // unsupported version fails closed (re-login required) rather than being
-// partially replayed.
+// partially replayed. Any field name outside the allowlist or value carrying
+// CR/LF is dropped/rejected at load time too, so a hand-edited config cannot
+// smuggle an unknown credential in.
 func (e *KimiAuthEnvelope) Decode(data []byte) error {
 	var raw struct {
 		Version int               `json:"version"`
-		Cookies map[string]string `json:"cookies"`
+		Fields  map[string]string `json:"fields"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("Kimi 认证信封解析失败: %w", err)
@@ -102,20 +125,18 @@ func (e *KimiAuthEnvelope) Decode(data []byte) error {
 	if raw.Version != kimiAuthEnvelopeVersion {
 		return fmt.Errorf("Kimi 认证信封版本 %d 不受支持，请重新登录", raw.Version)
 	}
-	// Drop any cookie name outside the allowlist at load time too, so a
-	// hand-edited config cannot smuggle an unknown credential in.
-	cookies := make(map[string]string, len(raw.Cookies))
-	for name, value := range raw.Cookies {
+	fields := make(map[string]string, len(raw.Fields))
+	for name, value := range raw.Fields {
 		if !kimiAllowlisted(name) {
 			continue
 		}
 		if strings.ContainsAny(value, "\r\n") {
 			return fmt.Errorf("Kimi 认证信封字段 %q 含非法控制字符", name)
 		}
-		cookies[name] = value
+		fields[name] = value
 	}
 	e.Version = raw.Version
-	e.Cookies = cookies
+	e.Fields = fields
 	return nil
 }
 

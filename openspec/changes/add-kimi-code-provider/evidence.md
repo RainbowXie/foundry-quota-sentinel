@@ -1,199 +1,144 @@
 # Kimi Code provider — sanitized evidence note
 
 This note records only endpoint paths, field names/types, event ordering,
-status codes, lengths, counts, and redacted/synthetic observations. It
-NEVER records live cookie/token/Authorization/storage values, account
-identifiers, response bodies, or their hashes.
-
-Evidence confidence is tagged **OBSERVED** (verified by direct probe / bundle
-decode, no login) or **EVIDENCE-GATED** (needs one real authenticated
-disposable browser session to confirm). The single remaining human action is
-listed at the bottom.
+status codes, lengths, counts, and redacted observations. It NEVER records
+live cookie/token/Authorization/header values, account identifiers, response
+bodies, or their hashes. The contract below was captured from a REAL
+authenticated disposable browser session (task 1.2) and verified by a plain
+Go-HTTP replay probe returning 200.
 
 ## GitNexus impact analysis (task 1.1)
 
-Run before any edit to an existing symbol. All changes are **additive** —
-no existing field, route, or JSON shape is altered — so the HIGH/CRITICAL
-risk ratings are structural (many transitive callers), not behavioral.
+Run before any edit to an existing symbol. All code changes are **additive** —
+no existing field, route, or JSON shape is altered — so the HIGH/CRITICAL risk
+ratings are structural (many transitive callers), not behavioral.
 
-| Symbol | File | Risk | Callers | Change | Why safe |
-|--------|------|------|---------|--------|----------|
-| `config.Config` | `internal/config/config.go:38` | CRITICAL | Load, SaveWindowSize, init, deleteAccountFromConfig, startSidebar, cmdServe, main | add `KimiAccounts []KimiAccount` field, `json:"kimi_accounts,omitempty"` | omitempty → pre-Kimi configs load with empty list; Save preserves all other fields |
-| `quota.QuotaData` | `internal/quota/types.go:12` | CRITICAL | parseOllamaQuota, parseQuotaResponse, FetchQuota, cmdQuota, cmdWatch, cmdLoginOpenCode, Handler | **NOT MODIFIED** | new `KimiQuotaData` aggregate reuses `QuotaUsage` leaves; existing provider JSON untouched |
-| `web.Server.Handler` | `internal/web/server.go:136` | HIGH | Start → startSidebar/cmdServe → main | add `/api/kimi`, `/api/kimi/accounts`, `/api/kimi/login` routes inside Handler | existing routes unchanged; new routes are additive |
-| `deleteAccountFromConfig` | `main.go:172` | LOW | (onDelete) | add `case "kimi"` → `c.DeleteKimiAccount(name)` | branch addition |
-| `cmdOpenPage` | `main.go:452` | LOW | main | add `case "kimi"` branch | branch addition |
+| Symbol | File | Risk | Change | Why safe |
+|--------|------|------|--------|----------|
+| `config.Config` | `internal/config/config.go:38` | CRITICAL | add `KimiAccounts []KimiAccount` (omitempty) | backward-compatible load; pre-Kimi configs → empty list |
+| `quota.QuotaData` | `internal/quota/types.go:12` | CRITICAL | NOT MODIFIED | new `KimiQuotaData` aggregate reuses `QuotaUsage` leaves |
+| `web.Server.Handler` | `internal/web/server.go:136` | HIGH | add `/api/kimi*` routes | existing routes unchanged |
+| `deleteAccountFromConfig` / `cmdOpenPage` | `main.go` | LOW | add `case kimi` branch | branch addition |
 
-No HIGH/CRITICAL edit alters existing behavior; the rating reflects the
-call-graph fan-out, not a semantic break. Regression guard: the existing
-provider tests (config round-trip, ollama/opencode/deepseek parsers,
-sidebar route tests) must stay green.
+Regression guard: existing provider tests must stay green.
 
-## Public/structural investigation (task 1.2)
+## Real authenticated capture (task 1.2)
 
-Performed without a logged-in session, over plain HTTPS from a sandbox. No
-cookies/tokens/auth values were captured; no user browser profile was read;
-no non-loopback DevTools. All findings below are direct observations.
+Performed via a real disposable browser session (isolated profile, loopback
+CDP). The user authenticated by SMS; the SPA routed to
+`/code/console`; the protected quota request fired. No credentials, response
+bodies, or account identifiers were recorded — only paths, field names/types,
+status codes, and lengths.
 
-### Console and product surface (OBSERVED)
+### Console target (OBSERVED)
 
-- Console URL: `https://www.kimi.com/code/console` — confirmed 200, SPA shell
-  (`x-render: mode=csr`). Vue 3 + Vite + TanStack Query; auth is a CLIENT-SIDE
-  gate (no HTTP redirect for unauthenticated visitors — the server returns
-  the same shell to everyone). Entry chunk `index-CNJB2DbG.js`; console UI is
-  a lazy chunk `KimiConsole-esHS5unV.js`.
-- `https://www.kimi.com/code` is the marketing/landing page (SSR, install
-  script `curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash`).
-- The `/api` prefix is a legacy Express router that 302s to `/` for `/api`
-  and returns 404 `{"error_type":"internal.error",...}` for any `/api/...`
-  path. **The console does NOT use REST `/api/...` paths.**
+- Console URL: `https://www.kimi.com/code/console` (client-side auth gate; an
+  unauthenticated visitor lands on the `/code` marketing page, NOT a redirect).
+- Two meters rendered in the visible UI: 本周用量 `10%` · `6d 8h 25min后重置`;
+  频限明细 `0%` · `4h 25min后重置`.
 
-### API protocol and endpoint (OBSERVED)
+### API protocol + protected endpoint (OBSERVED)
 
-Kimi's console uses **Buf Connect (connect-es) gRPC-Web over JSON**, not
-REST. The path template is:
+Kimi uses **Buf Connect gRPC-Web over JSON**, NOT REST `/api/*` (those 404).
 
-```
-POST https://www.kimi.com/apiv2/{fully.qualified.Service}/{Method}
-Content-Type: application/json
-Connect-Protocol-Version: 1
-Authorization: Bearer <accessToken>   (added by the SPA when logged in)
-```
-
-Verified four ways: (1) the only fully-qualified path string in the request
-chunk is `"/apiv2/kimi.gateway.config.v1.ConfigService/GetConfig"`; (2) GET
-to any `/apiv2/...Service/Method` returns 405 + `allow: POST`; (3) POST `{}`
-to the membership endpoints returns 401 `{"code":"unauthenticated",...}`
-(route exists, needs auth); (4) all legacy `/api/code/...` paths return 404.
-
-- **Protected quota endpoint (OBSERVED)**:
+- Protected quota endpoint (OBSERVED, returned 200 authenticated):
   `POST https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats`
-  with body `{}`. 401 unauthenticated without a Bearer token; 200 with one.
-  This is the authenticated quota source — the SPA's `useBalanceModel` calls
-  `membershipService.getSubscriptionStats({})`.
-- Sibling methods: `GetSubscription`, `ListSubscriptions`
-  (`MembershipService`); `PrecheckWalletTopup` (`WalletService`); billing RPCs
-  under `kimi.gateway.order.v1.SubscriptionService` (out of scope for
-  read-only quota display).
-- Auth host (OBSERVED): `https://auth.kimi.com/api` (token refresh / device
-  register / logout, used by `AuthService`/`AuthRefreshClient`).
+  with body `{}`, `content-type: application/json`,
+  `connect-protocol-version: 1`.
+- Auth host: `https://auth.kimi.com/api` (login uses
+  `account.gateway.v1.AuthService/LoginWithSMS`, etc.).
+- Sibling membership calls observed: `GetSubscription`, `ListSubscriptions`
+  (`MembershipService`); billing via `BillingService/GetUsages`;
+  usage records via `code.v1.UsageService/ListUnifiedRequests`.
 
-### Business-success discriminator (OBSERVED)
+### Success discriminator (OBSERVED)
 
-**This is NOT the DeepSeek `code==0` pattern.** Kimi Connect uses a STRING
-`code` field for failures:
+NOT DeepSeek's `code==0`. Connect-JSON: **success = HTTP 200 + a response body
+with NO top-level `code` string**. Failure (unauthenticated) is a non-2xx with
+`{"code":"unauthenticated",...}`. Confirmed: the captured 200 body has no
+`code` field; the unauthenticated probe (no token) returns 401 with a `code`
+string.
 
-- Success: HTTP 200 + response body parses as the expected protobuf-JSON
-  message (no top-level `code` string).
-- Failure: non-2xx HTTP status with `{"code":"unauthenticated"|"permission_denied"|"internal", "details":[...]}`.
-  A 401 `unauthenticated` = accessToken invalid/expired (the expired-auth
-  signal).
+### Real response structure (OBSERVED — the fields the parser binds to)
 
-So the parser must reject a body carrying a non-empty `code` string (Connect
-error envelope) and accept a body with no `code` field that parses into the
-two meters. The HTTP 200 check lives in the querier; the CDP login
-auth-decision signal is: `responseReceived` 200 on `GetSubscriptionStats` +
-`loadingFinished` + body parses as the quota message (no error `code`). This
-is the Kimi analog of DeepSeek's `code==0` body check, inverted.
+`GetSubscriptionStats` 200 body top-level keys (exactly three):
 
-### Auth credential shape (OBSERVED + GATED)
+```
+ratelimitCode5h: { enabled: bool, resetTime: string(len 30) }
+ratelimitCode7d: { ratio: number (0..1), enabled: bool, resetTime: string(len 30) }
+subscriptionBalance: { id, feature, type, unit, amountUsedRatio, kimiCodeUsedRatio, expireTime, domain }
+```
 
-- OBSERVED: the protected request uses `Authorization: Bearer <accessToken>`
-  (same Bearer-header pattern as DeepSeek's `platform.deepseek.com` transport,
-  NOT a cookie header like Ollama). The accessToken is what login must
-  capture and the querier must replay.
-- EVIDENCE-GATED: the minimum replay set — whether the accessToken alone
-  suffices or a cookie (e.g. a session cookie on `www.kimi.com`) is also
-  required, and whether the User-Agent is session-bound. The capture phase
-  determines the envelope allowlist; it starts empty and adds only proven-
-  necessary values. The envelope version/encoding is implemented and tested;
-  only the allowlist contents are gated.
+Field semantics (mapped against the visible console):
+- **本周用量 (weekly usage)** = `ratelimitCode7d.ratio`, a 0..1 ratio →
+  percentage = round(ratio*100). Captured `ratio=0.1042` → console `10%`.
+  Reset = `ratelimitCode7d.resetTime` (absolute ISO-8601 timestamp,
+  nanosecond precision, e.g. `2026-08-04T15:58:03.138613843Z`).
+- **频限明细 (frequency limit)** = `ratelimitCode5h`. It carries `enabled`
+  + `resetTime`; the percentage comes from a `ratio` field present when usage
+  > 0 (at 0% the field is absent → parser treats absent ratio as 0%). Reset =
+  `ratelimitCode5h.resetTime` (same ISO-8601 absolute timestamp).
+- `resetTime` is an ABSOLUTE future timestamp, NOT a duration. The parser
+  computes `resetTime - now` → seconds (the countdown). Verified:
+  `2026-08-04T15:58:03...` − now ≈ 548823s ≈ 6d 8h 25min ✓ (matches the
+  visible countdown). Past/negative/missing resetTime is rejected.
+- `subscriptionBalance` is account/wallet metadata (not the two meters); not
+  required for the two-meter display but confirms the response is the
+  authenticated quota source.
 
-### Meter fields (OBSERVED proto schema, EVIDENCE-GATED exact 200 layout)
+The two meters reset INDEPENDENTLY (7d window vs 5h window), confirming the
+design decision: do NOT map frequency limit into `QuotaData.Rolling`. The
+provider-specific `KimiQuotaData{Weekly, RateLimit, FetchedAt}` aggregate
+reuses `QuotaUsage` leaves.
 
-Proto `kimi.gateway.membership.v2.Balance` (decoded from FileDescriptorProto
-in chunk `user-BIuo1Cpx.js` — these are the real schema field names, not
-guesses): `uuidv8`, `feature`, `type` (enum
-`UNSPECIFIED|SUBSCRIPTION|GIFT|BOOSTER`), `unit`, `amount`, `amountLeft`,
-`amountUsedRatio`, `kimiCodeUsedRatio`, `expireTime` (google.protobuf.Timestamp),
-`upcomingExpiration`, `domain`.
+### Auth credential + replay (OBSERVED + VERIFIED)
 
-`Capability.Constraint`: `parallelism`, `cronNum`, `projectNum`,
-`userCapacity`, `modelContextLength`, `modelretryTimes`, `rateLimits[]`
-(each `RateLimit{total, window: Duration}`).
+- The protected request sends `authorization: Bearer <accessToken>` (a JWT),
+  plus browser headers: `x-msh-platform: web`, `x-msh-version: 2.0.0`,
+  `x-language: zh-CN`, `r-timezone`, `x-msh-device-id`, `x-traffic-id`,
+  `x-msh-session-id`, `x-msh-shield-data`, and a `cookie` header.
+- **VERDICT (VERIFIED): plain Go-HTTP replay works.** A Go client replaying the
+  captured Bearer token + cookie + browser headers against
+  `GetSubscriptionStats` returned HTTP 200 with both meters present — no bot
+  block. So `KimiQuerier` stays pure Go-HTTP (no CDP fetch needed), matching
+  `DeepSeekWebQuerier`.
+- The replay envelope must carry: the Bearer accessToken, the cookie header,
+  and the stable browser headers (`x-msh-device-id`, `x-msh-traffic-id`,
+  `x-msh-platform`, `x-msh-version`, `x-language`, `r-timezone`,
+  `user-agent`). `x-msh-session-id` / `x-msh-shield-data` are per-session/risk
+  tokens; the replay probe succeeded even with a session-specific shield, so
+  they are best-effort (sent when present, not fatal if absent). The envelope
+  allowlist is CLOSED: only these named fields are persisted; unknown captured
+  state is rejected at capture time.
 
-Console UI identifiers (OBSERVED in `KimiConsole` + `balance` + `UsageTabs`
-chunks): `rateLimits`, `firstRateLimit`, `usagePercentage`,
-`rateLimitPercentage`, `isGlobalQuotaExceeded`, `monthlyChargeLimit`,
-`boosterWallets`, `creditUsage`, `limit5hUsage`, `limit7dUsage`,
-`ratelimit5h`, `ratelimit7d` — i.e. **two rate-limit windows: 5-hour and
-7-day**. i18n keys confirm: `code.console.statsWeeklyUsage`,
-`code.console.statsRateLimitDetail`, `code.console.statsResetIn` with
-day/hour/minute/second components, `subscription.quota.fivehours`,
-`subscription.quota.sevendays`.
+### Add-on ("购买加油包") destination (OBSERVED)
 
-Interpretation: the console shows a **weekly usage %** (`statsWeeklyUsage`,
-derived from `amountUsedRatio`/`kimiCodeUsedRatio` via `ratioToPercentage`),
-a **rate-limit detail** with 5h & 7d windows, a **reset countdown** in
-d/h/m/s, and a **booster** (加油包) spend limit. The `%` values are derived
-client-side from `*_ratio` proto fields.
-
-- EVIDENCE-GATED: the exact 200-response JSON layout (which Balance fields
-  populate, how `rateLimits` serializes, whether the response carries
-  pre-computed `usagePercentage`/`rateLimitPercentage` or only ratios). The
-  proto field names are solid (connect-es serializes proto→JSON in camelCase
-  deterministically); the populated shape needs one real 200 body to confirm.
-  The parser uses the observed proto field names; its CONTRACT (two
-  independent meters, percentage 0..100, reset in seconds, Connect success
-  discriminator) is what the tests pin, so a confirmed layout updates only the
-  parser's struct tags, not the tested output.
-
-### Add-on ("购买加油包") destination (OBSERVED — no longer gated)
-
-- OBSERVED link string in the console chunk:
+- Console link target (OBSERVED in the SPA bundle): the membership/booster
+  page on `www.kimi.com`. Canonical destination:
   `https://www.kimi.com/membership/subscription?tab=quota&from=kfc_console_booster`
-  (and `?from=kfc_console_upgrade` for upgrade). This is the canonical
-  booster/加油包 destination on `www.kimi.com`, HTTPS, host/path allowlisted.
-  The add-on action opens this URL for the user without submitting a purchase.
+  (HTTPS, host/path allowlisted). The add-on action opens this for the user
+  WITHOUT submitting a purchase.
 
 ## Synthetic fixtures (task 1.3)
 
-Synthetic fixtures represent the proposal sample values (NOT captured), used
-only for parser tests. They model the observed Connect-JSON success shape
-(no `code` string on success) with EVIDENCE-GATED meter field names; the
-parser's contract is what the tests pin.
+Synthetic fixtures mirror the REAL captured structure (field names are real;
+values are synthetic, NOT captured) and are used only for parser tests:
 
-- Weekly: usage `10`, reset `6d 12h 20min` = 518400 + 43200 + 1200 = **562800s**.
-- Frequency limit: usage `52`, reset `3h 20min` = 10800 + 1200 = **12000s**.
-  (3h 20min maps to the remaining time in the observed 5h rate-limit window.)
+- Weekly: `ratelimitCode7d.ratio = 0.10`, `resetTime` 6d ahead → 562800s → "6d".
+- Frequency limit: `ratelimitCode5h.ratio = 0.52`, `resetTime` 3h 20min ahead
+  → 12000s → "3h". (At real 0% the ratio field is absent; the fixture
+  exercises the >0 path; a separate fixture exercises the absent-ratio=0%
+  path.)
 
 The parser tests assert the two meters retain independent percentage,
-seconds, and compact display values (`562800s` → `6d`, `12000s` → `3h`) via
-the shared `formatter.FormatDurationCompact`.
+seconds, and compact display values via `formatter.FormatDurationCompact`.
 
-## Remaining human action (task 1.2 completion + 6.4 acceptance)
+## Acceptance status
 
-The non-interactive work is completed against the OBSERVED contract
-(endpoint, protocol, Bearer auth, Connect success discriminator, add-on URL,
-console URL, proto field names). The ONLY remaining human action is a single
-real login in an isolated disposable Kimi browser, to confirm the one
-EVIDENCE-GATED item — the exact 200-response JSON layout of
-`GetSubscriptionStats`:
-
-1. Run `login-kimi <name>` (canonical build) to open the temporary browser
-   at `https://www.kimi.com/code/console`.
-2. Complete Kimi authentication manually in that window.
-3. The implementation captures the allowlisted auth envelope (Bearer
-   accessToken + any proven-necessary cookie), waits for the protected
-   `GetSubscriptionStats` 200 response with no error `code`, and saves the
-   account. The capture records only field names/ordering/redacted shapes —
-   never credential values.
-4. Run `quota-kimi <name>` and compare the two meters to the visible console.
-5. Open the authenticated console until manual close; open the verified
-   add-on page (`/membership/subscription?tab=quota&from=kfc_console_booster`)
-   without purchasing.
-
-Before that run, if the real 200 body differs from the inferred layout, only
-the parser's struct tags in `internal/quota/kimi.go` and the envelope
-allowlist in `internal/config/kimi.go` change — the tested contract and all
-non-parser layers stay intact.
+- 1.2 (real capture): DONE — real authenticated session captured, sanitized
+  structure recorded, Go-HTTP replay verified.
+- 6.4 (real-browser acceptance with the canonical build): the real login was
+  performed in the capture browser; the remaining acceptance is a fresh run of
+  `login-kimi` against the canonical build to save an isolated account and
+  compare the two meters to the visible console. The contract is now real, not
+  gated.
