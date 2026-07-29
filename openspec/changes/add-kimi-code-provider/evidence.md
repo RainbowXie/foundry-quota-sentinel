@@ -374,3 +374,35 @@ file locks, in-lock reload, reload-fail-hard, exact pre-replay URL), the full
 
 All disposable artifacts shredded; real config unchanged (0 Kimi accounts); no
 secret artifacts retained. Task 6.4 re-ticked.
+
+## Credential-safety hardening round 5 (tasks 3.2/3.4) — commit `96c43d3`
+
+Four more gaps found and fixed (RED→GREEN where deterministic):
+
+1. **Full per-account lock chain across production paths** — `quota-kimi` CLI,
+   Kimi login save, `open-page` (envelope read), and web refresh now ALL hold
+   `AcquireKimiAccountLock` across their reload→refresh/capture→persist span,
+   with lock order account→global (a concurrent refresh cannot rotate while
+   login overwrites the envelope, etc.). `open-page` releases before the long
+   browser replay so it does not block concurrent refreshes for the page-open
+   duration.
+2. **Windows real cross-process lock** — `flock_windows.go` now uses
+   `LockFileEx`/`UnlockFileEx` (`golang.org/x/sys/windows`), not a no-op.
+3. **Unix release does NOT remove the lock file** — `fileLock.Close` only
+   unlocks + closes the fd. Removing the file would unlink the inode a waiter
+   is blocked on; the waiter's `OpenFile` would create a NEW inode it then
+   flocks — two separate locks, no mutual exclusion (the classic flock inode
+   race). The lock file is a tiny persistent sentinel.
+4. **3-process inode-race RED** — `TestCrossProcessAccountLockSerializes-
+   ThreeProcesses` forks THREE concurrent `_locktest` account processes,
+   asserts all serialize (3rd HELD ≥ 2nd DONE), and asserts the lock file
+   STILL EXISTS afterward (waiters reused the same inode). RED proved by
+   restoring `os.Remove` in Close: test fails "lock file removed after release
+   — waiters must reuse the same inode, not a new file"; GREEN without remove.
+
+CLI/Web/login concurrency: the real `quota-kimi`/login/`open-page`/web paths
+all call the SAME `AcquireKimiAccountLock` proven by the 2/3-process `_locktest`
+REDs (which fork the production binary). A direct CLI-vs-`_locktest` RED was
+attempted but is non-deterministic (synthetic-token fetch latency is
+unpredictable), so the 2/3-process `_locktest` REDs remain the deterministic
+proof of the shared lock.
