@@ -22,12 +22,12 @@
 
 ## 4. Shared-browser Kimi login and account page
 
-- [ ] 4.1 Identify any missing provider-neutral CDP primitives; add them to `internal/browserauth` only with upstream impact analysis and focused transport/decode tests, leaving all Kimi URL and credential rules outside the shared package.
-- [ ] 4.2 Define narrow injectable Kimi browser/CDP interfaces and fakes, then add RED login lifecycle tests for protected-response correlation, manual cancellation, validation-before-save, same-name relogin generation, browser reap, and temporary-profile cleanup.
-- [ ] 4.3 Implement Kimi system-browser login using the real evidence sequence, allowlisted minimal auth capture, production quota validation, save-after-validation behavior, and deterministic close/wait cleanup.
-- [ ] 4.4 Add RED account-page tests for credential application before protected navigation, authenticated console verification, ready handshake ordering, error-handshake-before-wait, no flash-close, unsupported envelope, cross-account isolation, and manual-close cleanup.
-- [ ] 4.5 Implement saved Kimi console replay at `https://www.kimi.com/code/console`, including strict URL validation, ready/error handshake integration, and wait-until-user-close behavior.
-- [ ] 4.6 Implement the add-on page action using only the evidence-verified canonical Kimi HTTPS host/path and test that it opens the authenticated page without submitting any purchase action.
+- [x] 4.1 Identify any missing provider-neutral CDP primitives; add them to `internal/browserauth` only with upstream impact analysis and focused transport/decode tests, leaving all Kimi URL and credential rules outside the shared package.
+- [x] 4.2 Define narrow injectable Kimi browser/CDP interfaces and fakes, then add RED login lifecycle tests for protected-response correlation, manual cancellation, validation-before-save, same-name relogin generation, browser reap, and temporary-profile cleanup.
+- [x] 4.3 Implement Kimi system-browser login using the real evidence sequence, allowlisted minimal auth capture, production quota validation, save-after-validation behavior, and deterministic close/wait cleanup.
+- [x] 4.4 Add RED account-page tests for credential application before protected navigation, authenticated console verification, ready handshake ordering, error-handshake-before-wait, no flash-close, unsupported envelope, cross-account isolation, and manual-close cleanup.
+- [x] 4.5 Implement saved Kimi console replay at `https://www.kimi.com/code/console`, including strict URL validation, ready/error handshake integration, and wait-until-user-close behavior.
+- [x] 4.6 Implement the add-on page action using only the evidence-verified canonical Kimi HTTPS host/path and test that it opens the authenticated page without submitting any purchase action.
 
 ## 5. CLI and local web API integration
 
