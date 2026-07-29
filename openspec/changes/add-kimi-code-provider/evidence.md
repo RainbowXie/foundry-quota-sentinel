@@ -140,6 +140,36 @@ Four hardening gaps found and fixed by RED→GREEN (commit `840d753`):
    www.kimi.com / auth.kimi.com can never carry the Bearer / refresh_token to a
    redirect target. RED: the default client followed the redirect with
    `Authorization` attached to `evil.example.com`; GREEN: refused.
+
+## Credential-safety hardening round 2 (tasks 3.2/3.4/4.4) — commit `5936450`
+
+Four more gaps found and fixed (RED→GREEN where deterministic):
+
+1. **Atomic config write** — `Config.Save` now serializes to a temp file +
+   rename (atomic for same-dir renames), so a crash or concurrent reader
+   mid-write never sees a torn/partial config. Regression-guarded by
+   `TestSaveAtomic` (concurrent save+read, race-clean). `configPathOverride`
+   (RWMutex-guarded) redirects the path in tests only; empty in production
+   (same `UserHomeDir` path).
+2. **Stale-snapshot concurrency** — new `config.SaveKimiTokens(name, access,
+   refresh)` is the shared production persistence path: under a config-wide
+   mutex it re-loads the LATEST on-disk config, updates only the target
+   account's tokens, then saves atomically. Concurrent different-account
+   rotations no longer overwrite each other's freshly-rotated token with a
+   stale snapshot (lost update). Regression-guarded by
+   `TestSaveKimiTokensConcurrentNoLostUpdate` (200-iteration concurrent
+   rotation, race-clean). The lost-update window is a check-then-act race not
+   reliably reproducible at speed, so the guard ensures the serialized path
+   stays correct; the fix is structural (lock + in-lock reload + atomic save).
+3. **CLI/Web save hard-fail** — both the CLI (`kimiPersistRotated`) and the two
+   web `SetKimiRefreshSave` callbacks delegate to `SaveKimiTokens`. A save
+   failure is now a HARD failure: the CLI returns the error (was a stderr
+   warning); the web card already surfaced re-login. Rotated tokens left
+   unpersisted are never trusted.
+4. **Exact pre-replay URL** — `validateKimiPageURL` now requires the EXACT
+   membership page (host `www.kimi.com` + path `/membership/subscription` +
+   `tab=quota`), not just scheme+host. RED: `/code/console` and arbitrary Kimi
+   paths were accepted; GREEN: rejected.
 2. **Per-account refresh serialization (3.4)** — `Server.kimiRefreshLock`
    returns a per-account mutex; the production Kimi fetch closure holds it
    across refresh+persist, so two concurrent card requests for the SAME account
