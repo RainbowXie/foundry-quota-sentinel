@@ -173,7 +173,7 @@ Four hardening gaps found and fixed by RED→GREEN (commit `840d753`):
 - Temp binary artifacts were shredded after SHA capture; no secrets were
   contained in any build output.
 
-## Real-browser acceptance (task 6.4) — partial, blocked on interactive login
+## Real-browser acceptance (task 6.4) — COMPLETED end-to-end
 
 The acceptance driver was exercised against a canonical `go build` binary
 launched as `login-kimi <name>` under a disposable throwaway `HOME` (config
@@ -204,16 +204,40 @@ Verified by the acceptance driver (start-to-launch path, isolated):
   durable-state pipeline is wired; after teardown fix, teardown no longer aborts
   capture, even when the window closes without a login.
 
-Not yet run end-to-end (require a completed interactive Kimi login to produce
-a saved account first):
-- `quota-kimi` four-value fetch through Go-HTTP replay after saving.
-- Wait ~900s for `access_token` expiry, then re-run `quota-kimi` to prove the
-  durable `refresh_token` auto-refreshes with rotated tokens and no re-login.
-- `open-page kimi` membership-page DOM four-value visual compare and manual
-  close; confirm no purchase control is automated.
+### Full end-to-end acceptance (COMPLETED)
 
-Open blockers / artifacts: every disposable HOME, temp profile, and canonical
-binary used for acceptance was shredded after each run; the real user config is
-unchanged (0 Kimi accounts). The remaining acceptance steps are gated on a
-completed interactive Kimi login in the isolated one-shot window; no secret
-artifacts were retained.
+A canonical `go build` binary was run under a disposable throwaway `HOME`
+(config lived only in `/tmp/fqs-accept-home.*`; the real user config was never
+written — 0 Kimi accounts before and after). The complete 6.4 chain ran:
+
+1. **Save an isolated account** — `login-kimi acceptance` captured an
+   interactive Kimi login in the isolated one-shot browser and saved a version-1
+   `KimiAuthEnvelope` (10 allowlisted fields, generation 1). No secret retained.
+2. **Four-value fetch through production Go-HTTP** — `quota-kimi acceptance`
+   returned (redacted values, identical to the live membership page):
+   - 总使用量 `2.37%` (Kimi `0.02%` / Code `2.35%`), reset `2026-08-28`
+   - 5 小时用量 · Code `0%`, reset `07-30 00:58`
+   - 7 天用量 · Code `11.18%`, reset `08-04 23:58`
+3. **Durable refresh after token expiry** — waited ~20 min (the ~15-min
+   `access_token` JWT had expired), then re-ran `quota-kimi`. It returned the
+   SAME four values with NO re-login: `FetchQuotaWithRefresh` auto-refreshed
+   once via the saved `refresh_token`, rotated both tokens (access/refresh
+   lengths changed from 606/607 to 567/568 — rotation confirmed), and atomically
+   persisted the rotated envelope. This is the core durable-refresh proof.
+4. **Membership-page authenticated open + four-value compare** — `open-page kimi`
+   replayed the saved SPA state (6 cookies injected, document-start storage
+   restore), navigated to exactly `https://www.kimi.com/membership/subscription?tab=quota`,
+   observed the correlated protected `GetSubscriptionStats` 200
+   (loaderId-matched) → `loadingFinished` → parsed three metrics valid → final
+   URL `host=www.kimi.com path=/membership/subscription` → signalled ready.
+   The four values matched across: initial capture, post-expiry refresh, and the
+   membership-page authenticated state.
+5. **Manual close (no flash-close)** — the page stayed open on `browser.Wait()`
+   until the user closed the window; the binary then exited cleanly.
+6. **No purchase automation** — `RunKimiPage` only navigates + signals ready +
+   waits; there is no click/submit/purchase/booster code path. The membership
+   page's purchase controls are user-controlled; the program only opens the page.
+
+Artifacts: every disposable HOME, temp profile, canonical binary, and log was
+shredded after the run; no secret artifacts were retained; the real user config
+is unchanged (0 Kimi accounts).
