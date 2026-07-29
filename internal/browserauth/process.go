@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // LaunchOptions configures a fresh browser process.
@@ -294,7 +295,7 @@ func (b *Browser) Wait() error {
 		if b.wait != nil {
 			b.waitErr = b.wait()
 		}
-		b.cleanOnce.Do(func() { b.cleanErr = os.RemoveAll(b.profileDir) })
+		b.cleanOnce.Do(func() { b.cleanErr = removeProfileDir(b.profileDir) })
 	})
 	return errors.Join(b.waitErr, b.cleanErr)
 }
@@ -321,4 +322,40 @@ func (b *Browser) Close() error {
 		b.closeErr = errors.Join(killErr, waitErr)
 	})
 	return b.closeErr
+}
+
+// profileRemoveAttempts and profileRemoveInterval bound the retry loop for
+// removing the temporary Chrome profile after the main process exits. Chrome
+// forks helpers that can hold file handles and finish writing/removing files
+// briefly after the parent returns from Wait, which otherwise races
+// os.RemoveAll and fails with "unlinkat: directory not empty".
+var (
+	profileRemoveAttempts = 20
+	profileRemoveInterval = 100 * time.Millisecond
+	// osRemoveAll is the removable used by removeProfileDir, made injectable
+	// so tests can count retries deterministically without a real Chrome.
+	osRemoveAll = os.RemoveAll
+)
+
+// removeProfileDir removes dir, retrying for a short window when the OS still
+// reports it busy (Chrome helpers releasing handles after the parent exits,
+// which otherwise races os.RemoveAll and fails with "directory not empty").
+// It returns nil once the directory is gone — whether on the first attempt or
+// after the handles settle — so a transient teardown race never leaks the
+// profile or surfaces a spurious failure. A real, persistent I/O error returns
+// immediately for diagnosis.
+func removeProfileDir(dir string) error {
+	var lastErr error
+	for attempt := 0; attempt < profileRemoveAttempts; attempt++ {
+		err := osRemoveAll(dir)
+		if err == nil {
+			return nil
+		}
+		if _, statErr := os.Stat(dir); errors.Is(statErr, fs.ErrNotExist) {
+			return nil // gone despite the RemoveAll error
+		}
+		lastErr = err
+		time.Sleep(profileRemoveInterval)
+	}
+	return lastErr
 }
