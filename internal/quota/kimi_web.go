@@ -15,6 +15,16 @@ import (
 // kimiBaseURL is the OBSERVED Kimi data host (Connect gRPC-Web over JSON).
 const kimiBaseURL = "https://www.kimi.com"
 
+// kimiAllowedHosts is the closed set of hosts the Bearer token may be sent to.
+// The protected quota endpoint lives on www.kimi.com (OBSERVED); no other host
+// may receive the credential. A redirect/override to an unapproved host is
+// rejected before the request is sent.
+var kimiAllowedHosts = map[string]bool{"www.kimi.com": true}
+
+func kimiAllowedHost(host string) bool {
+	return kimiAllowedHosts[host]
+}
+
 // kimiProtectedQuotaURL is the OBSERVED protected quota endpoint: a Buf
 // Connect POST to the membership service's GetSubscriptionStats method. The
 // SPA's useBalanceModel calls membershipService.getSubscriptionStats({}).
@@ -99,7 +109,14 @@ func (q *KimiQuerier) FetchQuota(ctx context.Context) (*KimiQuotaData, error) {
 		if u.Scheme != "https" {
 			return nil, fmt.Errorf("Kimi base URL 必须为 https")
 		}
-		// Replace only the scheme+host of the OBSERVED endpoint path.
+		// Strict host allowlist: the Bearer token must only ever be sent to
+		// the canonical Kimi data host, never to an unapproved host (a
+		// redirect/override to evil.example.com must not carry credentials).
+		if !kimiAllowedHost(u.Hostname()) {
+			return nil, fmt.Errorf("Kimi base URL 主机 %q 不在允许列表", u.Hostname())
+		}
+		// Replace only the scheme+host of the OBSERVED endpoint path; the
+		// protected path is fixed and never derived from BaseURL.
 		endpoint = u.Scheme + "://" + u.Host + "/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
 	}
 

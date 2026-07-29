@@ -121,17 +121,17 @@ func TestParseKimiQuotaRejectsMissingMeter(t *testing.T) {
 }
 
 // TestParseKimiQuotaRejectsInvalidPercentage proves a ratio outside 0..1 is
-// clamped to 0..100 but a NaN-ish/garbage ratio is rejected. A ratio of 1.5 is
-// clamped to 100 (the parser caps, since Kimi will never legitimately exceed).
+// REJECTED (not clamped): a weekly ratio of 1.5 or a negative frequency
+// ratio must fail. Kimi's ratio is a 0..1 usage ratio; an out-of-range value
+// is a malformed/unsupported response, never a silently-clamped 100%.
 func TestParseKimiQuotaRejectsInvalidPercentage(t *testing.T) {
-	// ratio 1.5 → clamped to 100 (not rejected; the cap handles it).
-	body := kimiFixture(1.5, kimiResetOffset(562800*time.Second), 0.52, kimiResetOffset(12000*time.Second))
-	got, err := ParseKimiQuota(body)
-	if err != nil {
-		t.Fatalf("ratio 1.5 should clamp to 100, not error: %v", err)
+	over := kimiFixture(1.5, kimiResetOffset(562800*time.Second), 0.52, kimiResetOffset(12000*time.Second))
+	if _, err := ParseKimiQuota(over); err == nil {
+		t.Fatal("ParseKimiQuota must reject a weekly ratio > 1 (not clamp to 100)")
 	}
-	if got.Weekly.UsagePercent != 100 {
-		t.Errorf("weekly usage = %d, want 100 (clamped)", got.Weekly.UsagePercent)
+	negative := kimiFixture(0.10, kimiResetOffset(562800*time.Second), -0.2, kimiResetOffset(12000*time.Second))
+	if _, err := ParseKimiQuota(negative); err == nil {
+		t.Fatal("ParseKimiQuota must reject a negative frequency ratio")
 	}
 }
 

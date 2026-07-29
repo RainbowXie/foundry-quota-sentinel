@@ -113,13 +113,13 @@ func parseKimiMeter(raw *kimiRateLimit, meterName string) (QuotaUsage, error) {
 	percent := 0
 	if raw.Ratio != nil {
 		r := *raw.Ratio
+		// ratio is a 0..1 usage ratio; an out-of-range value is a malformed/
+		// unsupported response, never silently clamped. Kimi will never
+		// legitimately emit <0 or >1, so reject rather than clamp.
+		if r < 0 || r > 1 {
+			return QuotaUsage{}, fmt.Errorf("Kimi %s 用量比例 %.4f 越界（应为 0..1）", meterName, r)
+		}
 		percent = int(r*100 + 0.5)
-		if percent < 0 {
-			percent = 0
-		}
-		if percent > 100 {
-			percent = 100
-		}
 	}
 	resetSec, err := kimiResetSeconds(raw.ResetTime)
 	if err != nil {

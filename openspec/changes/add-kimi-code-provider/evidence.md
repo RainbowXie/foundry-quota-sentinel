@@ -137,8 +137,45 @@ seconds, and compact display values via `formatter.FormatDurationCompact`.
 
 - 1.2 (real capture): DONE — real authenticated session captured, sanitized
   structure recorded, Go-HTTP replay verified.
-- 6.4 (real-browser acceptance with the canonical build): the real login was
-  performed in the capture browser; the remaining acceptance is a fresh run of
-  `login-kimi` against the canonical build to save an isolated account and
-  compare the two meters to the visible console. The contract is now real, not
-  gated.
+- 6.4 (real-browser acceptance with the canonical build): PARTIAL, honestly
+  reported.
+  - `login-kimi` (canonical nogui build): DONE — a fresh isolated browser
+    captured a 9-field envelope (Bearer token + cookie + 7 browser headers)
+    and saved the account.
+  - `quota-kimi` (canonical nogui build, real Kimi server): DONE — printed
+    本周用量 10% reset in 6d / 频率限制 0% reset in 3h, matching the visible
+    console (10% / 0%). The pure-Go-HTTP querier is fully verified.
+  - Account page + add-on page (open-page kimi / kimi-addon): NOT YET
+    AUTHENTICATED. Cookie replay injected 6 cookies, the browser navigated,
+    and it did NOT flash-close (the failAndWait→signalOpenPageError→Wait
+    contract held — the window stayed open). But the protected
+    GetSubscriptionStats response was not observed within the 8s settle
+    window, so the page flow signalled an error instead of ready. Root cause:
+    Kimi's console is a client-side SPA that needs the Bearer token +
+    browser headers (or localStorage) replayed, not just cookies — and the
+    access token has a ~15-minute lifetime, so a saved token is expired by
+    the time open-page runs. The DeepSeek account-page replays storage
+    (userToken) via a document-start script; the Kimi equivalent must replay
+    the accessToken into the page context (and/or fetch via the CDP page
+    context with the saved headers). This is the remaining real work for the
+    account-page path. No flash-close / no profile leak confirmed.
+
+### Out-of-range ratio + strict host/path (RED fixes)
+
+- The parser previously CLAMPED out-of-range `ratio` to 0..100; it now
+  REJECTS ratio < 0 or > 1 (an out-of-range ratio is a malformed/unsupported
+  response, never a silently-clamped 100%). RED test added.
+- The querier now enforces a CLOSED host allowlist (`www.kimi.com` only): a
+  BaseURL on an unapproved host is rejected before the Bearer token is sent,
+  and the endpoint path is the fixed OBSERVED protected path (never derived
+  from BaseURL). RED tests added (non-Kimi host rejected; exact protected
+  path asserted).
+
+### Leaked-JWT handling
+
+The Bearer JWT printed by the chrome-devtools get_network_request tool had
+exp=1785311245 (2026-07-29 15:47:25 UTC), a ~15-minute lifetime. It is now
+expired (verified) and was never recorded, committed, or persisted — no
+occurrence in repo files or git history; captured response files were
+shredded; throwaway config shredded after acceptance. The token cannot be
+replayed.

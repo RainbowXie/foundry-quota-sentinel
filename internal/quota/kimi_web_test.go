@@ -217,3 +217,32 @@ func TestKimiQuerierRejectsNonHTTPSURL(t *testing.T) {
 		t.Fatal("FetchQuota must reject a non-HTTPS base URL")
 	}
 }
+
+// TestKimiQuerierRejectsNonKimiHost proves the querier rejects an HTTPS base
+// URL on a host outside the Kimi allowlist — a redirect/override to an
+// unapproved host must not carry the Bearer token.
+func TestKimiQuerierRejectsNonKimiHost(t *testing.T) {
+	q := &KimiQuerier{AccessToken: "tok", BaseURL: "https://evil.example.com"}
+	_, err := q.FetchQuota(context.Background())
+	if err == nil {
+		t.Fatal("FetchQuota must reject an HTTPS base URL on a non-Kimi host")
+	}
+}
+
+// TestKimiQuerierEndpointIsExactProtectedPath proves the default endpoint is
+// the exact OBSERVED protected path on www.kimi.com — never a guessed or
+// partial path. (The request goes to the canonical endpoint; BaseURL override
+// only swaps scheme+host, preserving the protected path.)
+func TestKimiQuerierEndpointIsExactProtectedPath(t *testing.T) {
+	tr := &fakeKimiTransport{body: kimiValidStatsBody()}
+	q := newKimiTestQuerier(t, tr)
+	if _, err := q.FetchQuota(context.Background()); err != nil {
+		t.Fatalf("FetchQuota: %v", err)
+	}
+	if got := tr.lastReq.URL.Path; got != "/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats" {
+		t.Fatalf("endpoint path = %q, want the exact protected path", got)
+	}
+	if got := tr.lastReq.URL.Host; got != "www.kimi.com" {
+		t.Fatalf("endpoint host = %q, want www.kimi.com", got)
+	}
+}
