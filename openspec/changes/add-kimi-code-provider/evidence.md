@@ -351,3 +351,26 @@ not regress the real path:
 
 All disposable artifacts shredded; real config unchanged (0 Kimi accounts); no
 secret artifacts retained.
+
+### Round-4 hardening re-acceptance (post `0e73338`)
+
+After the round-4 credential-safety hardening (per-account + global cross-process
+file locks, in-lock reload, reload-fail-hard, exact pre-replay URL), the full
+6.4 chain was re-run under a fresh disposable HOME:
+
+- `login-kimi acceptance4` saved an isolated version-1 envelope (gen 1, initial
+  access/refresh 606/607 chars) from an interactive login.
+- `quota-kimi acceptance4` returned the same four values via the production
+  Go-HTTP path (cross-process locks active).
+- After ~16 min (access_token expired), `quota-kimi` returned the SAME four
+  values with NO re-login — `FetchQuotaWithRefresh` auto-refreshed, the rotated
+  tokens (606/607 → 567/568 chars) persisted through the cross-process
+  `Mutate`/`SaveKimiTokens` (global file flock + in-process lock + atomic
+  temp+rename). Cross-process durable refresh proven.
+- `open-page kimi` passed the tightened `validateKimiPageURL` exact membership
+  check, replayed SPA state, reached the authenticated membership page
+  (protected 200 + three-metric valid), and held open until close (no
+  flash-close).
+
+All disposable artifacts shredded; real config unchanged (0 Kimi accounts); no
+secret artifacts retained. Task 6.4 re-ticked.
