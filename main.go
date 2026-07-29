@@ -165,6 +165,20 @@ func kimiAccountFromConfig(name string) (web.KimiAccount, bool) {
 	return web.KimiAccount{}, false
 }
 
+// latestKimiAccount returns the latest saved config.KimiAccount by name (config
+// layer, with the full envelope), read from a fresh config load. Used by the
+// CLI printKimiQuota inside the per-account cross-process lock so it reloads
+// the latest credential (not a stale snapshot) before refreshing. ok=false if
+// the account no longer exists.
+func latestKimiAccount(name string) (config.KimiAccount, bool) {
+	for _, a := range config.Load().KimiAccounts {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return config.KimiAccount{}, false
+}
+
 // kimiPersistRotated atomically persists rotated access/refresh tokens for a
 // named Kimi account after an auto-refresh. It delegates to the shared,
 // config-wide-locked config.SaveKimiTokens (serialized reload + atomic save),
@@ -573,13 +587,24 @@ func cmdLoginKimi() {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
+	// Persist the captured session under the per-account cross-process lock,
+	// then the global config lock (lock order: account → global). This stops a
+	// concurrent quota-kimi / web refresh for the SAME account from reloading
+	// a half-saved envelope or rotating while the login overwrites it.
+	release, lerr := config.AcquireKimiAccountLock(name)
+	if lerr != nil {
+		fmt.Fprintf(os.Stderr, "登录保存锁失败: %v\n", lerr)
+		os.Exit(1)
+	}
 	if err := config.Mutate(func(c *config.Config) error {
 		c.UpsertKimiAccount(config.KimiAccount{Name: name, Auth: env})
 		return nil
 	}); err != nil {
+		release()
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
 	}
+	release()
 	fmt.Printf("OK Kimi 账户 %q 已保存\n", name)
 }
 
@@ -636,13 +661,28 @@ func cmdQuotaKimi() {
 	}
 }
 
-// printKimiQuota fetches and prints one Kimi account's two meters.
+// printKimiQuota fetches and prints one Kimi account's two meters. The whole
+// reload→refresh→persist span is held under the per-account cross-process lock
+// (config.AcquireKimiAccountLock) so a CLI run and a concurrent web request /
+// open-page for the SAME account cannot race the RefreshToken endpoint or
+// double-rotate. Inside the lock the LATEST saved credential is reloaded (a
+// concurrent rotation's saved token is observed, not a stale snapshot).
 func printKimiQuota(acc *config.KimiAccount) error {
-	token := acc.Auth.AccessToken()
+	release, lerr := config.AcquireKimiAccountLock(acc.Name)
+	if lerr != nil {
+		return fmt.Errorf("Kimi 账户 %q 刷新锁失败: %v", acc.Name, lerr)
+	}
+	defer release()
+	// Reload the latest saved credential inside the lock.
+	latest, ok := latestKimiAccount(acc.Name)
+	if !ok {
+		return fmt.Errorf("Kimi 账户 %q 已不存在", acc.Name)
+	}
+	token := latest.Auth.AccessToken()
 	if token == "" {
 		return fmt.Errorf("Kimi 账户 %q 缺少凭证，请重新登录", acc.Name)
 	}
-	q := &quota.KimiQuerier{AccessToken: token, RefreshToken: acc.Auth.RefreshToken(), Headers: kimiEnvelopeHeaders(&acc.Auth)}
+	q := &quota.KimiQuerier{AccessToken: token, RefreshToken: latest.Auth.RefreshToken(), Headers: kimiEnvelopeHeaders(&latest.Auth)}
 	data, rotated, err := q.FetchQuotaWithRefresh(context.Background())
 	if err != nil {
 		return err
@@ -740,6 +780,15 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("Ollama 账户页浏览器不可用: %v", err))
 		}
 	case "kimi":
+		// Read the account's envelope under the per-account cross-process lock
+		// so a concurrent rotation/login cannot overwrite it mid-read (the
+		// reload→capture span is serialized). The lock is released before the
+		// long-running browser replay so it does not block concurrent refreshes
+		// for the whole page-open duration.
+		release, lerr := config.AcquireKimiAccountLock(name)
+		if lerr != nil {
+			pageErr(fmt.Sprintf("Kimi 账户 %q 页面锁失败: %v", name, lerr))
+		}
 		var acc *config.KimiAccount
 		for i := range cfg.KimiAccounts {
 			if cfg.KimiAccounts[i].Name == name {
@@ -748,9 +797,11 @@ func cmdOpenPage() {
 			}
 		}
 		if acc == nil {
+			release()
 			pageErr(fmt.Sprintf("Kimi 账户 %q 不存在", name))
 		}
 		envJSON, err := acc.Auth.Encode()
+		release()
 		if err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
 		}

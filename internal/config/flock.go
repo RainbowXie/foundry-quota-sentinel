@@ -106,10 +106,15 @@ func (l *fileLock) Close() error {
 	if l == nil || l.f == nil {
 		return nil
 	}
+	// Release the flock and close the fd. Do NOT remove the lock file: a waiter
+	// in another process may already be blocked in acquireLock on the SAME
+	// inode; removing the file here would unlink that inode, and the waiter's
+	// own OpenFile would create a NEW inode it then flocks — two separate locks,
+	// no mutual exclusion (the classic flock inode race). The lock file is a
+	// tiny persistent sentinel in the config dir; it is never large and is
+	// recreated on demand if manually deleted.
 	unlockFileFD(l.f)
-	err := l.f.Close()
-	_ = os.Remove(l.path) // best-effort cleanup; another waiter may reuse it
-	return err
+	return l.f.Close()
 }
 
 // kimiAccountInProcLocks holds one in-process mutex per Kimi account name so

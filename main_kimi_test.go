@@ -247,3 +247,92 @@ func TestCrossProcessConfigLockSerializes(t *testing.T) {
 		t.Fatalf("final window = %d, want 111 or 222 (writes did not serialize)", c.WindowW)
 	}
 }
+
+// TestCrossProcessAccountLockSerializesThreeProcesses (round-5 RED→GREEN)
+// proves the per-account cross-process lock serializes THREE concurrent
+// processes for the same account (not just two), and that the lock file is NOT
+// removed on release — each waiter flocks the SAME inode (no inode race where
+// a waiter creates a new file and flocks a different inode, breaking mutual
+// exclusion). Asserts: all 3 HELD/DONE pairs serialize (3rd HELD ≥ 1st DONE,
+// and the HELD/DONE interleave in order), and the lock file still exists
+// afterward (a waiter reused it, not a new inode).
+func TestCrossProcessAccountLockSerializesThreeProcesses(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	_ = env.SetField("accessToken", "initial-access-AAAAAAAAAAAA")
+	_ = env.SetField("refreshToken", "initial-refresh-BBBBBBBBBBBB")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "lock3", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := buildTestBinary(t)
+	run := func(mark string) string {
+		cmd := exec.Command(bin, "_locktest")
+		cmd.Env = append(os.Environ(),
+			"HOME="+dir,
+			"LOCKTEST_MODE=account",
+			"LOCKTEST_NAME=lock3",
+			"LOCKTEST_HOLD_MS=200",
+			"LOCKTEST_MARK="+mark,
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("_locktest %s: %v\n%s", mark, err, out)
+		}
+		return string(out)
+	}
+	var wg sync.WaitGroup
+	outs := make([]string, 3)
+	wg.Add(3)
+	for i := range outs {
+		go func(i int) {
+			defer wg.Done()
+			outs[i] = run("m" + strconv.Itoa(i))
+		}(i)
+	}
+	wg.Wait()
+
+	// Collect all HELD/DONE with timestamps.
+	var evs []lockEvent
+	for _, o := range outs {
+		evs = append(evs, parseLockEvents(t, o)...)
+	}
+	var heldMs, doneMs []int64
+	for _, e := range evs {
+		if e.kind == "HELD" {
+			heldMs = append(heldMs, e.ms)
+		} else {
+			doneMs = append(doneMs, e.ms)
+		}
+	}
+	if len(heldMs) != 3 || len(doneMs) != 3 {
+		t.Fatalf("want 3 HELD + 3 DONE, got held=%d done=%d", len(heldMs), len(doneMs))
+	}
+	sortHeld := append([]int64(nil), heldMs...)
+	sortDone := append([]int64(nil), doneMs...)
+	sort.Slice(sortHeld, func(i, j int) bool { return sortHeld[i] < sortHeld[j] })
+	sort.Slice(sortDone, func(i, j int) bool { return sortDone[i] < sortDone[j] })
+	// Serialization across 3: the 2nd HELD ≥ 1st DONE, and 3rd HELD ≥ 2nd DONE.
+	if sortHeld[1] < sortDone[0] {
+		t.Fatalf("3-proc lock NOT serialized: 2nd HELD %d < 1st DONE %d", sortHeld[1], sortDone[0])
+	}
+	if sortHeld[2] < sortDone[1] {
+		t.Fatalf("3-proc lock NOT serialized: 3rd HELD %d < 2nd DONE %d", sortHeld[2], sortDone[1])
+	}
+	// Inode-race guard: the lock file must STILL EXIST after all three
+	// released. If Close removed it, a waiter that opened the file mid-release
+	// would get a new inode → its flock would not exclude the prior holder
+	// (the inode race). Persistence proves waiters reused the same inode.
+	lockFile := filepath.Join(cfgDir, "kimi-refresh-lock3.lock")
+	if _, err := os.Stat(lockFile); err != nil {
+		t.Fatalf("lock file removed after release: %v — waiters must reuse the same inode, not a new file", err)
+	}
+}
