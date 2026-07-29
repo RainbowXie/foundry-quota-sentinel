@@ -146,3 +146,43 @@ or account identifier is logged or output.
   - GUI default: `go build -o <tmp> .` → OK (webkit2gtk dev headers present).
 - Temp binary artifacts were shredded after SHA capture; no secrets were
   contained in any build output.
+
+## Real-browser acceptance (task 6.4) — partial, blocked on interactive login
+
+The acceptance driver was exercised against a canonical `go build` binary
+launched as `login-kimi <name>` under a disposable throwaway `HOME` (config
+lived only in `/tmp/fqs-accept-home.*`; the real user config was never written
+or read; isolated at the OS level). Two isolated-browser runs were attempted:
+
+1. The login window launched correctly (isolated Chrome, `--user-data-dir=<tmp>`
+   temp profile, `--remote-debugging-pipe` loopback CDP only — the user's
+   everyday profile is never read), reached the in-page login prompt, and the
+   capture path reached validation. The run then aborted on post-capture
+   temp-profile teardown with `unlinkat /tmp/fqs-browserauth-*/Default:
+   directory not empty` — a real race in the shared `browserauth` teardown
+   (Chrome helpers hold file handles briefly after the parent exits).
+2. After that root-cause fix (commit `20db246`, `removeProfileDir` bounded
+   retry, RED→GREEN proved) and a fresh disposable HOME + rebuilt binary, the
+   login window launched correctly again but the Kimi interactive login was
+   not completed within the idle window, so no account was saved and the
+   downstream steps did not run.
+
+Verified by the acceptance driver (start-to-launch path, isolated):
+- `login-kimi` launches an isolated one-shot browser on the loopback CDP with a
+  private temp profile; the protected-response capture + `refresh_token`
+  durable-state pipeline is wired; after teardown fix, teardown no longer aborts
+  capture.
+
+Not yet run end-to-end (require a completed interactive Kimi login to produce
+a saved account first):
+- `quota-kimi` four-value fetch through Go-HTTP replay after saving.
+- Wait ~900s for `access_token` expiry, then re-run `quota-kimi` to prove the
+  durable `refresh_token` auto-refreshes with rotated tokens and no re-login.
+- `open-page kimi` membership-page DOM four-value visual compare and manual
+  close; confirm no purchase control is automated.
+
+Open blockers / artifacts: every disposable HOME, temp profile, and canonical
+binary used for acceptance was shredded after each run; the real user config is
+unchanged (0 Kimi accounts). The remaining acceptance steps are gated on a
+completed interactive Kimi login in the isolated one-shot window; no secret
+artifacts were retained.
