@@ -130,6 +130,32 @@ the API DTO; only per-account `Generation` shells and the grouped
 `KimiQuotaData` are returned. No access/refresh token, cookie, storage value,
 or account identifier is logged or output.
 
+## Credential-safety hardening (tasks 3.1/3.2/3.4/4.4) — RED→GREEN
+
+Four hardening gaps found and fixed by RED→GREEN (commit `840d753`):
+
+1. **Redirect rejection (3.1)** — `kimiHTTPClient` + `kimiEnforceNoRedirect`
+   refuse all redirects (`CheckRedirect → http.ErrUseLastResponse`), enforced
+   on any client (including an injected test client), so a 302 off
+   www.kimi.com / auth.kimi.com can never carry the Bearer / refresh_token to a
+   redirect target. RED: the default client followed the redirect with
+   `Authorization` attached to `evil.example.com`; GREEN: refused.
+2. **Per-account refresh serialization (3.4)** — `Server.kimiRefreshLock`
+   returns a per-account mutex; the production Kimi fetch closure holds it
+   across refresh+persist, so two concurrent card requests for the SAME account
+   cannot race the `RefreshToken` endpoint (no double rotation / partial
+   overwrite). RED: 4 concurrent requests overlapped (max in-flight 4); GREEN:
+   serialized to 1. Different accounts stay independent.
+3. **Persistence-failure propagation (3.2)** — a refresh that succeeds but
+   whose rotated-token save FAILS surfaces a re-login-required card error
+   instead of silently succeeding with unpersisted rotated tokens (which would
+   leave the envelope stale). RED: card returned `success:true`; GREEN:
+   surfaces a re-login error (no credential in the error).
+4. **Strict membership page (4.4)** — `isKimiMembershipPage` now requires the
+   EXACT host `www.kimi.com`, EXACT path `/membership/subscription`, AND
+   `tab=quota`. RED: a missing tab and a trailing path were wrongly accepted;
+   GREEN: rejected.
+
 ## Fresh canonical build verification (task 6.3)
 
 - Toolchain: Go 1.26.4 linux/amd64; OpenSpec CLI 1.6.0.
