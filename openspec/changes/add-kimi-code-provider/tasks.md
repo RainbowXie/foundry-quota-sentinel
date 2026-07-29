@@ -16,9 +16,9 @@
 
 ## 3. Authenticated quota transport
 
-- [ ] 3.1 Add an injectable Kimi querier/client with tests for the exact protected request, required replay state, User-Agent behavior if proven necessary, bounded timeout/body size, HTTPS/host/redirect validation, and response-body closure.
-- [ ] 3.2 Implement quota retrieval that requires the observed transport and business success signals before parsing and returns distinct expired-auth, timeout, transport, and unsupported-response errors.
-- [ ] 3.3 Add tests proving secrets never appear in querier errors and that a 2xx business failure, incomplete response, public endpoint, or stale/cross-account response cannot be accepted as current quota.
+- [x] 3.1 Add an injectable Kimi querier/client with tests for the exact protected request, required replay state, User-Agent behavior if proven necessary, bounded timeout/body size, HTTPS/host/redirect validation, and response-body closure.
+- [x] 3.2 Implement quota retrieval that requires the observed transport and business success signals before parsing and returns distinct expired-auth, timeout, transport, and unsupported-response errors.
+- [x] 3.3 Add tests proving secrets never appear in querier errors and that a 2xx business failure, incomplete response, public endpoint, or stale/cross-account response cannot be accepted as current quota.
 
 ## 4. Shared-browser Kimi login and account page
 
