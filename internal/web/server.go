@@ -48,6 +48,16 @@ type OllamaAccount struct {
 	UserAgent string
 }
 
+// KimiAccount is the web-layer view of a saved Kimi account. It carries the
+// access token for the fetcher but the cards/accounts endpoints NEVER
+// serialize it — only the name, quota meters, generation, and status/error
+// leave the API.
+type KimiAccount struct {
+	Name        string
+	AccessToken string
+	Generation  int
+}
+
 type Server struct {
 	addr           string
 	accounts       []Account
@@ -57,13 +67,22 @@ type Server struct {
 	ollamaAccounts []OllamaAccount
 	ollamaFn       func() []OllamaAccount
 	ollamaFetch    func(OllamaAccount) (*quota.QuotaData, error)
-	deepseek       *quota.DeepSeekQuerier
-	onWinSize      func(w, h int)
-	onDelete       func(provider, name string) error
+	kimiAccounts   []KimiAccount
+	kimiFn         func() []KimiAccount
+	// kimiFetch retrieves one Kimi account's two-meter quota. Injected by
+	// tests; the default builds a KimiQuerier from the account's token.
+	kimiFetch func(KimiAccount) (*quota.KimiQuotaData, error)
+	deepseek  *quota.DeepSeekQuerier
+	onWinSize func(w, h int)
+	onDelete  func(provider, name string) error
 	// spawnDeepSeekLogin launches the login-deepseek subprocess. The
 	// default uses os.Executable + exec.Command; tests inject a
 	// failure to prove /api/deepseek/login returns success=false.
 	spawnDeepSeekLogin func(name string) error
+	// spawnKimiLogin launches the login-kimi subprocess. The default uses
+	// os.Executable + exec.Command; tests inject a failure to prove
+	// /api/kimi/login returns success=false.
+	spawnKimiLogin func(name string) error
 	// spawnOpenPage launches the "open-page <provider> <name>" subprocess
 	// with FQS_OPEN_SESSION=<session> in its environment, then returns a
 	// function that reports the subprocess exit. The handler does NOT
@@ -98,6 +117,10 @@ func (s *Server) SetDeepSeekProvider(fn func() []DeepSeekAccount) { s.dsFn = fn 
 // SetOllamaProvider 设置动态 Ollama 账户来源，每次请求实时读取。
 func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn }
 
+// SetKimiProvider sets the dynamic Kimi account source, read on each request
+// so a newly saved account appears without a restart.
+func (s *Server) SetKimiProvider(fn func() []KimiAccount) { s.kimiFn = fn }
+
 // SetWinSizeHandler 设置窗口大小持久化回调（前端 resize 时上报）。
 func (s *Server) SetWinSizeHandler(fn func(w, h int)) { s.onWinSize = fn }
 
@@ -123,6 +146,13 @@ func (s *Server) curOllama() []OllamaAccount {
 		return s.ollamaFn()
 	}
 	return s.ollamaAccounts
+}
+
+func (s *Server) curKimi() []KimiAccount {
+	if s.kimiFn != nil {
+		return s.kimiFn()
+	}
+	return s.kimiAccounts
 }
 
 func (s *Server) Start(addr string) error {
@@ -348,6 +378,85 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 
+	// /api/kimi/accounts returns the config-saved Kimi accounts as loading
+	// card shells with a per-account, non-sensitive login Generation — no
+	// remote fetch, no access token. The sidebar polls this after a login so
+	// a card appears the moment the account is saved.
+	mux.HandleFunc("/api/kimi/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type shell struct {
+			Name       string `json:"name"`
+			Pending    bool   `json:"pending"`
+			Generation int    `json:"generation"`
+		}
+		accs := s.curKimi()
+		shells := make([]shell, 0, len(accs))
+		for _, a := range accs {
+			shells = append(shells, shell{Name: a.Name, Pending: true, Generation: a.Generation})
+		}
+		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
+	})
+
+	// /api/kimi concurrently fetches per-account two-meter quota, sorted by
+	// name. One account failure produces an error only for that card and
+	// does NOT suppress successful cards. The response excludes the access
+	// token and all auth envelope values.
+	mux.HandleFunc("/api/kimi", func(w http.ResponseWriter, r *http.Request) {
+		type card struct {
+			Name    string               `json:"name"`
+			Success bool                 `json:"success"`
+			Quota   *quota.KimiQuotaData `json:"quota,omitempty"`
+			Error   string               `json:"error,omitempty"`
+		}
+		accs := s.curKimi()
+		cards := make([]card, len(accs))
+		fetch := s.kimiFetch
+		if fetch == nil {
+			fetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
+				return (&quota.KimiQuerier{AccessToken: a.AccessToken}).FetchQuota(r.Context())
+			}
+		}
+		var wg sync.WaitGroup
+		for i, a := range accs {
+			wg.Add(1)
+			go func(i int, a KimiAccount) {
+				defer wg.Done()
+				d, err := fetch(a)
+				if err != nil {
+					cards[i] = card{Name: a.Name, Error: err.Error()}
+					return
+				}
+				cards[i] = card{Name: a.Name, Success: true, Quota: d}
+			}(i, a)
+		}
+		wg.Wait()
+		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": cards})
+	})
+
+	mux.HandleFunc("/api/kimi/login", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		spawn := s.spawnKimiLogin
+		if spawn == nil {
+			spawn = func(n string) error {
+				exe, err := os.Executable()
+				if err != nil {
+					return err
+				}
+				args := []string{"login-kimi"}
+				if n != "" {
+					args = append(args, n)
+				}
+				return exec.Command(exe, args...).Start()
+			}
+		}
+		if err := spawn(name); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+	})
+
 	// /api/open 拉起一个子进程，弹出 app 内窗口展示该账户对应服务商页面（注入登录态）。
 	// 旧实现 cmd.Start() 后立即返回 success：子进程在浏览器启动前失败（如 OpenCode cookie
 	// 被拒、DeepSeek 登录态恢复失败）时前端无任何反馈。现在用显式 ready/error 握手：子进程
@@ -356,7 +465,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" && provider != "ollama" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" && provider != "kimi-addon" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
@@ -412,7 +521,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" && provider != "ollama" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}

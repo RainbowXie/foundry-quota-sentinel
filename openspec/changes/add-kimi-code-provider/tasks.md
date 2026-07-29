@@ -31,12 +31,12 @@
 
 ## 5. CLI and local web API integration
 
-- [ ] 5.1 Add Kimi config-to-web DTO conversion and a provider callback that returns no authentication fields, with tests that scan serialized responses for all synthetic secret values.
-- [ ] 5.2 Add a concurrently fetched, name-sorted Kimi cards endpoint with per-account loading/success/error/re-login status and tests proving one account failure does not suppress other account results.
-- [ ] 5.3 Extend login, open-page, delete, and refresh dispatch for provider `kimi`, including subprocess handshake/timeouts and tests for valid, missing-account, unknown-provider, and failed-browser cases.
-- [ ] 5.4 Add `login-kimi <name>` and `quota-kimi [name]` CLI flows, explicit weekly/frequency-limit labels, all-account isolation, fetch timestamps, exit/error behavior, and updated command help tests.
-- [ ] 5.5 Add Kimi to the sidebar add-account flow and card renderer with both percentages/resets, loading/error/expired states, re-login, refresh, console-open, add-on-open, and delete actions.
-- [ ] 5.6 Add GUI and `nogui` route/rendering tests that verify Kimi behavior is identical apart from the GUI shell and that no WebView-specific authentication path is introduced.
+- [x] 5.1 Add Kimi config-to-web DTO conversion and a provider callback that returns no authentication fields, with tests that scan serialized responses for all synthetic secret values.
+- [x] 5.2 Add a concurrently fetched, name-sorted Kimi cards endpoint with per-account loading/success/error/re-login status and tests proving one account failure does not suppress other account results.
+- [x] 5.3 Extend login, open-page, delete, and refresh dispatch for provider `kimi`, including subprocess handshake/timeouts and tests for valid, missing-account, unknown-provider, and failed-browser cases.
+- [x] 5.4 Add `login-kimi <name>` and `quota-kimi [name]` CLI flows, explicit weekly/frequency-limit labels, all-account isolation, fetch timestamps, exit/error behavior, and updated command help tests.
+- [x] 5.5 Add Kimi to the sidebar add-account flow and card renderer with both percentages/resets, loading/error/expired states, re-login, refresh, console-open, add-on-open, and delete actions.
+- [x] 5.6 Add GUI and `nogui` route/rendering tests that verify Kimi behavior is identical apart from the GUI shell and that no WebView-specific authentication path is introduced.
 
 ## 6. Security, documentation, and acceptance
 

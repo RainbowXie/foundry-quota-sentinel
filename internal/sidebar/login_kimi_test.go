@@ -198,6 +198,14 @@ func (c *fakeKimiCDP) Close() error {
 	return nil
 }
 
+// navigatedSnapshot returns a race-safe copy of the navigated flag for test
+// assertions when runKimiPage is driven in a separate goroutine.
+func (c *fakeKimiCDP) navigatedSnapshot() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.navigated
+}
+
 // kimiSuccessBodyFixture is a synthetic Connect-JSON success body (no "code"
 // string) with both meters, mirroring the parser fixture.
 const kimiSuccessBodyFixture = `{"weekly":{"usedPercent":10,"reset_seconds":562800},"rate_limit":{"usedPercent":52,"reset_seconds":12000}}`
@@ -245,7 +253,7 @@ func TestRunKimiPageOpensConsoleAndWaitForUserClose(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		// expected: blocked on Wait
 	}
-	if !cdp.navigated {
+	if !cdp.navigatedSnapshot() {
 		t.Fatal("navigation did not run")
 	}
 	browser.waitRelease <- struct{}{}

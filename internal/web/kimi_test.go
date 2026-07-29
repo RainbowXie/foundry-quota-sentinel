@@ -1,0 +1,305 @@
+package web
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"foundry-quota-sentinel/internal/quota"
+)
+
+// TestKimiCardsReturnsSortedTwoMeterResults (task 5.2) proves the Kimi cards
+// endpoint concurrently fetches per-account quota, sorts by name, and returns
+// the two meters (weekly + rate_limit) with per-account success/error. One
+// account failure does NOT suppress other accounts.
+func TestKimiCardsReturnsSortedTwoMeterResults(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{
+			{Name: "zeta", AccessToken: "zeta-tok", Generation: 1},
+			{Name: "alpha", AccessToken: "alpha-tok", Generation: 2},
+		}
+	})
+	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
+		if a.Name == "zeta" {
+			return nil, errors.New("unavailable")
+		}
+		return &quota.KimiQuotaData{
+			Weekly:    quota.QuotaUsage{UsagePercent: 10, ResetInSec: 562800, ResetDisplay: "6d"},
+			RateLimit: quota.QuotaUsage{UsagePercent: 52, ResetInSec: 12000, ResetDisplay: "3h"},
+		}, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name    string               `json:"name"`
+			Success bool                 `json:"success"`
+			Quota   *quota.KimiQuotaData `json:"quota,omitempty"`
+			Error   string               `json:"error,omitempty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 2 {
+		t.Fatalf("response = %#v", got)
+	}
+	// Sorted by name: alpha, zeta.
+	if got.Data[0].Name != "alpha" || !got.Data[0].Success || got.Data[0].Quota == nil {
+		t.Fatalf("first card = %#v", got.Data[0])
+	}
+	if got.Data[0].Quota.Weekly.UsagePercent != 10 || got.Data[0].Quota.RateLimit.UsagePercent != 52 {
+		t.Fatalf("first card meters = %#v", got.Data[0].Quota)
+	}
+	// One account failure does not suppress the other.
+	if got.Data[1].Name != "zeta" || got.Data[1].Success || got.Data[1].Error != "unavailable" {
+		t.Fatalf("second card = %#v, want failure with error", got.Data[1])
+	}
+}
+
+// TestKimiCardsEndpointExcludesAuthFields (task 5.1/5.2) proves the cards
+// response excludes the access token and all auth envelope values — only the
+// account name, quota meters, fetched time, and status/error are returned.
+func TestKimiCardsEndpointExcludesAuthFields(t *testing.T) {
+	srv := NewServer(nil)
+	const secret = "synthetic-kimi-access-token-secret"
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: secret, Generation: 1}}
+	})
+	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
+		return &quota.KimiQuotaData{
+			Weekly:    quota.QuotaUsage{UsagePercent: 10, ResetInSec: 562800, ResetDisplay: "6d"},
+			RateLimit: quota.QuotaUsage{UsagePercent: 52, ResetInSec: 12000, ResetDisplay: "3h"},
+		}, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	body := w.Body.String()
+	if strings.Contains(body, secret) {
+		t.Fatalf("cards response leaks the access token: %s", body)
+	}
+	if strings.Contains(strings.ToLower(body), "access_token") {
+		t.Fatalf("cards response exposes an access_token field: %s", body)
+	}
+}
+
+// TestKimiAccountsEndpointReturnsConfigImmediately (task 5.2) proves the
+// fast Kimi accounts endpoint reflects config-saved accounts (with generation)
+// without a remote fetch — so a loading card shell appears the moment the
+// account is saved.
+func TestKimiAccountsEndpointReturnsConfigImmediately(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: "tok", Generation: 3}}
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name       string `json:"name"`
+			Pending    bool   `json:"pending"`
+			Generation int    `json:"generation"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 1 || got.Data[0].Name != "work" || got.Data[0].Generation != 3 {
+		t.Fatalf("response = %#v", got)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "tok") {
+		t.Fatalf("accounts response must not expose the access token: %s", body)
+	}
+}
+
+// TestKimiAccountsEndpointEmptyWhenNoAccounts proves no accounts → empty
+// list (not an error, not a ghost card).
+func TestKimiAccountsEndpointEmptyWhenNoAccounts(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount { return nil })
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 0 {
+		t.Fatalf("response = %#v, want empty data", got)
+	}
+}
+
+// TestKimiLoginEndpointSpawnsSubprocess (task 5.3) proves /api/kimi/login
+// spawns the login-kimi subprocess and returns success=true.
+func TestKimiLoginEndpointSpawnsSubprocess(t *testing.T) {
+	srv := NewServer(nil)
+	spawned := false
+	srv.spawnKimiLogin = func(name string) error {
+		if name != "work" {
+			t.Fatalf("spawn called with name %q, want work", name)
+		}
+		spawned = true
+		return nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi/login?name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || !spawned {
+		t.Fatalf("response = %#v, spawned=%v, want success=true", got, spawned)
+	}
+}
+
+// TestKimiLoginReportsSpawnFailure proves a spawn failure surfaces
+// success=false with an error.
+func TestKimiLoginReportsSpawnFailure(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnKimiLogin = func(string) error { return errors.New("spawn denied") }
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi/login?name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success || got.Error == "" {
+		t.Fatalf("response = %#v, want success=false with error", got)
+	}
+}
+
+// TestOpenEndpointAcceptsKimiProvider (task 5.3) proves /api/open accepts
+// provider=kimi and routes through the same handshake as the other providers.
+func TestOpenEndpointAcceptsKimiProvider(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
+		if provider != "kimi" {
+			t.Fatalf("provider = %q, want kimi", provider)
+		}
+		WriteOpenHandshake(session, "ready", "")
+		return func() error { return nil }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=kimi&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	var got struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success {
+		t.Fatal("kimi open-page must succeed on a ready handshake")
+	}
+}
+
+// TestDeleteEndpointAcceptsKimiProvider (task 5.3) proves /api/delete accepts
+// provider=kimi and routes to the delete handler.
+func TestDeleteEndpointAcceptsKimiProvider(t *testing.T) {
+	srv := NewServer(nil)
+	var provider, name string
+	srv.SetDeleteHandler(func(p, n string) error {
+		provider, name = p, n
+		return nil
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/delete?provider=kimi&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if provider != "kimi" || name != "work" {
+		t.Fatalf("delete handler called with (%q, %q), want (kimi, work)", provider, name)
+	}
+}
+
+// TestOpenEndpointRejectsUnknownProviderStill proves an unknown provider is
+// rejected (kimi is now valid, but "bogus" is not).
+func TestOpenEndpointRejectsUnknownProviderStill(t *testing.T) {
+	srv := NewServer(nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=bogus&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	var got struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Success {
+		t.Fatal("unknown provider must be rejected")
+	}
+}
+
+// TestOpenEndpointAcceptsKimiAddonProvider proves /api/open accepts
+// provider=kimi-addon (the "购买加油包" action) and routes through the same
+// handshake as the other providers.
+func TestOpenEndpointAcceptsKimiAddonProvider(t *testing.T) {
+	srv := NewServer(nil)
+	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
+		if provider != "kimi-addon" {
+			t.Fatalf("provider = %q, want kimi-addon", provider)
+		}
+		WriteOpenHandshake(session, "ready", "")
+		return func() error { return nil }, nil
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/open?provider=kimi-addon&name=work", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	var got struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success {
+		t.Fatal("kimi-addon open-page must succeed on a ready handshake")
+	}
+}

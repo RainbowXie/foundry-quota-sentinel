@@ -1032,6 +1032,7 @@
                         <div class="emp">加载中...</div>
                     </div>
                     <div id="ollamaCards"></div>
+                    <div id="kimiCards"></div>
                     <div id="dsCards"></div>
                     <div class="bc" id="addCard" style="cursor: pointer">
                         <div
@@ -1061,6 +1062,10 @@
                                 <div class="prov" data-type="ollama">
                                     <span class="prov-n">Ollama</span
                                     ><span class="prov-d">Cloud 用量</span>
+                                </div>
+                                <div class="prov" data-type="kimi">
+                                    <span class="prov-n">Kimi Code</span
+                                    ><span class="prov-d">本周用量 / 频率限制</span>
                                 </div>
                             </div>
                             <div id="modalStep2" class="hide">
@@ -1334,6 +1339,99 @@
                     document.getElementById("ollamaCards").innerHTML =
                         "<div class=qerr>" + qesc(e.message) + "</div>";
                 }
+            }
+            /* kimi cards */
+            function kcard(a) {
+                var body;
+                if (!a.success) {
+                    body =
+                        "<div class=qerr>" +
+                        qesc(a.error || "查询失败") +
+                        "</div>" +
+                        '<div class=bc-d><span class=olLogin data-name="' +
+                        qesc(a.name) +
+                        '" style="cursor:pointer;color:var(--text-sec)">重新登录</span></div>';
+                } else {
+                    var d = a.quota || {};
+                    body =
+                        qrow("本周用量", d.weekly, "g1") +
+                        qrow("频率限制", d.rate_limit, "g2") +
+                        '<div class=bc-d><span class=kimiAddon data-name="' +
+                        qesc(a.name) +
+                        '" style="cursor:pointer;color:var(--accent)">购买加油包</span></div>';
+                }
+                return (
+                    '<div class=acard data-prov=kimi data-name="' +
+                    qesc(a.name) +
+                    '"><div class=acard-h><span class=ctype>Kimi Code</span><span class=cname>' +
+                    qesc(a.name) +
+                    "</span></div>" +
+                    body +
+                    "</div>"
+                );
+            }
+            async function fk() {
+                try {
+                    var r = await (await fetch("/api/kimi")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    var arr = r.data || [];
+                    var h = "";
+                    arr.forEach(function (a) {
+                        h += kcard(a);
+                    });
+                    document.getElementById("kimiCards").innerHTML = h;
+                } catch (e) {
+                    document.getElementById("kimiCards").innerHTML =
+                        "<div class=qerr>" + qesc(e.message) + "</div>";
+                }
+            }
+            function kimiDoLogin(name) {
+                fetch(
+                    "/api/kimi/accounts" +
+                        (name ? "?name=" + encodeURIComponent(name) : ""),
+                )
+                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        if (!r || !r.success) {
+                            alert("账户状态不可用，登录未启动");
+                            return;
+                        }
+                        var pre = {};
+                        (r.data || []).forEach(function (a) {
+                            if (a.name === name) pre.gen = a.generation;
+                        });
+                        fetch(
+                            "/api/kimi/login?name=" + encodeURIComponent(name),
+                        )
+                            .then(function (rr) { return rr.json(); })
+                            .then(function (rr) {
+                                if (!rr || !rr.success) {
+                                    alert((rr && rr.error) || "登录启动失败");
+                                    return;
+                                }
+                                kimiLoginPoll(name, pre.gen);
+                            });
+                    });
+            }
+            function kimiLoginPoll(name, preGen) {
+                var tries = 0;
+                function tick() {
+                    fetch("/api/kimi/accounts")
+                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            if (!r || !r.success) return;
+                            var done = (r.data || []).some(function (a) {
+                                return a.name === name && preGen !== undefined && a.generation !== preGen;
+                            });
+                            if (done) {
+                                fk();
+                                return;
+                            }
+                            if (tries++ < 200) setTimeout(tick, 1500);
+                        })
+                        .catch(function () {});
+                }
+                tick();
             }
             /* deepseek cards */
             /* deepseek echarts 堆叠柱（官网同款：三档蓝 + 圆角顶 + 日期在下柱往上 + tooltip） */
@@ -1741,6 +1839,15 @@
                     if (t.classList.contains("olLogin"))
                         olDoLogin(t.getAttribute("data-name"));
                 });
+            document
+                .getElementById("kimiCards")
+                .addEventListener("click", function (e) {
+                    var t = e.target;
+                    if (t.classList.contains("kimiLogin"))
+                        kimiDoLogin(t.getAttribute("data-name"));
+                    if (t.classList.contains("kimiAddon"))
+                        openPage("kimi-addon", t.getAttribute("data-name"));
+                });
             (function () {
                 var modal = document.getElementById("addModal");
                 var s1 = document.getElementById("modalStep1");
@@ -1773,13 +1880,17 @@
                                 ? "OpenCode Go"
                                 : curType === "deepseek"
                                   ? "DeepSeek"
-                                  : "Ollama") + " · 账户名称";
+                                  : curType === "ollama"
+                                    ? "Ollama"
+                                    : "Kimi Code") + " · 账户名称";
                         nameIn.value =
                             curType === "opencode"
                                 ? "OpenCode"
                                 : curType === "deepseek"
                                   ? "DeepSeek"
-                                  : "Ollama";
+                                  : curType === "ollama"
+                                    ? "Ollama"
+                                    : "Kimi";
                         s1.classList.add("hide");
                         s2.classList.remove("hide");
                         nameIn.focus();
@@ -1794,6 +1905,7 @@
                         if (curType === "opencode") ocDoLogin(nm);
                         else if (curType === "deepseek") dsDoLogin(nm);
                         else if (curType === "ollama") olDoLogin(nm);
+                        else if (curType === "kimi") kimiDoLogin(nm);
                         closeModal();
                     });
                 nameIn.addEventListener("keydown", function (e) {
@@ -1956,6 +2068,8 @@
             setInterval(fd, 30000);
             fo();
             setInterval(fo, 30000);
+            fk();
+            setInterval(fk, 30000);
             var winTimer;
             window.addEventListener("resize", function () {
                 for (var k in dsCharts) {

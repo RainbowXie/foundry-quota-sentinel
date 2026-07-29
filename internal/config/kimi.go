@@ -22,6 +22,11 @@ type KimiAccount struct {
 // replayed. Bump only on a deliberate, backward-incompatible envelope change.
 const kimiAuthEnvelopeVersion = 1
 
+// KimiAuthEnvelopeVersion returns the supported envelope schema version, so
+// main.go's login command can stamp a freshly captured envelope without
+// reaching into the package's private constant.
+func KimiAuthEnvelopeVersion() int { return kimiAuthEnvelopeVersion }
+
 // kimiAuthAllowlist is the closed set of cookie names the envelope may carry.
 // It starts empty and grows ONLY with names the evidence phase proves
 // necessary for Kimi replay. An unknown name is rejected at capture so

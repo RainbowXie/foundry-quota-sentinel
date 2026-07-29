@@ -93,3 +93,54 @@ func TestSidebarOpenPageHandlesResponse(t *testing.T) {
 		t.Fatal("open-account-page must surface a spawn failure via an openPageError path")
 	}
 }
+
+// TestSidebarRendersKimiCardsAndAddon (task 5.5) proves the sidebar HTML has
+// a Kimi cards container, a kcard renderer that labels the two meters (本周用量
+// + 频率限制, not rolling/monthly), an add-on (购买加油包) action, and a
+// Kimi provider option in the add-account modal.
+func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
+	html, err := webAssets.ReadFile("static/sidebar.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(html)
+	for _, want := range []string{
+		`id="kimiCards"`,
+		`function kcard`,
+		`本周用量`,
+		`频率限制`,
+		`kimiAddon`,
+		`购买加油包`,
+		`data-type="kimi"`,
+		`kimiDoLogin`,
+		`/api/kimi`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("sidebar HTML missing %q (Kimi card/addon/modal wiring)", want)
+		}
+	}
+	// The add-on must open the kimi-addon provider, not submit a purchase.
+	if !strings.Contains(s, `openPage("kimi-addon"`) {
+		t.Fatal("购买加油包 must route through openPage(\"kimi-addon\", ...) without purchasing")
+	}
+}
+
+// TestSidebarKimiLoginPollsGeneration (task 5.5) proves the Kimi login
+// completion poll keys off the per-account generation (like DeepSeek), not a
+// fixed timeout.
+func TestSidebarKimiLoginPollsGeneration(t *testing.T) {
+	html, err := webAssets.ReadFile("static/sidebar.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(html)
+	if !strings.Contains(s, "kimiLoginPoll") {
+		t.Fatal("Kimi login must use kimiLoginPoll to observe config completion")
+	}
+	if !strings.Contains(s, "/api/kimi/accounts") {
+		t.Fatal("Kimi login must poll the fast /api/kimi/accounts endpoint")
+	}
+	if strings.Contains(s, "setTimeout(fk, 1500)") {
+		t.Fatal("Kimi login must poll /api/kimi/accounts, not guess with setTimeout(fk, 1500)")
+	}
+}

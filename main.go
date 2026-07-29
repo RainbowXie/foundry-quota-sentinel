@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -132,6 +134,22 @@ func ollamaFromConfig(conf *config.Config) []web.OllamaAccount {
 	return out
 }
 
+// kimiFromConfig converts saved Kimi accounts to the web-layer view. The
+// access token is read from the versioned auth envelope; an account whose
+// envelope carries no token is skipped. The token stays server-side — the
+// cards endpoint never serializes it.
+func kimiFromConfig(conf *config.Config) []web.KimiAccount {
+	out := make([]web.KimiAccount, 0, len(conf.KimiAccounts))
+	for _, a := range conf.KimiAccounts {
+		token, ok := a.Auth.Cookie("kimi_session")
+		if !ok || token == "" {
+			continue
+		}
+		out = append(out, web.KimiAccount{Name: a.Name, AccessToken: token, Generation: a.Generation})
+	}
+	return out
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		startSidebar()
@@ -156,6 +174,10 @@ func main() {
 		cmdLoginOpenCode()
 	case "login-ollama":
 		cmdLoginOllama()
+	case "login-kimi":
+		cmdLoginKimi()
+	case "quota-kimi":
+		cmdQuotaKimi()
 	case "open-page":
 		cmdOpenPage()
 	case "version", "-v", "--version":
@@ -180,6 +202,8 @@ func deleteAccountFromConfig(provider, name string) error {
 		err = c.DeleteDeepSeekAccount(name)
 	case "ollama":
 		err = c.DeleteOllamaAccount(name)
+	case "kimi":
+		err = c.DeleteKimiAccount(name)
 	default:
 		return fmt.Errorf("未知 provider: %s", provider)
 	}
@@ -194,6 +218,7 @@ func startSidebar() {
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
+	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
@@ -361,6 +386,7 @@ func cmdServe() {
 	srv.SetAccountsProvider(func() []web.Account { return accountsFromConfig(config.Load()) })
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
+	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
 	go func() {
 		if err := srv.Start(":" + ocgtPort()); err != nil {
@@ -447,11 +473,120 @@ func cmdLoginOllama() {
 	fmt.Printf("OK Ollama 账户 %q 已保存\n", name)
 }
 
+// cmdLoginKimi opens the shared Kimi browser, captures the Bearer accessToken
+// after the user authenticates, validates it through the production quota
+// path (the protected GetSubscriptionStats response with both meters), then
+// saves the named account with a versioned auth envelope.
+func cmdLoginKimi() {
+	name := "Kimi"
+	if len(os.Args) > 2 && strings.TrimSpace(os.Args[2]) != "" {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	fmt.Println("正在打开 Kimi 登录窗口，请在窗口内完成 Kimi 登录…")
+	validate := func(accessToken string) bool {
+		q := &quota.KimiQuerier{AccessToken: accessToken}
+		_, err := q.FetchQuota(context.Background())
+		return err == nil
+	}
+	accessToken, cookies, err := sidebar.RunKimiLogin(validate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
+		os.Exit(1)
+	}
+	env := config.KimiAuthEnvelope{Version: config.KimiAuthEnvelopeVersion()}
+	_ = env.SetCookie("kimi_session", accessToken)
+	for _, cookie := range cookies {
+		// Only allowlisted names are accepted by SetCookie; others are
+		// dropped so unrelated captured state never reaches the credential.
+		_ = env.SetCookie(cookie.Name, cookie.Value)
+	}
+	cfg.UpsertKimiAccount(config.KimiAccount{Name: name, Auth: env})
+	if err := cfg.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("OK Kimi 账户 %q 已保存\n", name)
+}
+
+// cmdQuotaKimi prints the two Kimi meters (weekly + frequency-limit) for one
+// named account or all saved Kimi accounts, with fetch time and no
+// credentials. Each account is fetched independently; one failure does not
+// suppress the others.
+func cmdQuotaKimi() {
+	accounts := cfg.KimiAccounts
+	name := ""
+	if len(os.Args) > 2 {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	if name != "" {
+		var found *config.KimiAccount
+		for i := range accounts {
+			if accounts[i].Name == name {
+				found = &accounts[i]
+				break
+			}
+		}
+		if found == nil {
+			fmt.Fprintf(os.Stderr, "Kimi 账户 %q 不存在\n", name)
+			os.Exit(1)
+		}
+		if err := printKimiQuota(found); err != nil {
+			fmt.Fprintf(os.Stderr, "错误: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(accounts) == 0 {
+		fmt.Fprintln(os.Stderr, "尚未配置 Kimi 账户。请运行 foundry-quota-sentinel login-kimi <名称>")
+		os.Exit(1)
+	}
+	names := cfg.KimiAccountNames()
+	failed := false
+	for _, n := range names {
+		var acc *config.KimiAccount
+		for i := range accounts {
+			if accounts[i].Name == n {
+				acc = &accounts[i]
+				break
+			}
+		}
+		if err := printKimiQuota(acc); err != nil {
+			fmt.Fprintf(os.Stderr, "Kimi 账户 %q 查询失败: %v\n", n, err)
+			failed = true
+		}
+	}
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// printKimiQuota fetches and prints one Kimi account's two meters.
+func printKimiQuota(acc *config.KimiAccount) error {
+	token, ok := acc.Auth.Cookie("kimi_session")
+	if !ok || token == "" {
+		return fmt.Errorf("Kimi 账户 %q 缺少凭证，请重新登录", acc.Name)
+	}
+	q := &quota.KimiQuerier{AccessToken: token}
+	data, err := q.FetchQuota(context.Background())
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	fmt.Println("========================================")
+	fmt.Printf("  Kimi Code 账户 %q\n", acc.Name)
+	fmt.Println("----------------------------------------")
+	fmt.Printf("  本周用量:  %s  reset in %s\n", formatter.ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay)
+	fmt.Printf("  频率限制:  %s  reset in %s\n", formatter.ProgressBar(data.RateLimit.UsagePercent, 18), data.RateLimit.ResetDisplay)
+	fmt.Println("========================================")
+	fmt.Printf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05"))
+	return nil
+}
+
 // cmdOpenPage 打开对应账户的服务商页面，并注入该账户登录态。
 // 用法: open-page <opencode|deepseek|ollama> <账户名>。由侧边栏右键菜单经 /api/open 拉起。
 func cmdOpenPage() {
 	if len(os.Args) < 4 {
-		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama> <账户名>")
+		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi|kimi-addon> <账户名>")
 		os.Exit(1)
 	}
 	provider, name := os.Args[2], strings.TrimSpace(os.Args[3])
@@ -518,8 +653,49 @@ func cmdOpenPage() {
 		if err := sidebar.RunOllamaPage(url, acc.Cookie, acc.UserAgent); err != nil {
 			pageErr(fmt.Sprintf("Ollama 账户页浏览器不可用: %v", err))
 		}
+	case "kimi":
+		var acc *config.KimiAccount
+		for i := range cfg.KimiAccounts {
+			if cfg.KimiAccounts[i].Name == name {
+				acc = &cfg.KimiAccounts[i]
+				break
+			}
+		}
+		if acc == nil {
+			pageErr(fmt.Sprintf("Kimi 账户 %q 不存在", name))
+		}
+		envJSON, err := acc.Auth.Encode()
+		if err != nil {
+			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
+		}
+		url := "https://www.kimi.com/code/console"
+		if err := sidebar.RunKimiPage(url, string(envJSON)); err != nil {
+			pageErr(fmt.Sprintf("Kimi 账户页浏览器不可用: %v", err))
+		}
+	case "kimi-addon":
+		// "购买加油包": open the OBSERVED canonical Kimi booster destination
+		// for the user WITHOUT submitting a purchase. The URL is allowlisted
+		// (HTTPS + www.kimi.com) and never followed from arbitrary response
+		// data.
+		var acc *config.KimiAccount
+		for i := range cfg.KimiAccounts {
+			if cfg.KimiAccounts[i].Name == name {
+				acc = &cfg.KimiAccounts[i]
+				break
+			}
+		}
+		if acc == nil {
+			pageErr(fmt.Sprintf("Kimi 账户 %q 不存在", name))
+		}
+		envJSON, err := acc.Auth.Encode()
+		if err != nil {
+			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
+		}
+		if err := sidebar.RunKimiAddonPage(string(envJSON)); err != nil {
+			pageErr(fmt.Sprintf("Kimi 加油包页面不可用: %v", err))
+		}
 	default:
-		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek 或 ollama）", provider))
+		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek、ollama 或 kimi）", provider))
 	}
 }
 
@@ -543,30 +719,39 @@ func showConfigHint() {
 }
 
 func printUsage() {
-	fmt.Println("foundry-quota-sentinel — OpenCode Go 额度 & Token 监控工具")
-	fmt.Println()
-	fmt.Println("双击 exe 直接启动桌面侧边栏（无需命令）")
-	fmt.Println()
-	fmt.Println("命令行用法:")
-	fmt.Println("  config                查看当前配置")
-	fmt.Println("  config init           交互式配置向导")
-	fmt.Println("  config list           列出所有账户")
-	fmt.Println("  config add <名称>     添加账户")
-	fmt.Println("  config use <名称>     切换账户")
-	fmt.Println("  config delete <名称>  删除账户")
-	fmt.Println("  quota                 查询套餐额度")
-	fmt.Println("  balance               查询 DeepSeek 余额")
-	fmt.Println("  history               查看 Token 消耗历史")
-	fmt.Println("  watch                 持续监控")
-	fmt.Println("  serve                 启动 API 服务 (--sidebar 桌面侧边栏模式)")
-	fmt.Println("  login-deepseek <名称> 弹窗登录 DeepSeek 并保存网页凭证")
-	fmt.Println("  login-opencode <名称> 弹窗登录 OpenCode Go 并保存 cookie 凭证")
-	fmt.Println("  login-ollama <名称>   弹窗登录 Ollama 并保存 cookie 凭证")
-	fmt.Println()
-	fmt.Println("环境变量（优先级高于配置文件）:")
-	fmt.Println("  OPENCODE_GO_AUTH_COOKIE")
-	fmt.Println("  OPENCODE_GO_WORKSPACE_ID")
-	fmt.Println("  DEEPSEEK_API_KEY")
+	writeUsage(os.Stdout)
+}
+
+// writeUsage prints the help text to w. printUsage wraps it for the default
+// os.Stdout call site; tests pass a buffer to assert the Kimi commands and
+// meter labels appear.
+func writeUsage(w io.Writer) {
+	fmt.Fprintln(w, "foundry-quota-sentinel — OpenCode Go 额度 & Token 监控工具")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "双击 exe 直接启动桌面侧边栏（无需命令）")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "命令行用法:")
+	fmt.Fprintln(w, "  config                查看当前配置")
+	fmt.Fprintln(w, "  config init           交互式配置向导")
+	fmt.Fprintln(w, "  config list           列出所有账户")
+	fmt.Fprintln(w, "  config add <名称>     添加账户")
+	fmt.Fprintln(w, "  config use <名称>     切换账户")
+	fmt.Fprintln(w, "  config delete <名称>  删除账户")
+	fmt.Fprintln(w, "  quota                 查询套餐额度")
+	fmt.Fprintln(w, "  balance               查询 DeepSeek 余额")
+	fmt.Fprintln(w, "  history               查看 Token 消耗历史")
+	fmt.Fprintln(w, "  watch                 持续监控")
+	fmt.Fprintln(w, "  serve                 启动 API 服务 (--sidebar 桌面侧边栏模式)")
+	fmt.Fprintln(w, "  login-deepseek <名称> 弹窗登录 DeepSeek 并保存网页凭证")
+	fmt.Fprintln(w, "  login-opencode <名称> 弹窗登录 OpenCode Go 并保存 cookie 凭证")
+	fmt.Fprintln(w, "  login-ollama <名称>   弹窗登录 Ollama 并保存 cookie 凭证")
+	fmt.Fprintln(w, "  login-kimi <名称>     弹窗登录 Kimi Code 并保存网页凭证")
+	fmt.Fprintln(w, "  quota-kimi [名称]     查询 Kimi Code 本周用量与频率限制")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "环境变量（优先级高于配置文件）:")
+	fmt.Fprintln(w, "  OPENCODE_GO_AUTH_COOKIE")
+	fmt.Fprintln(w, "  OPENCODE_GO_WORKSPACE_ID")
+	fmt.Fprintln(w, "  DEEPSEEK_API_KEY")
 }
 
 // ---- 配置管理命令 ----
