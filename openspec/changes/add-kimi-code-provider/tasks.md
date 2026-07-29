@@ -40,8 +40,8 @@
 
 ## 6. Security, documentation, and acceptance
 
-- [ ] 6.1 Audit Kimi credential flow from capture through config, HTTP headers, child processes, errors, API DTOs, HTML, and logs; add regression assertions for every outward-facing boundary.
-- [ ] 6.2 Update README.md, README_EN.md, CLI examples/help, provider support tables, and account-page documentation with Kimi weekly/frequency semantics and the non-automated “购买加油包” behavior.
-- [ ] 6.3 Run `gofmt`, fresh default tests, fresh `-race -tags nogui` tests, both default and `nogui` vet, and the project-standard GUI/WebKit and `nogui` canonical builds; record exact test counts, binary paths, versions, and SHA256 values.
+- [x] 6.1 Audit Kimi credential flow from capture through config, HTTP headers, child processes, errors, API DTOs, HTML, and logs; add regression assertions for every outward-facing boundary.
+- [x] 6.2 Update README.md, README_EN.md, CLI examples/help, provider support tables, and account-page documentation with Kimi weekly/frequency semantics and the non-automated “购买加油包” behavior.
+- [x] 6.3 Run `gofmt`, fresh default tests, fresh `-race -tags nogui` tests, both default and `nogui` vet, and the project-standard GUI/WebKit and `nogui` canonical builds; record exact test counts, binary paths, versions, and SHA256 values.
 - [ ] 6.4 Perform a fresh real-browser acceptance using the canonical build: login and save one isolated Kimi account, retrieve both meters and compare them to the visible console, open the authenticated console until manual close, open the verified add-on page without purchasing, confirm no flash-close/profile leak, and retain only redacted evidence.
-- [ ] 6.5 Run GitNexus `detect_changes` against the default branch before committing, review every changed symbol and affected execution flow, and resolve any scope outside the Kimi provider change.
+- [x] 6.5 Run GitNexus `detect_changes` against the default branch before committing, review every changed symbol and affected execution flow, and resolve any scope outside the Kimi provider change.
