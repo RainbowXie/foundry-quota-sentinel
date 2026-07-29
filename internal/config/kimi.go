@@ -191,42 +191,54 @@ func (c *Config) KimiAccountNames() []string {
 	return names
 }
 
-// kimiTokenSaveMu serializes rotated-token persistence across ALL Kimi accounts
-// (and the CLI + web paths). The per-account web refresh lock stops two
-// requests for the SAME account racing the RefreshToken endpoint, but two
-// DIFFERENT accounts rotating concurrently each did Load→modify→Save on the
-// whole config; the second save overwrote the first account's freshly-rotated
-// token with a stale snapshot (lost update). This config-wide lock plus an
-// in-lock reload of the latest on-disk config means each save re-applies only
-// its target account's tokens on top of the current disk state, so concurrent
-// different-account rotations both persist.
-var kimiTokenSaveMu sync.Mutex
+// configWriteMu is the single shared transaction lock for ALL config writes
+// (token rotation, login upsert, delete, window-size save, config add/use).
+// Every writer does Load→modify→Save on the whole config; without a shared
+// lock, a concurrent login/window-save would overwrite a freshly-rotated token
+// (and vice versa) with a stale snapshot. Mutate() takes this lock, reloads
+// the latest on-disk config, applies the mutation, and saves atomically, so
+// concurrent writers serialize and each sees the other's prior write.
+var configWriteMu sync.Mutex
+
+// Mutate is the shared config-write transaction: under configWriteMu it
+// re-loads the LATEST on-disk config, applies fn (which may modify c in place),
+// and saves atomically. fn returning an error aborts the save (no partial
+// write). All config-mutating paths should go through Mutate so they share one
+// transaction lock and never overwrite each other with stale snapshots.
+func Mutate(fn func(c *Config) error) error {
+	configWriteMu.Lock()
+	defer configWriteMu.Unlock()
+	c := Load()
+	if err := fn(c); err != nil {
+		return err
+	}
+	return c.Save()
+}
 
 // SaveKimiTokens atomically persists rotated access + refresh tokens for one
 // named Kimi account. It is the shared production persistence path used by both
-// the CLI (kimiPersistRotated) and the web server (SetKimiRefreshSave): under
-// the config-wide write lock it re-loads the LATEST on-disk config, updates
-// ONLY the target account's accessToken + refreshToken (every other account,
-// provider section, and field is untouched), then saves atomically. A missing
-// account is an error (the caller surfaces re-login); a SetField rejection
-// (CR/LF) is an error. The tokens never appear in the returned error.
+// the CLI (kimiPersistRotated) and the web server (SetKimiRefreshSave): through
+// Mutate it re-loads the LATEST on-disk config under the shared write lock,
+// updates ONLY the target account's accessToken + refreshToken (every other
+// account, provider section, and field is untouched), then saves atomically.
+// A missing account is an error (the caller surfaces re-login); a SetField
+// rejection (CR/LF) is an error. The tokens never appear in the returned error.
 func SaveKimiTokens(name, accessToken, refreshToken string) error {
-	kimiTokenSaveMu.Lock()
-	defer kimiTokenSaveMu.Unlock()
-	c := Load()
-	for i := range c.KimiAccounts {
-		if c.KimiAccounts[i].Name != name {
-			continue
+	return Mutate(func(c *Config) error {
+		for i := range c.KimiAccounts {
+			if c.KimiAccounts[i].Name != name {
+				continue
+			}
+			env := c.KimiAccounts[i].Auth
+			if err := env.SetField("accessToken", accessToken); err != nil {
+				return fmt.Errorf("Kimi 账户 %q 保存失败", name)
+			}
+			if err := env.SetField("refreshToken", refreshToken); err != nil {
+				return fmt.Errorf("Kimi 账户 %q 保存失败", name)
+			}
+			c.KimiAccounts[i].Auth = env
+			return nil
 		}
-		env := c.KimiAccounts[i].Auth
-		if err := env.SetField("accessToken", accessToken); err != nil {
-			return fmt.Errorf("Kimi 账户 %q 保存失败", name)
-		}
-		if err := env.SetField("refreshToken", refreshToken); err != nil {
-			return fmt.Errorf("Kimi 账户 %q 保存失败", name)
-		}
-		c.KimiAccounts[i].Auth = env
-		return c.Save()
-	}
-	return fmt.Errorf("Kimi 账户 %q 不存在", name)
+		return fmt.Errorf("Kimi 账户 %q 不存在", name)
+	})
 }

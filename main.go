@@ -150,6 +150,21 @@ func kimiFromConfig(conf *config.Config) []web.KimiAccount {
 	return out
 }
 
+// kimiAccountFromConfig returns the latest saved KimiAccount (web-layer view)
+// by name, read from a fresh config load. Used as the per-account in-lock
+// reloader so a concurrent rotation's saved token is observed instead of a
+// stale request-time snapshot. Returns ok=false if the account no longer
+// exists (deleted mid-flight) — the caller then skips/refreshes with the
+// snapshot, which will fail closed if the token is gone.
+func kimiAccountFromConfig(name string) (web.KimiAccount, bool) {
+	for _, a := range kimiFromConfig(config.Load()) {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return web.KimiAccount{}, false
+}
+
 // kimiPersistRotated atomically persists rotated access/refresh tokens for a
 // named Kimi account after an auto-refresh. It delegates to the shared,
 // config-wide-locked config.SaveKimiTokens (serialized reload + atomic save),
@@ -227,25 +242,24 @@ func main() {
 }
 
 // deleteAccountFromConfig 按 provider 从配置文件删除账户并保存（供前端 /api/delete 调用）。
+// Routed through config.Mutate so the delete shares the config-wide write
+// transaction lock with token rotation / login / window-save — a concurrent
+// rotation cannot be overwritten by this delete's stale snapshot.
 func deleteAccountFromConfig(provider, name string) error {
-	c := config.Load()
-	var err error
-	switch provider {
-	case "opencode":
-		err = c.DeleteProfile(name)
-	case "deepseek":
-		err = c.DeleteDeepSeekAccount(name)
-	case "ollama":
-		err = c.DeleteOllamaAccount(name)
-	case "kimi":
-		err = c.DeleteKimiAccount(name)
-	default:
-		return fmt.Errorf("未知 provider: %s", provider)
-	}
-	if err != nil {
-		return err
-	}
-	return c.Save()
+	return config.Mutate(func(c *config.Config) error {
+		switch provider {
+		case "opencode":
+			return c.DeleteProfile(name)
+		case "deepseek":
+			return c.DeleteDeepSeekAccount(name)
+		case "ollama":
+			return c.DeleteOllamaAccount(name)
+		case "kimi":
+			return c.DeleteKimiAccount(name)
+		default:
+			return fmt.Errorf("未知 provider: %s", provider)
+		}
+	})
 }
 
 func startSidebar() {
@@ -254,6 +268,7 @@ func startSidebar() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetKimiReloadAccount(kimiAccountFromConfig)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
 		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
 		// serialized reload + atomic save, so concurrent different-account
@@ -428,6 +443,7 @@ func cmdServe() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetKimiReloadAccount(kimiAccountFromConfig)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
 		// Delegated to the shared, config-wide-locked config.SaveKimiTokens:
 		// serialized reload + atomic save, so concurrent different-account
@@ -464,9 +480,11 @@ func cmdLoginOpenCode() {
 	if name == "" {
 		name = "OpenCode"
 	}
-	cfg.AddProfile(name, config.Profile{Cookie: cookie, WorkspaceID: wsid})
-	cfg.ActiveProfile = name
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.AddProfile(name, config.Profile{Cookie: cookie, WorkspaceID: wsid})
+		c.ActiveProfile = name
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -489,8 +507,10 @@ func cmdLoginDeepSeek() {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
-	cfg.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token, WebStore: webStore})
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.UpsertDeepSeekAccount(config.DeepSeekAccount{Name: name, Token: token, WebStore: webStore})
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -508,8 +528,10 @@ func cmdLoginOllama() {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
-	cfg.UpsertOllamaAccount(config.OllamaAccount{Name: name, Cookie: credentials.Cookie, UserAgent: credentials.UserAgent})
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.UpsertOllamaAccount(config.OllamaAccount{Name: name, Cookie: credentials.Cookie, UserAgent: credentials.UserAgent})
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -540,8 +562,10 @@ func cmdLoginKimi() {
 		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
 		os.Exit(1)
 	}
-	cfg.UpsertKimiAccount(config.KimiAccount{Name: name, Auth: env})
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.UpsertKimiAccount(config.KimiAccount{Name: name, Auth: env})
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -931,9 +955,11 @@ func cmdConfigInit() {
 	fmt.Println()
 	fmt.Println("  [DeepSeek API Key]（可选，仅查余额需要）")
 	p.DeepSeekAPIKey = readLineDefault("DeepSeek API Key", p.DeepSeekAPIKey)
-	cfg.AddProfile(name, p)
-	cfg.ActiveProfile = name
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.AddProfile(name, p)
+		c.ActiveProfile = name
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "\n保存失败: %v\n", err)
 		os.Exit(1)
 	}
@@ -981,9 +1007,11 @@ func cmdConfigAdd() {
 	fmt.Print("  DeepSeek API Key（直接回车跳过）: ")
 	inputReader.Scan()
 	p.DeepSeekAPIKey = strings.TrimSpace(inputReader.Text())
-	cfg.AddProfile(name, p)
-	cfg.ActiveProfile = name
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.AddProfile(name, p)
+		c.ActiveProfile = name
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		return
 	}
@@ -1007,8 +1035,10 @@ func cmdConfigUse() {
 		}
 		return
 	}
-	cfg.ActiveProfile = name
-	if err := cfg.Save(); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		c.ActiveProfile = name
+		return nil
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		return
 	}
@@ -1034,12 +1064,10 @@ func cmdConfigDelete() {
 			return
 		}
 	}
-	if err := cfg.DeleteProfile(name); err != nil {
+	if err := config.Mutate(func(c *config.Config) error {
+		return c.DeleteProfile(name)
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "删除失败: %v\n", err)
-		return
-	}
-	if err := cfg.Save(); err != nil {
-		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
 		return
 	}
 	fmt.Printf("OK 已删除账户: %s\n", name)

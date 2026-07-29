@@ -395,3 +395,41 @@ func TestKimiCardsSerializesPerAccountRefresh(t *testing.T) {
 		t.Fatalf("expected 4 fetch calls, got %d", calls)
 	}
 }
+
+// TestKimiCardsReloadsLatestTokenInLock (hardening) proves the per-account
+// refresh path re-reads the LATEST saved credential inside the per-account
+// lock before refreshing, instead of using the request-time snapshot. If a
+// concurrent rotation already rotated+saved this account's token, a second
+// request that used the stale snapshot would refresh with an already-rotated
+// (now stale) refresh_token and fail. The closure must reload the account.
+func TestKimiCardsReloadsLatestTokenInLock(t *testing.T) {
+	srv := NewServer(nil)
+	// The account's token changes between request start and lock acquisition.
+	current := "v1-access"
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "work", AccessToken: current, RefreshToken: "rt", Generation: 1}}
+	})
+	srv.kimiFetch = nil
+	var seenToken string
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+		seenToken = a.AccessToken
+		return &quota.KimiQuotaData{Total: quota.KimiTotalUsage{TotalPercent: 1}, FiveHour: quota.KimiQuotaUsage{}, SevenDay: quota.KimiQuotaUsage{}}, nil, nil
+	}
+	// Simulate a concurrent rotation that updated the saved token BEFORE this
+	// request's closure ran. curKimi() returns the latest, so the closure must
+	// observe v2-access, not the v1-access snapshot it was started with.
+	srv.kimiReloadAccount = func(name string) (KimiAccount, bool) {
+		if name == "work" {
+			return KimiAccount{Name: "work", AccessToken: "v2-access", RefreshToken: "rt2", Generation: 2}, true
+		}
+		return KimiAccount{}, false
+	}
+
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+
+	if seenToken != "v2-access" {
+		t.Fatalf("refresh used stale token %q; must reload latest in lock (want v2-access)", seenToken)
+	}
+}

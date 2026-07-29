@@ -257,3 +257,70 @@ func TestSaveKimiTokensConcurrentNoLostUpdate(t *testing.T) {
 		}
 	}
 }
+
+// TestConfigWriteTransactionNoCrossOverwrite (hardening) proves that a token
+// rotation and an unrelated config write (window-size save) running concurrently
+// do NOT overwrite each other: both the rotated token AND the window size
+// persist. The old unsynchronized paths each did Load→modify→Save on the whole
+// config, so the window save could clobber the rotated token (and vice versa).
+// All config writes must share one transaction lock.
+func TestConfigWriteTransactionNoCrossOverwrite(t *testing.T) {
+	dir := t.TempDir()
+	configPathMu.Lock()
+	configPathOverride = filepath.Join(dir, "config.json")
+	configPathMu.Unlock()
+	defer func() {
+		configPathMu.Lock()
+		configPathOverride = ""
+		configPathMu.Unlock()
+	}()
+
+	// Seed one account + a window size.
+	seed := &Config{ActiveProfile: "default", Profiles: map[string]Profile{}, WindowW: 100, WindowH: 100}
+	var env KimiAuthEnvelope
+	env.SetField("accessToken", "initial-access-AAAAAAAAAAAA")
+	env.SetField("refreshToken", "initial-refresh-BBBBBBBBBBBB")
+	seed.UpsertKimiAccount(KimiAccount{Name: "work", Auth: env})
+	if err := seed.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Concurrently: rotate the token AND save a new window size, many times.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			if err := SaveKimiTokens("work", "rotated-access-"+strconv.Itoa(i), "rotated-refresh-"+strconv.Itoa(i)); err != nil {
+				t.Errorf("SaveKimiTokens: %v", err)
+				return
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			SaveWindowSize(200+i, 200+i)
+		}
+	}()
+	wg.Wait()
+
+	got := Load()
+	// The token must be rotated (not initial) — window save must not have
+	// clobbered it with a stale snapshot.
+	tok := ""
+	if len(got.KimiAccounts) == 1 {
+		tok = got.KimiAccounts[0].Auth.AccessToken()
+	}
+	if strings.Contains(tok, "initial") {
+		t.Fatalf("token reverted to initial %q — window save overwrote the rotation", tok)
+	}
+	if !strings.HasPrefix(tok, "rotated-access-") {
+		t.Fatalf("token = %q, want a rotated-access-* token", tok)
+	}
+	// The window size must be the last written (200+), not the seed 100 — the
+	// rotation save must not have clobbered the window size with a stale 100.
+	if got.WindowW < 200 || got.WindowH < 200 {
+		t.Fatalf("window = %dx%d, want >=200 (rotation overwrote window size)", got.WindowW, got.WindowH)
+	}
+}

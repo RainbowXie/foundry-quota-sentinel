@@ -84,6 +84,12 @@ type Server struct {
 	// lock. Tests inject this to exercise refresh rotation + persistence
 	// failure without a live Kimi server.
 	kimiFetchWithRefresh func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error)
+	// kimiReloadAccount returns the LATEST saved KimiAccount by name, read
+	// inside the per-account refresh lock. nil in tests (the closure falls
+	// back to the request-time snapshot); production wires it to a fresh
+	// config read so a concurrent rotation that already saved a new token is
+	// observed instead of refreshing with a stale snapshot.
+	kimiReloadAccount func(name string) (KimiAccount, bool)
 	// kimiRefreshSave persists rotated access/refresh tokens for a named Kimi
 	// account after a successful auto-refresh. nil in tests (no persistence);
 	// production wires it to a config save of the rotated envelope.
@@ -143,6 +149,13 @@ func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn 
 // SetKimiProvider sets the dynamic Kimi account source, read on each request
 // so a newly saved account appears without a restart.
 func (s *Server) SetKimiProvider(fn func() []KimiAccount) { s.kimiFn = fn }
+
+// SetKimiReloadAccount wires the per-account in-lock reloader that returns the
+// latest saved KimiAccount by name, so the refresh path observes a concurrent
+// rotation's saved token instead of a stale request-time snapshot.
+func (s *Server) SetKimiReloadAccount(fn func(name string) (KimiAccount, bool)) {
+	s.kimiReloadAccount = fn
+}
 
 // SetKimiRefreshSave wires the callback that persists rotated access/refresh
 // tokens for a Kimi account after an auto-refresh (production: config save).
@@ -472,6 +485,18 @@ func (s *Server) Handler() http.Handler {
 				mu := s.kimiRefreshLock(a.Name)
 				mu.Lock()
 				defer mu.Unlock()
+				// Re-read the LATEST saved credential inside the per-account
+				// lock. A concurrent rotation may have already rotated+saved
+				// this account's token since this request started; using the
+				// request-time snapshot would refresh with a now-stale token
+				// and fail. When no reloader is wired (tests without a live
+				// config), fall back to the snapshot.
+				acc := a
+				if s.kimiReloadAccount != nil {
+					if latest, ok := s.kimiReloadAccount(a.Name); ok {
+						acc = latest
+					}
+				}
 				fetchRefresh := s.kimiFetchWithRefresh
 				if fetchRefresh == nil {
 					fetchRefresh = func(ctx context.Context, acc KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
@@ -479,7 +504,7 @@ func (s *Server) Handler() http.Handler {
 						return q.FetchQuotaWithRefresh(ctx)
 					}
 				}
-				data, rotated, err := fetchRefresh(r.Context(), a)
+				data, rotated, err := fetchRefresh(r.Context(), acc)
 				if err != nil {
 					return nil, err
 				}

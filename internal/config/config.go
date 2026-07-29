@@ -47,10 +47,14 @@ type Config struct {
 }
 
 // SaveWindowSize 持久化窗口大小（重载 config 再写，避免覆盖其它字段）。
+// Routed through Mutate so it shares the config-wide write transaction lock
+// with token rotation / login / delete — a concurrent rotation cannot be
+// overwritten by this window-size save (and vice versa).
 func SaveWindowSize(w, h int) {
-	c := Load()
-	c.WindowW, c.WindowH = w, h
-	_ = c.Save()
+	_ = Mutate(func(c *Config) error {
+		c.WindowW, c.WindowH = w, h
+		return nil
+	})
 }
 
 // configPathOverride lets tests redirect the config file to a temp location
