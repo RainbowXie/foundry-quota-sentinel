@@ -170,6 +170,32 @@ Four more gaps found and fixed (RED→GREEN where deterministic):
    membership page (host `www.kimi.com` + path `/membership/subscription` +
    `tab=quota`), not just scheme+host. RED: `/code/console` and arbitrary Kimi
    paths were accepted; GREEN: rejected.
+
+## Credential-safety hardening round 3 (tasks 3.2/3.4) — commit `44628a2`
+
+Two more gaps found and fixed (RED→GREEN where deterministic):
+
+1. **Web per-account in-lock reload** — the `/api/kimi` refresh closure now
+   re-reads the LATEST saved `KimiAccount` inside the per-account lock before
+   refreshing (`kimiReloadAccount`, wired to a fresh config load), instead of
+   using the request-time snapshot. A concurrent rotation that already
+   rotated+saved a new token is observed; the stale snapshot would refresh
+   with an already-rotated (now-stale) token and fail. RED: refresh used
+   snapshot `v1-access`; GREEN: reloaded `v2-access`
+   (`TestKimiCardsReloadsLatestTokenInLock`).
+2. **Shared config-write transaction lock** — new `config.Mutate(fn)` takes a
+   single config-wide lock (`configWriteMu`), reloads the latest on-disk
+   config, applies `fn`, and saves atomically. ALL config writes now go through
+   `Mutate`: token rotation (`SaveKimiTokens`), login upserts
+   (OpenCode/DeepSeek/Ollama/Kimi), delete, window-size save, and config
+   add/use/delete. A concurrent login, delete, or window-save can no longer
+   overwrite a freshly-rotated token with a stale snapshot (and vice versa) —
+   they serialize on one lock and each sees the other's prior write. The
+   cross-overwrite window is a check-then-act race not reliably reproducible at
+   speed; the fix is structural (single shared lock + reload) and guarded by
+   `TestConfigWriteTransactionNoCrossOverwrite` (concurrent rotation +
+   window-save, race-clean). `SaveKimiTokens`' per-account lost-update guard
+   still passes (200-iteration concurrent).
 2. **Per-account refresh serialization (3.4)** — `Server.kimiRefreshLock`
    returns a per-account mutex; the production Kimi fetch closure holds it
    across refresh+persist, so two concurrent card requests for the SAME account
