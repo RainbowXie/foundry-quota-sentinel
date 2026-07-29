@@ -40,8 +40,8 @@
   <td><strong>浏览器登录</strong><br><span style="color:#5A5A7A;font-size:13px">自动抓取 OpenCode Cookie、DeepSeek Token、Ollama 会话与 Kimi Token，免去手动 F12 复制。</span></td>
 </tr>
 <tr>
-  <td><strong>Kimi Code 多账户</strong><br><span style="color:#5A5A7A;font-size:13px">展示本周用量与频率限制两个独立 meter 的百分比与重置倒计时，「购买加油包」直达官方页面（不自动购买）。</span></td>
-  <td><strong>右键打开账户页</strong><br><span style="color:#5A5A7A;font-size:13px">右键任意卡片 → 注入该账户登录态，直达 OpenCode workspace、DeepSeek 用量页、Ollama Settings 或 Kimi 控制台。</span></td>
+  <td><strong>Kimi Code 多账户</strong><br><span style="color:#5A5A7A;font-size:13px">总使用量内以黑色条段标 Kimi 用量、蓝色条段标 Code 用量，另列 5 小时与 7 天 Code 用量及各自绝对重置时间；accessToken 自动续期无需频繁重登，「购买加油包」直达官方页面（不自动购买）。</span></td>
+  <td><strong>右键打开账户页</strong><br><span style="color:#5A5A7A;font-size:13px">右键任意卡片 → 注入该账户登录态，直达 OpenCode workspace、DeepSeek 用量页、Ollama Settings 或 Kimi 会员额度页。</span></td>
 </tr>
 <tr>
   <td><strong>双主题</strong><br><span style="color:#5A5A7A;font-size:13px">亮色「灵动卡片」与暗色「深色专业」一键切换。</span></td>
@@ -117,8 +117,9 @@ foundry-quota-sentinel serve
 | `login-deepseek <名称>` | 弹窗登录 DeepSeek 保存网页 Token |
 | `login-opencode <名称>` | 弹窗登录 OpenCode 保存 Cookie |
 | `login-ollama <名称>` | 使用一次性 Chrome / Chromium / Edge 登录并保存 Ollama Cookie |
-| `login-kimi <名称>` | 使用一次性 Chrome / Chromium / Edge 登录并保存 Kimi Code 网页 Token |
-| `quota-kimi [名称]` | 查询 Kimi Code 本周用量与频率限制（不填则查所有 Kimi 账户） |
+| `login-kimi <名称>` | 使用一次性 Chrome / Chromium / Edge 登录并保存 Kimi Code 网页 Token（含 durable refresh） |
+| `quota-kimi [名称]` | 查询 Kimi Code 总使用量（Kimi / Code）及 5 小时 / 7 天 Code 用量与绝对重置时间（不填则查所有 Kimi 账户） |
+| `open-page kimi <名称>` | 注入登录态打开 Kimi 会员额度页 `membership/subscription?tab=quota`（不自动购买） |
 | `config init` / `config add <名称>` | 交互式配置 / 添加账户 |
 | `config list` / `config use <名称>` | 列出 / 切换账户 |
 
@@ -126,7 +127,7 @@ foundry-quota-sentinel serve
 
 配置存储在 `~/.foundry-quota-sentinel/config.json`（Windows 为 `%USERPROFILE%\.foundry-quota-sentinel\config.json`），每个用户独立。OpenCode、DeepSeek、Ollama、Kimi 账户分别存于 `profiles`、`deepseek_accounts`、`ollama_accounts`、`kimi_accounts`，Kimi 凭证以版本化的最小 auth envelope 保存，仅含回放必需的字段。（旧的 `~/.ocgt-monitor` 目录首次运行会自动迁移。）
 
-Ollama 登录需要系统中存在可执行的 Chrome、Chromium 或 Edge。应用只启动带私有临时 profile 的一次性窗口，通过回环地址上的 Chrome DevTools Protocol 获取会话；获取成功后立即关闭浏览器并删除临时 profile，不读取日常浏览器数据。Kimi Code 登录同样启动一次性临时浏览器抓取网页accessToken，回放受保护接口确认鉴权后再保存账户。
+Ollama 登录需要系统中存在可执行的 Chrome、Chromium 或 Edge。应用只启动带私有临时 profile 的一次性窗口，通过回环地址上的 Chrome DevTools Protocol 获取会话；获取成功后立即关闭浏览器并删除临时 profile，不读取日常浏览器数据。Kimi Code 登录同样启动一次性临时浏览器抓取网页 accessToken 与 durable refresh token，回放受保护接口确认鉴权后再保存账户；accessToken 约 15 分钟过期，生产实现用 refresh token 自动续期额度查询与账户页会话，无需每 15 分钟重登录。
 
 环境变量优先级高于配置文件（仅影响 CLI 的活动账户查询）：
 

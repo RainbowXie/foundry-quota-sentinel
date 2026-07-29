@@ -117,3 +117,32 @@ resets are always future. Representative case:
 All Bearer JWTs printed by `get_network_request` have ~15-minute lifetimes and
 are expired. They were never recorded/committed/persisted; captured files
 shredded immediately after sanitized extraction.
+
+## Secret audit (task 6.1)
+
+`internal/web/kimi_secret_audit_test.go` injects synthetic
+`access_token`/`cookie` secrets into the cards, accounts, login, open, and
+delete boundaries, plus an error path that would carry the token, and asserts
+no synthesized secret surfaces in any JSON response, error message, or
+dispatched HTML. TDD RED→GREEN verified the boundaries. The auth envelope
+(`KimiAuthEnvelope`) never serializes `accessToken`/`refreshToken`/`cookie` to
+the API DTO; only per-account `Generation` shells and the grouped
+`KimiQuotaData` are returned. No access/refresh token, cookie, storage value,
+or account identifier is logged or output.
+
+## Fresh canonical build verification (task 6.3)
+
+- Toolchain: Go 1.26.4 linux/amd64; OpenSpec CLI 1.6.0.
+- `gofmt -l` on all edited Kimi files + `main.go` + `main_kimi_test.go` +
+  `sidebar_test.go`: clean (no output).
+- Default `go test ./... -count=1`: 6 packages OK
+  (`main`, `internal/browserauth`, `internal/config`, `internal/quota`,
+  `internal/sidebar`, `internal/web`).
+- `go test -race -tags nogui ./... -count=1`: same 6 packages OK, race-clean.
+- Default and `-tags nogui` `go vet ./...`: clean.
+- `openspec validate add-kimi-code-provider --strict`: valid.
+- Canonical builds (record-flagged, binaries shredded after capture):
+  - nogui: `CGO_ENABLED=0 go build -tags nogui -o <tmp> .` → OK.
+  - GUI default: `go build -o <tmp> .` → OK (webkit2gtk dev headers present).
+- Temp binary artifacts were shredded after SHA capture; no secrets were
+  contained in any build output.

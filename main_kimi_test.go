@@ -7,7 +7,8 @@ import (
 )
 
 // TestUsageListsKimiCommands (task 5.4) proves the help text lists the Kimi
-// login and quota commands with the correct weekly/frequency-limit semantics.
+// login and quota commands with the membership metric semantics: total usage
+// split into Kimi + Code, plus 5-hour and 7-day Code usage.
 func TestUsageListsKimiCommands(t *testing.T) {
 	var buf bytes.Buffer
 	writeUsage(&buf)
@@ -17,10 +18,14 @@ func TestUsageListsKimiCommands(t *testing.T) {
 			t.Fatalf("help text missing %q: %s", want, got)
 		}
 	}
-	// The quota-kimi line must describe both meters, not a rolling/monthly
-	// allowance — Kimi has weekly usage + frequency limit.
-	if !strings.Contains(got, "本周用量") || !strings.Contains(got, "频率限制") {
-		t.Fatalf("help text must label Kimi meters as 本周用量 and 频率限制: %s", got)
+	// The quota-kimi line must describe the membership metrics: total usage
+	// with Kimi + Code, plus 5-hour/7-day Code — no rolling/weekly/frequency
+	// language.
+	if !strings.Contains(got, "总使用量(Kimi/Code)") || !strings.Contains(got, "5 小时/7 天 Code") {
+		t.Fatalf("help text must label Kimi metrics as 总使用量(Kimi/Code) and 5 小时/7 天 Code: %s", got)
+	}
+	if strings.Contains(got, "本周用量") || strings.Contains(got, "频率限制") {
+		t.Fatalf("help text must not carry obsolete weekly/frequency language: %s", got)
 	}
 }
 

@@ -95,9 +95,10 @@ func TestSidebarOpenPageHandlesResponse(t *testing.T) {
 }
 
 // TestSidebarRendersKimiCardsAndAddon (task 5.5) proves the sidebar HTML has
-// a Kimi cards container, a kcard renderer that labels the two meters (本周用量
-// + 频率限制, not rolling/monthly), an add-on (购买加油包) action, and a
-// Kimi provider option in the add-account modal.
+// a Kimi cards container, a kcard renderer that labels the membership metrics
+// (总使用量 with Kimi+Code, plus 5 小时 / 7 天 Code, not rolling/weekly), an
+// add-on (购买加油包) action, and a Kimi provider option in the add-account
+// modal.
 func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 	html, err := webAssets.ReadFile("static/sidebar.html")
 	if err != nil {

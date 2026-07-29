@@ -571,10 +571,11 @@ func cmdLoginKimi() {
 	fmt.Printf("OK Kimi 账户 %q 已保存\n", name)
 }
 
-// cmdQuotaKimi prints the two Kimi meters (weekly + frequency-limit) for one
-// named account or all saved Kimi accounts, with fetch time and no
-// credentials. Each account is fetched independently; one failure does not
-// suppress the others.
+// cmdQuotaKimi prints the Kimi membership metrics for one named account or
+// all saved Kimi accounts: total usage split into Kimi + Code, plus 5-hour
+// and 7-day Code usage, each with an absolute reset display and no
+// credentials. Each account is fetched independently (with durable refresh);
+// one failure does not suppress the others.
 func cmdQuotaKimi() {
 	accounts := cfg.KimiAccounts
 	name := ""
@@ -794,7 +795,7 @@ func writeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  login-opencode <名称> 弹窗登录 OpenCode Go 并保存 cookie 凭证")
 	fmt.Fprintln(w, "  login-ollama <名称>   弹窗登录 Ollama 并保存 cookie 凭证")
 	fmt.Fprintln(w, "  login-kimi <名称>     弹窗登录 Kimi Code 并保存网页凭证")
-	fmt.Fprintln(w, "  quota-kimi [名称]     查询 Kimi Code 本周用量与频率限制")
+	fmt.Fprintln(w, "  quota-kimi [名称]     查询 Kimi Code 总使用量(Kimi/Code)及 5 小时/7 天 Code 用量")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "环境变量（优先级高于配置文件）:")
 	fmt.Fprintln(w, "  OPENCODE_GO_AUTH_COOKIE")

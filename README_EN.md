@@ -40,8 +40,8 @@
   <td><strong>Browser login</strong><br><span style="color:#5A5A7A;font-size:13px">Automatically captures OpenCode Cookies, DeepSeek Tokens, Ollama sessions, and Kimi Tokens — no manual F12 copy-paste.</span></td>
 </tr>
 <tr>
-  <td><strong>Kimi Code · Multi-account</strong><br><span style="color:#5A5A7A;font-size:13px">Weekly usage and frequency-limit — two independently resetting meters with percentage and reset countdown; "购买加油包" opens the official page (no automatic purchase).</span></td>
-  <td><strong>Right-click → account page</strong><br><span style="color:#5A5A7A;font-size:13px">Right-click any card → open its OpenCode workspace, DeepSeek usage page, Ollama Settings, or Kimi console with that account's login state injected.</span></td>
+  <td><strong>Kimi Code · Multi-account</strong><br><span style="color:#5A5A7A;font-size:13px">Total usage splits into a black bar segment (Kimi) and a blue segment (Code), plus separate 5-hour and 7-day Code usage each with an absolute reset time; the access token auto-refreshes, so no re-login every ~15 min. "购买加油包" opens the official page (no automatic purchase).</span></td>
+  <td><strong>Right-click → account page</strong><br><span style="color:#5A5A7A;font-size:13px">Right-click any card → open its OpenCode workspace, DeepSeek usage page, Ollama Settings, or Kimi membership quota page with that account's login state injected.</span></td>
 </tr>
 <tr>
   <td><strong>Dual theme</strong><br><span style="color:#5A5A7A;font-size:13px">Light "glassy cards" and dark "pro" themes, one-click switch.</span></td>
@@ -120,8 +120,9 @@ foundry-quota-sentinel serve
 | `login-deepseek <name>` | Pop-up login, save DeepSeek web Token |
 | `login-opencode <name>` | Pop-up login, save OpenCode Cookie |
 | `login-ollama <name>` | One-shot Chrome / Chromium / Edge login, save Ollama Cookie |
-| `login-kimi <name>` | One-shot Chrome / Chromium / Edge login, save Kimi Code web Token |
-| `quota-kimi [name]` | Query Kimi Code weekly usage and frequency limit (all Kimi accounts if name omitted) |
+| `login-kimi <name>` | One-shot Chrome / Chromium / Edge login, save Kimi Code web Token (with durable refresh) |
+| `quota-kimi [name]` | Query Kimi Code total usage (Kimi / Code) plus 5-hour / 7-day Code usage with absolute reset times (all Kimi accounts if name omitted) |
+| `open-page kimi <name>` | Inject login state, open Kimi membership quota page `membership/subscription?tab=quota` (no automatic purchase) |
 | `config init` / `config add <name>` | Interactive setup / add account |
 | `config list` / `config use <name>` | List / switch accounts |
 
@@ -129,7 +130,7 @@ foundry-quota-sentinel serve
 
 Config lives in `~/.foundry-quota-sentinel/config.json` (Windows: `%USERPROFILE%\.foundry-quota-sentinel\config.json`), per user. OpenCode, DeepSeek, Ollama, and Kimi accounts live under `profiles`, `deepseek_accounts`, `ollama_accounts`, and `kimi_accounts`; Kimi credentials are saved as a versioned minimal auth envelope containing only the fields proven necessary for replay. (A legacy `~/.ocgt-monitor` directory is migrated automatically on first run.)
 
-Ollama login requires Chrome, Chromium, or Edge to be available as a system executable. The app launches a one-shot browser with a private temporary profile, reads the session through loopback-only Chrome DevTools Protocol, then closes the browser and removes the profile. It never reads the user's everyday browser profile. Kimi Code login likewise launches a one-shot temporary browser to capture the web accessToken, replays the protected API call to confirm authentication, then saves the account.
+Ollama login requires Chrome, Chromium, or Edge to be available as a system executable. The app launches a one-shot browser with a private temporary profile, reads the session through loopback-only Chrome DevTools Protocol, then closes the browser and removes the profile. It never reads the user's everyday browser profile. Kimi Code login likewise launches a one-shot temporary browser to capture the web accessToken and a durable refresh token, replays the protected API call to confirm authentication, then saves the account; the access token expires in ~15 minutes, so the production implementation uses the refresh token to auto-renew quota queries and the account-page session — no re-login every 15 minutes.
 
 Environment variables override the config file (for the CLI's active-account queries only):
 
