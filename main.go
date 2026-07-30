@@ -242,30 +242,30 @@ func kimiReplayEnvelope(name string) (string, error) {
 // refreshes an expired access token itself, rotating BOTH tokens). The whole
 // compare-and-swap runs under the per-account cross-process lock: the
 // SPA-rotated pair is persisted via the shared config.SaveKimiTokens ONLY
-// when the on-disk access token still equals prevAccess (the token the page
-// rotated FROM). If a concurrent CLI/Web rotation already moved disk ahead,
-// the save is SKIPPED (returns nil) — persisting the page's older pair would
-// regress disk to a revoked refresh token. The tokens never appear in errors.
-func kimiPageRotationSaver(name string) func(prevAccess, newAccess, newRefresh string) error {
-	return func(prevAccess, newAccess, newRefresh string) error {
+// when the on-disk pair still equals (prevAccess, prevRefresh) — BOTH fields
+// are compared, so a concurrent CLI/Web rotation that moved disk ahead makes
+// the save SKIP (persisted=false, never a false persisted) instead of
+// regressing disk to the page's older pair. The tokens never appear in errors.
+func kimiPageRotationSaver(name string) func(prevAccess, prevRefresh, newAccess, newRefresh string) (bool, error) {
+	return func(prevAccess, prevRefresh, newAccess, newRefresh string) (bool, error) {
 		release, err := config.AcquireKimiAccountLock(name)
 		if err != nil {
-			return fmt.Errorf("Kimi 账户 %q 页面轮换锁失败: %v", name, err)
+			return false, fmt.Errorf("Kimi 账户 %q 页面轮换锁失败: %v", name, err)
 		}
 		defer release()
 		latest, ok := latestKimiAccount(name)
 		if !ok {
-			return fmt.Errorf("Kimi 账户 %q 已不存在", name)
+			return false, fmt.Errorf("Kimi 账户 %q 已不存在", name)
 		}
-		if latest.Auth.AccessToken() != prevAccess {
+		if latest.Auth.AccessToken() != prevAccess || latest.Auth.RefreshToken() != prevRefresh {
 			// Disk moved ahead (a concurrent rotation already persisted newer
-			// tokens) — skip; do not regress disk to the page's revoked pair.
-			return nil
+			// tokens) — skip; do not regress disk to the page's older pair.
+			return false, nil
 		}
 		if err := config.SaveKimiTokens(name, newAccess, newRefresh); err != nil {
-			return fmt.Errorf("Kimi 账户 %q 页面轮换保存失败，请重新登录", name)
+			return false, fmt.Errorf("Kimi 账户 %q 页面轮换保存失败，请重新登录", name)
 		}
-		return nil
+		return true, nil
 	}
 }
 

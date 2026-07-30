@@ -41,15 +41,34 @@ var kimiConsoleURL = kimiMembershipURL
 // private constant, and the URL is the provider contract both layers share.
 const kimiProtectedQuotaURL = "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
 
+// kimiRefreshTokenURL is the OBSERVED durable refresh endpoint the SPA itself
+// calls to rotate the session pair (POST, refresh_token in the body, returns
+// new accessToken + refreshToken). Mirrors the constant in
+// internal/quota/kimi_web.go; duplicated here for the same reason as
+// kimiProtectedQuotaURL. The watcher treats a 2xx loadingFinished response
+// with a strictly-parsed pair as authoritative issuance evidence.
+const kimiRefreshTokenURL = "https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken"
+
+// kimiRefreshBodyMaxBytes bounds the RefreshToken response body read (the
+// real body is ~1.5KB of JSON carrying two JWTs); anything larger is not a
+// legitimate issuance response.
+const kimiRefreshBodyMaxBytes = 64 << 10
+
+// kimiIssuedTokenMaxLen bounds each parsed token (real JWTs are ~0.5-1KB).
+const kimiIssuedTokenMaxLen = 4096
+
 // kimiSettleTimeout is the deadline for waiting on observable CDP events
 // during the account-page auth-decision wait.
 var kimiSettleTimeout = 8 * time.Second
 
 // KimiPageRotationSave, when set, is invoked by runKimiPage's in-page
-// rotation watcher with (prevAccess, newAccess, newRefresh) after the
-// membership SPA rotates the token pair itself. cmdOpenPage installs the
-// per-account closure; nil disables the watcher (tests, non-CLI callers).
-var KimiPageRotationSave func(prevAccess, newAccess, newRefresh string) error
+// rotation watcher with (prevAccess, prevRefresh, newAccess, newRefresh)
+// after the membership SPA rotates the token pair itself. It returns
+// persisted=true when the pair was written, false when the compare-and-swap
+// skipped because disk already moved ahead — the watcher logs persisted vs
+// skipped truthfully. cmdOpenPage installs the per-account closure; nil
+// disables the watcher (tests, non-CLI callers).
+var KimiPageRotationSave func(prevAccess, prevRefresh, newAccess, newRefresh string) (persisted bool, err error)
 
 // kimiAuthTimeoutError is the sentinel returned by kimiWaitForAuthDecision
 // when the deadline elapses WITHOUT any fatal condition. RunKimiPage treats
@@ -503,7 +522,7 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 		watcherWG.Add(1)
 		go func() {
 			defer watcherWG.Done()
-			kimiWatchInPageRotation(watchCtx, cdp, events, env.AccessToken(), stopWatch, KimiPageRotationSave)
+			kimiWatchInPageRotation(watchCtx, cdp, events, env.AccessToken(), env.RefreshToken(), stopWatch, KimiPageRotationSave)
 		}()
 	}
 	waitErr := browser.Wait()
@@ -533,27 +552,31 @@ type kimiRequestFacts struct {
 }
 
 // kimiWatchInPageRotation consumes CDP network events for the rest of the
-// page session and persists the SPA's in-page token rotations. The evidence
-// chain mirrors the membership auth decision, per the correlation spec —
-// ALL of, evaluated at loadingFinished:
-//  1. the request targeted the EXACT protected GetSubscriptionStats URL
-//     (isKimiProtectedURL: https + www.kimi.com + exact path — an unrelated
-//     /apiv2/ 2xx is NOT evidence) and carried a Bearer token ≠ lastKnown;
-//  2. responseReceived was 2xx;
-//  3. the response body parses as the two-meter quota result
-//     (kimiResponseBodyValid);
-//  4. localStorage access_token == the evidenced token and refresh_token
-//     non-empty (the SPA may have rotated again mid-read; the next chain
-//     retries).
+// page session and persists the SPA's in-page token rotations. Two
+// evidence paths, both evaluated at loadingFinished (adjudicated round-8):
 //
-// Only then is save invoked with (prevAccess, newAccess, newRefresh) so the
-// caller compare-and-swaps under its lock; lastKnown advances only after a
-// successful save.
+//  1. PRIMARY (authoritative issuance): a completed RefreshToken response —
+//     exact https://auth.kimi.com/api/account.gateway.v1.AuthService/
+//     RefreshToken URL + 2xx + loadingFinished + strictly-parsed non-empty
+//     accessToken/refreshToken — is CAS-persisted IMMEDIATELY (never gated
+//     on a later quota call; a close in between would lose the pair). This
+//     path needs NO localStorage — it captures the memory-type rotation the
+//     real session exhibited.
+//  2. SECONDARY (localStorage fallback): a request to the EXACT protected
+//     GetSubscriptionStats URL (an unrelated /apiv2/ 2xx is NOT evidence)
+//     carrying a Bearer token ≠ lastAccess, answered 2xx, body valid per the
+//     two-meter quota parser, AND localStorage access_token == the evidenced
+//     token with refresh_token non-empty — persisted via the same CAS.
+//
+// save receives (prevAccess, prevRefresh, newAccess, newRefresh) so the
+// caller compare-and-swaps BOTH fields against disk under its lock; the
+// persisted bool is logged truthfully (persisted vs skipped — never a false
+// persisted); lastAccess/lastRefresh advance only after a real persist.
 //
 // Observability: every request carrying a NEW Bearer token whose chain does
-// not complete is logged with the drop reason (host/path, status, token
-// LENGTHS only — never token values), so a real session shows exactly what
-// the SPA did after an in-page refresh.
+// not complete is logged with the drop reason (endpoint, status, event
+// order, token LENGTHS only — never token values, bodies, or hashes), so a
+// real session shows exactly what the SPA did after an in-page refresh.
 //
 // Close-race: after stop is observed (browser.Wait returned) the watcher
 // does NOT return immediately — it keeps processing until the events
@@ -561,8 +584,9 @@ type kimiRequestFacts struct {
 // is cancelled, so rotation evidence already queued by the read loop is not
 // dropped. Evidence reads (body/localStorage) on a dead connection simply
 // fail and skip — no garbage is persisted.
-func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan browserauth.Event, lastKnown string, stop <-chan struct{}, save func(prevAccess, newAccess, newRefresh string) error) {
+func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan browserauth.Event, initAccess, initRefresh string, stop <-chan struct{}, save func(prevAccess, prevRefresh, newAccess, newRefresh string) (bool, error)) {
 	facts := map[string]*kimiRequestFacts{} // requestId → accumulated facts
+	lastAccess, lastRefresh := initAccess, initRefresh
 	fact := func(rid string) *kimiRequestFacts {
 		f, ok := facts[rid]
 		if !ok {
@@ -570,6 +594,22 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 			facts[rid] = f
 		}
 		return f
+	}
+
+	// persist hands a rotated pair to the CAS save hook and logs the truthful
+	// outcome (persisted vs skipped — never a false persisted). lastAccess/
+	// lastRefresh advance only on a real persist.
+	persist := func(newAccess, newRefresh, source string) {
+		persisted, err := save(lastAccess, lastRefresh, newAccess, newRefresh)
+		switch {
+		case err != nil:
+			log.Printf("kimi: 页面内 token 轮换持久化失败（%s）: %v", source, err)
+		case !persisted:
+			log.Printf("kimi: 页面内 token 轮换保存 skipped（%s，磁盘已前进；页面 access 长度 %d，新 access 长度 %d）", source, len(lastAccess), len(newAccess))
+		default:
+			log.Printf("kimi: 页面内 token 轮换已捕获并持久化（%s，access 长度 %d→%d）", source, len(lastAccess), len(newAccess))
+			lastAccess, lastRefresh = newAccess, newRefresh
+		}
 	}
 
 	handle := func(ev browserauth.Event) {
@@ -610,7 +650,34 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 			return
 		}
 		delete(facts, lf.RequestID)
-		if f.token == "" || f.token == lastKnown {
+
+		// A completed RefreshToken response is the AUTHORITATIVE issuance
+		// evidence (adjudicated round-8 design): exact URL + 2xx +
+		// loadingFinished + strictly-parsed non-empty pair. It is CAS-persisted
+		// IMMEDIATELY — NOT gated on a later quota call, because a window close
+		// between the two events would lose the rotated pair. A subsequent exact
+		// GetSubscriptionStats carrying the new access token is only usability
+		// corroboration exercised in the real acceptance.
+		if isKimiRefreshTokenURL(f.url) {
+			if f.status < 200 || f.status >= 300 {
+				log.Printf("kimi: RefreshToken 响应状态 %d，不计为轮换", f.status)
+				return
+			}
+			pair, ok := kimiParseRefreshResponseBody(ctx, cdp, lf.RequestID)
+			if !ok {
+				log.Printf("kimi: RefreshToken 响应体未通过严格校验（事件止于体校验），不计为轮换")
+				return
+			}
+			if pair.access == lastAccess {
+				log.Printf("kimi: RefreshToken 签发的 access（长度 %d）与当前一致，非轮换，跳过", len(pair.access))
+				return
+			}
+			log.Printf("kimi: RefreshToken 轮换签发已观测（新 access 长度 %d），立即 CAS 持久化", len(pair.access))
+			persist(pair.access, pair.refresh, "RefreshToken 签发证据")
+			return
+		}
+
+		if f.token == "" || f.token == lastAccess {
 			return // current-token traffic: nothing rotated
 		}
 		// A request carrying a NEW Bearer token completed — narrate the chain.
@@ -640,12 +707,7 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 			log.Printf("kimi: localStorage access（长度 %d）与证据 token（长度 %d）不一致，跳过（可能再次轮换）", len(at), len(f.token))
 			return
 		}
-		if err := save(lastKnown, at, rt); err != nil {
-			log.Printf("kimi: 页面内 token 轮换持久化失败: %v", err)
-			return
-		}
-		log.Printf("kimi: 页面内 token 轮换已捕获并持久化（access 长度 %d→%d）", len(lastKnown), len(at))
-		lastKnown = at
+		persist(at, rt, "quota 证据+localStorage 一致")
 	}
 
 	stopped := false
@@ -826,6 +888,54 @@ func isKimiProtectedURL(u string) bool {
 		return false
 	}
 	return parsed.Path == "/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"
+}
+
+// isKimiRefreshTokenURL reports whether a request URL is the exact RefreshToken
+// endpoint (strict scheme + host auth.kimi.com + exact path).
+func isKimiRefreshTokenURL(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "https" || parsed.Host != "auth.kimi.com" {
+		return false
+	}
+	return parsed.Path == "/api/account.gateway.v1.AuthService/RefreshToken"
+}
+
+// kimiIssuedPair is a server-issued access/refresh pair parsed from a
+// RefreshToken response body.
+type kimiIssuedPair struct {
+	access  string
+	refresh string
+}
+
+// kimiParseRefreshResponseBody reads the RefreshToken response body (bounded)
+// and strictly parses the issued pair: valid JSON object, BOTH accessToken
+// and refreshToken present, non-empty, length-bounded, and free of whitespace
+// / control characters. A business-error body, malformed JSON, a missing or
+// empty field, or an oversize body is NOT evidence — 2xx alone never
+// suffices.
+func kimiParseRefreshResponseBody(ctx context.Context, cdp kimiCDP, requestID string) (kimiIssuedPair, bool) {
+	body, err := cdp.GetResponseBody(ctx, requestID)
+	if err != nil || body == "" || len(body) > kimiRefreshBodyMaxBytes {
+		return kimiIssuedPair{}, false
+	}
+	var parsed struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if json.Unmarshal([]byte(body), &parsed) != nil {
+		return kimiIssuedPair{}, false
+	}
+	at, rt := parsed.AccessToken, parsed.RefreshToken
+	if at == "" || rt == "" || len(at) > kimiIssuedTokenMaxLen || len(rt) > kimiIssuedTokenMaxLen {
+		return kimiIssuedPair{}, false
+	}
+	if strings.ContainsAny(at+rt, " \t\r\n;") {
+		return kimiIssuedPair{}, false
+	}
+	return kimiIssuedPair{access: at, refresh: rt}, true
 }
 
 func isOnKimiHost(pageURL string) bool {

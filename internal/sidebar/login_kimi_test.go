@@ -690,7 +690,7 @@ func pushKimiRotationSequence(cdp *fakeKimiCDP, requestID, newToken, url string,
 }
 
 type kimiRotationCapture struct {
-	prev, newAccess, newRefresh string
+	prev, prevRefresh, newAccess, newRefresh string
 }
 
 // kimiRotationTestHook installs OpenPageReady + KimiPageRotationSave for a
@@ -708,9 +708,9 @@ func kimiRotationTestHook(t *testing.T) (chan struct{}, chan kimiRotationCapture
 		}
 	}
 	captures := make(chan kimiRotationCapture, 4)
-	KimiPageRotationSave = func(prev, newAccess, newRefresh string) error {
-		captures <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
-		return nil
+	KimiPageRotationSave = func(prev, prevRefresh, newAccess, newRefresh string) (bool, error) {
+		captures <- kimiRotationCapture{prev: prev, prevRefresh: prevRefresh, newAccess: newAccess, newRefresh: newRefresh}
+		return true, nil
 	}
 	resetOpenPageErrorOnce()
 	return readyCh, captures, func() {
@@ -912,14 +912,14 @@ func TestKimiWatcherDrainsQueuedRotationAfterStop(t *testing.T) {
 	close(stop) // window closed BEFORE the rotation events arrive
 
 	captured := make(chan kimiRotationCapture, 1)
-	save := func(prev, newAccess, newRefresh string) error {
-		captured <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
-		return nil
+	save := func(prev, prevRefresh, newAccess, newRefresh string) (bool, error) {
+		captured <- kimiRotationCapture{prev: prev, prevRefresh: prevRefresh, newAccess: newAccess, newRefresh: newRefresh}
+		return true, nil
 	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", stop, save)
+		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", "synthetic-refresh-jwt-1234567890", stop, save)
 	}()
 
 	// The rotation evidence chain arrives AFTER stop (read loop forwarded it
@@ -974,15 +974,15 @@ func TestKimiWatcherCapturesWhenExtraInfoArrivesAfterResponse(t *testing.T) {
 	}
 
 	captured := make(chan kimiRotationCapture, 1)
-	save := func(prev, newAccess, newRefresh string) error {
-		captured <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
-		return nil
+	save := func(prev, prevRefresh, newAccess, newRefresh string) (bool, error) {
+		captured <- kimiRotationCapture{prev: prev, prevRefresh: prevRefresh, newAccess: newAccess, newRefresh: newRefresh}
+		return true, nil
 	}
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", stop, save)
+		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", "synthetic-refresh-jwt-1234567890", stop, save)
 	}()
 
 	select {
@@ -996,4 +996,198 @@ func TestKimiWatcherCapturesWhenExtraInfoArrivesAfterResponse(t *testing.T) {
 	close(stop)
 	close(cdp.events)
 	<-done
+}
+
+// --- Round-8 adjudicated design: RefreshToken response = authoritative issuance ---
+
+const kimiTestRefreshURL = "https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken"
+
+// kimiRefreshChain builds the RefreshToken evidence chain events: the exact
+// refresh endpoint request, a responseReceived with the given status, and
+// loadingFinished. The response body is registered separately.
+func kimiRefreshChain(requestID string, status int) []browserauth.Event {
+	reqEvt := fmt.Sprintf(`{"requestId":%q,"url":%q,"request":{"url":%q,"headers":{"content-type":"application/json"}}}`, requestID, kimiTestRefreshURL, kimiTestRefreshURL)
+	respEvt := fmt.Sprintf(`{"requestId":%q,"response":{"url":%q,"status":%d,"mimeType":"application/json"}}`, requestID, kimiTestRefreshURL, status)
+	finEvt := fmt.Sprintf(`{"requestId":%q}`, requestID)
+	return []browserauth.Event{
+		{Method: "Network.requestWillBeSent", Params: json.RawMessage(reqEvt)},
+		{Method: "Network.responseReceived", Params: json.RawMessage(respEvt)},
+		{Method: "Network.loadingFinished", Params: json.RawMessage(finEvt)},
+	}
+}
+
+// kimiWatcherTestRig starts the watcher directly with a fake CDP and returns
+// the capture channel + stop handles.
+func kimiWatcherTestRig(cdp *fakeKimiCDP) (chan kimiRotationCapture, chan struct{}, chan struct{}) {
+	captured := make(chan kimiRotationCapture, 4)
+	save := func(prev, prevRefresh, newAccess, newRefresh string) (bool, error) {
+		captured <- kimiRotationCapture{prev: prev, prevRefresh: prevRefresh, newAccess: newAccess, newRefresh: newRefresh}
+		return true, nil
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", "synthetic-refresh-jwt-1234567890", stop, save)
+	}()
+	return captured, stop, done
+}
+
+// TestKimiWatcherPersistsMemoryRotationFromRefreshResponse (round-8
+// adjudicated RED→GREEN: 内存型轮换成功) proves the exact RefreshToken
+// response chain — exact URL + 2xx + loadingFinished + strictly-parsed
+// non-empty accessToken/refreshToken — is authoritative issuance evidence and
+// is CAS-persisted IMMEDIATELY, WITHOUT any localStorage involvement (the
+// memory-type rotation observed in the real session) and WITHOUT waiting for
+// a later quota call (a close between the two events would lose the pair).
+func TestKimiWatcherPersistsMemoryRotationFromRefreshResponse(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+	// NO localStorage entries at all: the SPA kept the rotated pair in memory.
+	cdp.mu.Lock()
+	cdp.responseBodies = map[string]string{
+		"ref1": `{"accessToken":"spa-issued-access-606-AAAAAAAAAAAA","refreshToken":"spa-issued-refresh-607-BBBBBBBBBBBB"}`,
+	}
+	cdp.mu.Unlock()
+	captured, stop, done := kimiWatcherTestRig(cdp)
+	defer func() { close(stop); close(cdp.events); <-done }()
+
+	for _, ev := range kimiRefreshChain("ref1", 200) {
+		cdp.events <- ev
+	}
+
+	select {
+	case got := <-captured:
+		if got.prev != "synthetic-bearer-jwt-1234567890" || got.prevRefresh != "synthetic-refresh-jwt-1234567890" {
+			t.Fatalf("prev pair = (%q, %q), want the replayed pair", got.prev, got.prevRefresh)
+		}
+		if got.newAccess != "spa-issued-access-606-AAAAAAAAAAAA" || got.newRefresh != "spa-issued-refresh-607-BBBBBBBBBBBB" {
+			t.Fatalf("captured = (%q, %q), want the server-issued pair", got.newAccess, got.newRefresh)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("RefreshToken issuance evidence was NOT persisted immediately (RED: no refresh-response capture path)")
+	}
+}
+
+// TestKimiWatcherSkipsRefreshBusinessOrMalformedBody (round-8 RED→GREEN:
+// refresh 2xx 业务/畸形体) proves a 2xx RefreshToken response whose body is a
+// business error, malformed JSON, missing a field, empty, or oversize is NOT
+// persisted — 2xx alone is not evidence.
+func TestKimiWatcherSkipsRefreshBusinessOrMalformedBody(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"business error body", `{"code":"INVALID_TOKEN","message":"refresh token expired"}`},
+		{"malformed JSON", `{"accessToken":`},
+		{"missing refreshToken", `{"accessToken":"spa-issued-access-606-AAAAAAAAAAAA"}`},
+		{"empty accessToken", `{"accessToken":"","refreshToken":"spa-issued-refresh-607-BBBBBBBBBBBB"}`},
+		{"oversize body", `{"accessToken":"` + strings.Repeat("A", 70<<10) + `","refreshToken":"r"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+			cdp.mu.Lock()
+			cdp.responseBodies = map[string]string{"ref1": tc.body}
+			cdp.mu.Unlock()
+			captured, stop, done := kimiWatcherTestRig(cdp)
+			defer func() { close(stop); close(cdp.events); <-done }()
+
+			for _, ev := range kimiRefreshChain("ref1", 200) {
+				cdp.events <- ev
+			}
+			select {
+			case got := <-captured:
+				t.Fatalf("save fired (%+v) on a non-authoritative RefreshToken body — strict parse must reject it", got)
+			case <-time.After(400 * time.Millisecond):
+				// expected: no capture
+			}
+		})
+	}
+}
+
+// TestKimiWatcherSkipsRefreshResponseNon2xx proves a rejected RefreshToken
+// call (401) is not evidence even with a parseable body registered.
+func TestKimiWatcherSkipsRefreshResponseNon2xx(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+	cdp.mu.Lock()
+	cdp.responseBodies = map[string]string{
+		"ref1": `{"accessToken":"spa-issued-access-606-AAAAAAAAAAAA","refreshToken":"spa-issued-refresh-607-BBBBBBBBBBBB"}`,
+	}
+	cdp.mu.Unlock()
+	captured, stop, done := kimiWatcherTestRig(cdp)
+	defer func() { close(stop); close(cdp.events); <-done }()
+
+	for _, ev := range kimiRefreshChain("ref1", 401) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captured:
+		t.Fatalf("save fired (%+v) on a 401 RefreshToken response", got)
+	case <-time.After(400 * time.Millisecond):
+		// expected: no capture
+	}
+}
+
+// TestKimiWatcherSkipsRefreshSameAccessToken (round-8: token 不匹配) proves a
+// RefreshToken response whose accessToken equals the CURRENT token is not a
+// rotation — no persist.
+func TestKimiWatcherSkipsRefreshSameAccessToken(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+	cdp.mu.Lock()
+	cdp.responseBodies = map[string]string{
+		"ref1": `{"accessToken":"synthetic-bearer-jwt-1234567890","refreshToken":"some-other-refresh-1234567890"}`,
+	}
+	cdp.mu.Unlock()
+	captured, stop, done := kimiWatcherTestRig(cdp)
+	defer func() { close(stop); close(cdp.events); <-done }()
+
+	for _, ev := range kimiRefreshChain("ref1", 200) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captured:
+		t.Fatalf("save fired (%+v) when the issued access equals the current token — not a rotation", got)
+	case <-time.After(400 * time.Millisecond):
+		// expected: no capture
+	}
+}
+
+// TestKimiWatcherChainsRefreshRotations proves multiple sequential in-page
+// refreshes chain correctly (prev of rotation N+1 is the pair issued in N).
+func TestKimiWatcherChainsRefreshRotations(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 16)}
+	cdp.mu.Lock()
+	cdp.responseBodies = map[string]string{
+		"ref1": `{"accessToken":"spa-issued-access-1-AAAAAAAAAAAA","refreshToken":"spa-issued-refresh-1-BBBBBBBBBBBB"}`,
+		"ref2": `{"accessToken":"spa-issued-access-2-CCCCCCCCCCCC","refreshToken":"spa-issued-refresh-2-DDDDDDDDDDDD"}`,
+	}
+	cdp.mu.Unlock()
+	captured, stop, done := kimiWatcherTestRig(cdp)
+	defer func() { close(stop); close(cdp.events); <-done }()
+
+	for _, ev := range kimiRefreshChain("ref1", 200) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captured:
+		if got.prev != "synthetic-bearer-jwt-1234567890" || got.newAccess != "spa-issued-access-1-AAAAAAAAAAAA" {
+			t.Fatalf("first capture = (%q → %q)", got.prev, got.newAccess)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("first refresh rotation not captured")
+	}
+	for _, ev := range kimiRefreshChain("ref2", 200) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captured:
+		if got.prev != "spa-issued-access-1-AAAAAAAAAAAA" || got.prevRefresh != "spa-issued-refresh-1-BBBBBBBBBBBB" {
+			t.Fatalf("second capture prev = (%q, %q), want the first issued pair", got.prev, got.prevRefresh)
+		}
+		if got.newAccess != "spa-issued-access-2-CCCCCCCCCCCC" || got.newRefresh != "spa-issued-refresh-2-DDDDDDDDDDDD" {
+			t.Fatalf("second capture = (%q, %q)", got.newAccess, got.newRefresh)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("second refresh rotation not captured")
+	}
 }
