@@ -471,3 +471,65 @@ fresh disposable HOME on a canonical `go build` binary (`/tmp/fqs-accept`):
 All disposable artifacts shredded (disposable HOME, temp profiles, canonical
 binary, logs); real config unchanged (0 Kimi accounts); no secret artifacts
 retained. Task 6.4 re-ticked.
+
+## Credential-safety hardening round 7 (tasks 3.2/3.4) — commit `c53fd1e`
+
+Gap (reported during review): while `open-page` holds the membership page open
+past the access-token expiry (~15-min JWT), the Kimi SPA refreshes the token
+ITSELF and rotates BOTH tokens in localStorage (OBSERVED in the provider
+contract: `AuthService/RefreshToken` returns new `accessToken` + new
+`refreshToken` — both rotate). The page session never wrote the rotated pair
+back, so the on-disk refresh token was invalidated by the page's in-flight
+rotation and the next CLI/Web run forced a re-login. Round 6 only covered the
+pre-replay window (`kimiReplayEnvelope`), not the page session. Rotation
+cannot be proven absent — the SPA stores `refresh_token` in localStorage
+precisely to refresh — so capture+persist is the required behavior.
+
+Fix (evidence-verified localStorage capture + atomic persist):
+
+1. **`kimiWatchInPageRotation`** (sidebar) — after the auth decision, a
+   watcher consumes the (buffered) CDP events channel for the rest of the
+   page session. Evidence rule (no blind localStorage trust): a request on
+   the protected `https://www.kimi.com/apiv2/` namespace carrying a Bearer
+   token ≠ lastKnown, answered 2xx — the server accepted the new token.
+   Only then is the localStorage pair read, and persisted ONLY when
+   `access_token` equals the evidenced token and `refresh_token` is
+   non-empty. Runs on its own context (the page setup ctx is a 20s
+   deadline), stops cleanly on browser close, chains multiple rotations per
+   session (lastKnown advances per successful save).
+2. **`KimiPageRotationSave`** (sidebar package hook) — nil disables the
+   watcher (no behavioral change for other callers; `RunKimiPage` signature
+   unchanged). cmdOpenPage installs the per-account closure.
+3. **`kimiPageRotationSaver(name)`** (main) — compare-and-swap under the
+   per-account cross-process lock: persists via `config.SaveKimiTokens` ONLY
+   when the on-disk access token still equals `prevAccess` (the token the
+   page rotated FROM); skips cleanly when a concurrent CLI/Web rotation
+   already moved disk ahead — disk NEVER regresses to a revoked pair. A
+   missed intermediate rotation self-heals (a later evidenced rotation still
+   CAS-matches the untouched disk and persists the newest pair).
+
+RED→GREEN proof:
+- `TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence` — RED: "in-page
+  rotation was NOT captured" (no watcher); GREEN: the watcher hands the
+  SPA-rotated pair to the save hook with prev = the replayed token.
+- `TestRunKimiPageChainsSequentialRotations` — RED: first rotation not
+  captured; GREEN: two rotations captured in order, prev chaining correct.
+- `TestRunKimiPageSkipsRotationWithoutProtectedEvidence` — no capture when
+  the new token appears only on a non-protected URL, when the protected call
+  is 401, or when localStorage disagrees with the evidenced token.
+- `TestKimiPageRotationSaverPersistsWhenDiskMatchesPrev` — CAS persists the
+  SPA-rotated pair when disk matches prev.
+- `TestKimiPageRotationSaverSkipsWhenDiskMovedAhead` — CAS skips (disk
+  unchanged) when a concurrent CLI rotation already landed; no regression.
+
+Documented limitation: on a page RELOAD after an in-page rotation, the
+document-start restore script reinstalls the replay-time (older) pair into
+localStorage, so the page's next refresh may be rejected and the page session
+degrades to a re-login prompt — the DISK credential is unaffected (the
+persisted rotated pair stays valid; CLI/Web keep working). Re-installing the
+restore script with rotated tokens is a possible future round.
+
+Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
+valid. Task 6.4 reopened for a fresh real-browser re-acceptance whose page
+session must SPAN the access-token expiry (prove the real SPA rotation is
+captured and persisted, then `quota-kimi` works with no re-login).
