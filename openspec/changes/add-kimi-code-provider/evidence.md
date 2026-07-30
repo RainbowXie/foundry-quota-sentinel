@@ -690,3 +690,35 @@ All disposable artifacts shredded. The real user config's fingerprint
 changed during the day (own normal usage — all acceptance steps ran under
 the isolated HOME; no acceptance path touches the real config). Task 6.4
 re-ticked.
+
+## Credential-safety hardening round 9 (tasks 3.2/3.4) — commit `05e6070`
+
+Blocking review: the watcher matched only the REQUEST URL against the
+allowlist — a redirect chain whose final hop lands off-allowlist could still
+produce a 2xx that counted as evidence. Fixed on BOTH paths:
+
+- `kimiRequestFacts` now records the FINAL response URL
+  (`responseReceived.response.url`, accumulated order-tolerantly).
+- RefreshToken issuance gate: request URL exact AND final response URL exact
+  (`https://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken`),
+  else the 2xx — even with a strictly valid body — is not issuance evidence
+  (fail closed when finalURL is absent).
+- GetSubscriptionStats quota gate (localStorage path): request URL exact AND
+  final response URL exact, else the 2xx + valid body + consistent
+  localStorage is not quota evidence.
+
+RED→GREEN (verified against `fda3b1e`):
+- `TestKimiWatcherSkipsRefreshRedirectedResponse` — foreign host / different
+  path / http downgrade: all 3 fired the save hook pre-guard ("save fired on
+  a redirected RefreshToken 2xx"), all rejected post-guard.
+- `TestKimiWatcherSkipsQuotaRedirectedResponse` — foreign host / different
+  path: same RED→GREEN.
+
+Also: main.go's stale round-7 watcher comment (localStorage + `/apiv2/`)
+rewritten to the adjudicated round-8/9 design; `gofmt -w main.go` (the only
+change-touched file `gofmt -l` flagged; the remaining `gofmt -l` entries are
+pre-existing drift in files this change does not touch).
+
+Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
+valid. Task 6.4 reopened for a fresh real cross-expiry acceptance on the
+round-9 binary (interactive login + page interaction required).
