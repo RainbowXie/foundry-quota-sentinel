@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"foundry-quota-sentinel/internal/browserauth"
@@ -43,6 +44,12 @@ const kimiProtectedQuotaURL = "https://www.kimi.com/apiv2/kimi.gateway.membershi
 // kimiSettleTimeout is the deadline for waiting on observable CDP events
 // during the account-page auth-decision wait.
 var kimiSettleTimeout = 8 * time.Second
+
+// KimiPageRotationSave, when set, is invoked by runKimiPage's in-page
+// rotation watcher with (prevAccess, newAccess, newRefresh) after the
+// membership SPA rotates the token pair itself. cmdOpenPage installs the
+// per-account closure; nil disables the watcher (tests, non-CLI callers).
+var KimiPageRotationSave func(prevAccess, newAccess, newRefresh string) error
 
 // kimiAuthTimeoutError is the sentinel returned by kimiWaitForAuthDecision
 // when the deadline elapses WITHOUT any fatal condition. RunKimiPage treats
@@ -482,10 +489,110 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 
 	log.Printf("kimi: 账户页已认证（membership 页，受保护接口 200，三 metric 有效）")
 	signalOpenPageReady()
-	if err := browser.Wait(); err != nil {
-		return fmt.Errorf("Kimi 账户页浏览器异常退出: %w", err)
+
+	// Round-7: watch for the membership SPA's OWN in-page token rotation.
+	// Once the replayed access token expires, the SPA refreshes it itself and
+	// rotates BOTH tokens in localStorage; without capture the on-disk refresh
+	// token would be invalidated by the page's in-flight rotation. The watcher
+	// takes over the (already buffered) events channel after the auth decision.
+	// It uses its own context — the page ctx above is a 20s setup deadline.
+	watchCtx, cancelWatch := context.WithCancel(context.Background())
+	stopWatch := make(chan struct{})
+	var watcherWG sync.WaitGroup
+	if KimiPageRotationSave != nil {
+		watcherWG.Add(1)
+		go func() {
+			defer watcherWG.Done()
+			kimiWatchInPageRotation(watchCtx, cdp, events, env.AccessToken(), stopWatch, KimiPageRotationSave)
+		}()
+	}
+	waitErr := browser.Wait()
+	close(stopWatch)
+	cancelWatch()
+	watcherWG.Wait()
+	if waitErr != nil {
+		return fmt.Errorf("Kimi 账户页浏览器异常退出: %w", waitErr)
 	}
 	return nil
+}
+
+// kimiWatchInPageRotation consumes CDP network events for the rest of the
+// page session and persists the SPA's in-page token rotations. Evidence rule
+// (no blind localStorage trust): a request on the Kimi protected /apiv2/
+// namespace carrying a Bearer token DIFFERENT from lastKnown, answered 2xx —
+// the server accepted the new token. Only then is the localStorage pair read,
+// and it is persisted ONLY when localStorage access_token equals the
+// evidenced token and refresh_token is non-empty (the SPA may have rotated
+// again mid-read; the next evidence retries). save receives
+// (prevAccess, newAccess, newRefresh) so the caller compare-and-swaps under
+// its lock; lastKnown advances only after a successful save.
+func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan browserauth.Event, lastKnown string, stop <-chan struct{}, save func(prevAccess, newAccess, newRefresh string) error) {
+	tokens := map[string]string{}   // requestId → Bearer token (headers events)
+	urls := map[string]string{}     // requestId → URL (requestWillBeSent)
+	evidence := map[string]string{} // requestId → new token awaiting a 2xx
+	for {
+		select {
+		case <-stop:
+			return
+		case ev, ok := <-events:
+			if !ok {
+				return
+			}
+			if rh, ok := browserauth.DecodeRequestHeadersEvent(ev); ok {
+				if rh.RequestID == "" {
+					continue
+				}
+				if rh.URL != "" {
+					urls[rh.RequestID] = rh.URL
+				}
+				if tok := browserauth.BearerToken(rh.Headers); tok != "" {
+					tokens[rh.RequestID] = tok
+				}
+				if u, tok := urls[rh.RequestID], tokens[rh.RequestID]; u != "" && tok != "" && tok != lastKnown && isKimiProtectedAPI(u) {
+					evidence[rh.RequestID] = tok
+				}
+				continue
+			}
+			rr, ok := browserauth.DecodeResponseReceivedEvent(ev)
+			if !ok {
+				continue
+			}
+			tok, armed := evidence[rr.RequestID]
+			delete(evidence, rr.RequestID)
+			delete(tokens, rr.RequestID)
+			delete(urls, rr.RequestID)
+			if !armed || rr.Status < 200 || rr.Status >= 300 {
+				continue
+			}
+			at := kimiReadLocalStorage(ctx, cdp, "access_token")
+			rt := kimiReadLocalStorage(ctx, cdp, "refresh_token")
+			if at == "" || rt == "" || at != tok {
+				continue
+			}
+			if err := save(lastKnown, at, rt); err != nil {
+				log.Printf("kimi: 页面内 token 轮换持久化失败: %v", err)
+				continue
+			}
+			log.Printf("kimi: 页面内 token 轮换已捕获并持久化（access 长度 %d→%d）", len(lastKnown), len(at))
+			lastKnown = at
+		}
+	}
+}
+
+// isKimiProtectedAPI reports whether a request URL is on the Kimi protected
+// API namespace (https://www.kimi.com/apiv2/…). A 2xx response for such a
+// request evidences that the server accepted the Bearer token — broader than
+// the single quota endpoint (the SPA may retry any protected call after an
+// in-page refresh), but still pinned to scheme+host+namespace.
+func isKimiProtectedAPI(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "https" || parsed.Host != kimiHost {
+		return false
+	}
+	return strings.HasPrefix(parsed.Path, "/apiv2/")
 }
 
 // kimiStorageRestoreScript builds a document-start script that installs the

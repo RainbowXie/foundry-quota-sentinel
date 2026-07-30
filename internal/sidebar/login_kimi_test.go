@@ -82,7 +82,12 @@ type fakeKimiCDP struct {
 	// onNavigate is invoked after each NavigateWithLoader with the nav count,
 	// so a test can push custom events onto the channel.
 	onNavigate func(nav int)
-	mu         sync.Mutex
+	// localStorage models the page's window.localStorage for the
+	// kimiReadLocalStorage Evaluate path (round-7 in-page rotation watcher):
+	// Evaluate expressions containing localStorage.getItem("<key>") read from
+	// this map; absent keys yield JSON null.
+	localStorage map[string]string
+	mu           sync.Mutex
 }
 
 func (c *fakeKimiCDP) EnableNetwork(context.Context) error { return nil }
@@ -105,6 +110,28 @@ func (c *fakeKimiCDP) Events() <-chan browserauth.Event { return c.events }
 func (c *fakeKimiCDP) Evaluate(ctx context.Context, expression string) (json.RawMessage, error) {
 	if strings.Contains(expression, "localStorage.setItem") {
 		return json.RawMessage(`{"result":{}}`), nil
+	}
+	if strings.Contains(expression, "localStorage.getItem") {
+		// kimiReadLocalStorage builds JSON.stringify(localStorage.getItem(<keyJSON>))
+		// — extract the JSON-encoded key and answer from the fake storage map.
+		key := ""
+		if start := strings.Index(expression, "getItem("); start >= 0 {
+			arg := expression[start+len("getItem("):]
+			// The first ")" closes getItem( — a trailing ")" may close an
+			// outer JSON.stringify( wrapper.
+			if end := strings.Index(arg, ")"); end >= 0 {
+				_ = json.Unmarshal([]byte(strings.TrimSpace(arg[:end])), &key)
+			}
+		}
+		c.mu.Lock()
+		stored, ok := c.localStorage[key]
+		c.mu.Unlock()
+		if !ok {
+			return json.RawMessage(`{"result":{"value":"null"}}`), nil
+		}
+		inner, _ := json.Marshal(stored)
+		raw, _ := json.Marshal(string(inner))
+		return json.RawMessage(`{"result":{"value":` + string(raw) + `}}`), nil
 	}
 	if c.snapshotValue == "" {
 		return json.RawMessage(`{"result":{"value":"{\"l\":{},\"s\":{}}"}}`), nil
@@ -604,5 +631,233 @@ func TestValidateKimiPageURLRequiresExactMembership(t *testing.T) {
 				t.Fatalf("validateKimiPageURL(%q) = nil, want error", c.url)
 			}
 		})
+	}
+}
+
+// --- Round-7: in-page SPA token rotation capture (RED→GREEN) ---
+
+// setLocalStorage writes a fake window.localStorage entry (race-safe) for the
+// in-page rotation watcher tests.
+func (c *fakeKimiCDP) setLocalStorage(key, value string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.localStorage == nil {
+		c.localStorage = map[string]string{}
+	}
+	c.localStorage[key] = value
+}
+
+// kimiRotationEventSequence builds the CDP events evidencing an in-page token
+// rotation: the SPA calls a protected API carrying a NEW Bearer token and the
+// server answers with the given status. requestWillBeSent carries the URL;
+// requestWillBeSentExtraInfo carries the Authorization header.
+func kimiRotationEventSequence(requestID, newToken, url string, status int) []browserauth.Event {
+	reqEvt := fmt.Sprintf(`{"requestId":%q,"url":%q,"request":{"url":%q,"headers":{}}}`, requestID, url, url)
+	extraEvt := fmt.Sprintf(`{"requestId":%q,"headers":{"authorization":"Bearer %s"}}`, requestID, newToken)
+	respEvt := fmt.Sprintf(`{"requestId":%q,"response":{"url":%q,"status":%d,"mimeType":"application/json"}}`, requestID, url, status)
+	return []browserauth.Event{
+		{Method: "Network.requestWillBeSent", Params: json.RawMessage(reqEvt)},
+		{Method: "Network.requestWillBeSentExtraInfo", Params: json.RawMessage(extraEvt)},
+		{Method: "Network.responseReceived", Params: json.RawMessage(respEvt)},
+	}
+}
+
+type kimiRotationCapture struct {
+	prev, newAccess, newRefresh string
+}
+
+// kimiRotationTestHook installs OpenPageReady + KimiPageRotationSave for a
+// watcher test and returns the ready channel, the capture channel, and
+// cleanup.
+func kimiRotationTestHook(t *testing.T) (chan struct{}, chan kimiRotationCapture, func()) {
+	t.Helper()
+	originalReady := OpenPageReady
+	originalSave := KimiPageRotationSave
+	readyCh := make(chan struct{}, 1)
+	OpenPageReady = func() {
+		select {
+		case readyCh <- struct{}{}:
+		default:
+		}
+	}
+	captures := make(chan kimiRotationCapture, 4)
+	KimiPageRotationSave = func(prev, newAccess, newRefresh string) error {
+		captures <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
+		return nil
+	}
+	resetOpenPageErrorOnce()
+	return readyCh, captures, func() {
+		OpenPageReady = originalReady
+		KimiPageRotationSave = originalSave
+		resetOpenPageErrorOnce()
+	}
+}
+
+// TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence (round-7
+// RED→GREEN) proves that when the membership SPA rotates the access token
+// itself (access-token expiry → in-page refresh rotates BOTH tokens in
+// localStorage), RunKimiPage captures the rotated pair and persists it via
+// the installed save hook — evidenced by a 2xx protected /apiv2/ response
+// carrying the NEW Bearer token, with the localStorage pair consistent with
+// that token. RED: no watcher existed, so the page's in-flight rotation left
+// the on-disk refresh token invalidated (next CLI/Web run forced re-login).
+func TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence(t *testing.T) {
+	cdp, browser, cleanup := kimiPageTestSetup(t)
+	defer cleanup()
+	readyCh, captures, hookCleanup := kimiRotationTestHook(t)
+	defer hookCleanup()
+	browser.waitBlocks = true
+	browser.waitRelease = make(chan struct{})
+
+	done := make(chan error, 1)
+	go func() { done <- RunKimiPage(kimiConsoleURL, kimiTestEnvelope()) }()
+	select {
+	case <-readyCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("page did not signal ready")
+	}
+
+	// The SPA rotates in-page: localStorage now carries the rotated pair and
+	// the retried protected call carries the NEW Bearer token (server: 200).
+	cdp.setLocalStorage("access_token", "spa-rotated-access-1234567890")
+	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
+	for _, ev := range kimiRotationEventSequence("rot1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200) {
+		cdp.events <- ev
+	}
+
+	select {
+	case got := <-captures:
+		if got.prev != "synthetic-bearer-jwt-1234567890" {
+			t.Fatalf("prev = %q, want the replayed access token", got.prev)
+		}
+		if got.newAccess != "spa-rotated-access-1234567890" || got.newRefresh != "spa-rotated-refresh-1234567890" {
+			t.Fatalf("captured = (%q, %q), want the SPA-rotated pair", got.newAccess, got.newRefresh)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("in-page rotation was NOT captured: the SPA-rotated pair must persist via the save hook (RED: no watcher)")
+	}
+
+	browser.waitRelease <- struct{}{}
+	if err := <-done; err != nil {
+		t.Fatalf("RunKimiPage returned error after user close: %v", err)
+	}
+}
+
+// TestRunKimiPageSkipsRotationWithoutProtectedEvidence (round-7 safety) proves
+// the watcher does NOT persist localStorage blindly: no capture when the new
+// token only appears on a non-protected URL, when the protected call is
+// rejected (401), or when localStorage disagrees with the evidenced token.
+func TestRunKimiPageSkipsRotationWithoutProtectedEvidence(t *testing.T) {
+	cases := []struct {
+		name   string
+		events []browserauth.Event
+		lsAccess string
+	}{
+		{
+			name:       "non-protected URL",
+			events:     kimiRotationEventSequence("np1", "spa-rotated-access-1234567890", "https://www.kimi.com/api/public/ping", 200),
+			lsAccess:   "spa-rotated-access-1234567890",
+		},
+		{
+			name:       "protected call rejected 401",
+			events:     kimiRotationEventSequence("rj1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 401),
+			lsAccess:   "spa-rotated-access-1234567890",
+		},
+		{
+			name:       "localStorage disagrees with evidenced token",
+			events:     kimiRotationEventSequence("mm1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200),
+			lsAccess:   "some-other-access-0000000000",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cdp, browser, cleanup := kimiPageTestSetup(t)
+			defer cleanup()
+			readyCh, captures, hookCleanup := kimiRotationTestHook(t)
+			defer hookCleanup()
+			browser.waitBlocks = true
+			browser.waitRelease = make(chan struct{})
+
+			done := make(chan error, 1)
+			go func() { done <- RunKimiPage(kimiConsoleURL, kimiTestEnvelope()) }()
+			select {
+			case <-readyCh:
+			case <-time.After(2 * time.Second):
+				t.Fatal("page did not signal ready")
+			}
+
+			cdp.setLocalStorage("access_token", tc.lsAccess)
+			cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
+			for _, ev := range tc.events {
+				cdp.events <- ev
+			}
+
+			select {
+			case got := <-captures:
+				t.Fatalf("save hook fired (%+v) without valid protected-response evidence — localStorage must not be trusted blindly", got)
+			case <-time.After(400 * time.Millisecond):
+				// expected: no capture
+			}
+			browser.waitRelease <- struct{}{}
+			<-done
+		})
+	}
+}
+
+// TestRunKimiPageChainsSequentialRotations (round-7) proves a long page
+// session captures MULTIPLE in-page rotations in order, with prev chaining
+// (second capture's prev is the first rotated token).
+func TestRunKimiPageChainsSequentialRotations(t *testing.T) {
+	cdp, browser, cleanup := kimiPageTestSetup(t)
+	defer cleanup()
+	readyCh, captures, hookCleanup := kimiRotationTestHook(t)
+	defer hookCleanup()
+	browser.waitBlocks = true
+	browser.waitRelease = make(chan struct{})
+
+	done := make(chan error, 1)
+	go func() { done <- RunKimiPage(kimiConsoleURL, kimiTestEnvelope()) }()
+	select {
+	case <-readyCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("page did not signal ready")
+	}
+
+	// First rotation.
+	cdp.setLocalStorage("access_token", "spa-rotated-access-1-1234567890")
+	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1-1234567890")
+	for _, ev := range kimiRotationEventSequence("rot1", "spa-rotated-access-1-1234567890", kimiProtectedQuotaURL, 200) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captures:
+		if got.prev != "synthetic-bearer-jwt-1234567890" || got.newAccess != "spa-rotated-access-1-1234567890" {
+			t.Fatalf("first capture = (%q → %q), want replayed → rotated-1", got.prev, got.newAccess)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("first in-page rotation not captured")
+	}
+
+	// Second rotation (access expires again in a long session).
+	cdp.setLocalStorage("access_token", "spa-rotated-access-2-1234567890")
+	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-2-1234567890")
+	for _, ev := range kimiRotationEventSequence("rot2", "spa-rotated-access-2-1234567890", kimiProtectedQuotaURL, 200) {
+		cdp.events <- ev
+	}
+	select {
+	case got := <-captures:
+		if got.prev != "spa-rotated-access-1-1234567890" {
+			t.Fatalf("second capture prev = %q, want rotated-1 (chain)", got.prev)
+		}
+		if got.newAccess != "spa-rotated-access-2-1234567890" || got.newRefresh != "spa-rotated-refresh-2-1234567890" {
+			t.Fatalf("second capture = (%q, %q), want rotated-2 pair", got.newAccess, got.newRefresh)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("second in-page rotation not captured")
+	}
+
+	browser.waitRelease <- struct{}{}
+	if err := <-done; err != nil {
+		t.Fatalf("RunKimiPage returned error after user close: %v", err)
 	}
 }

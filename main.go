@@ -237,6 +237,38 @@ func kimiReplayEnvelope(name string) (string, error) {
 	return string(envJSON), nil
 }
 
+// kimiPageRotationSaver returns the sidebar.KimiPageRotationSave closure for
+// open-page: it persists the membership SPA's OWN in-page rotation (the SPA
+// refreshes an expired access token itself, rotating BOTH tokens). The whole
+// compare-and-swap runs under the per-account cross-process lock: the
+// SPA-rotated pair is persisted via the shared config.SaveKimiTokens ONLY
+// when the on-disk access token still equals prevAccess (the token the page
+// rotated FROM). If a concurrent CLI/Web rotation already moved disk ahead,
+// the save is SKIPPED (returns nil) — persisting the page's older pair would
+// regress disk to a revoked refresh token. The tokens never appear in errors.
+func kimiPageRotationSaver(name string) func(prevAccess, newAccess, newRefresh string) error {
+	return func(prevAccess, newAccess, newRefresh string) error {
+		release, err := config.AcquireKimiAccountLock(name)
+		if err != nil {
+			return fmt.Errorf("Kimi 账户 %q 页面轮换锁失败: %v", name, err)
+		}
+		defer release()
+		latest, ok := latestKimiAccount(name)
+		if !ok {
+			return fmt.Errorf("Kimi 账户 %q 已不存在", name)
+		}
+		if latest.Auth.AccessToken() != prevAccess {
+			// Disk moved ahead (a concurrent rotation already persisted newer
+			// tokens) — skip; do not regress disk to the page's revoked pair.
+			return nil
+		}
+		if err := config.SaveKimiTokens(name, newAccess, newRefresh); err != nil {
+			return fmt.Errorf("Kimi 账户 %q 页面轮换保存失败，请重新登录", name)
+		}
+		return nil
+	}
+}
+
 // kimiPersistRotated atomically persists rotated access/refresh tokens for a
 // named Kimi account after an auto-refresh. It delegates to the shared,
 // config-wide-locked config.SaveKimiTokens (serialized reload + atomic save),
@@ -850,6 +882,13 @@ func cmdOpenPage() {
 		if err != nil {
 			pageErr(err.Error())
 		}
+		// Round-7: persist the membership SPA's OWN in-page token rotation.
+		// While the page is open past the access-token expiry, the SPA refreshes
+		// itself and rotates BOTH tokens in localStorage; the watcher (evidenced
+		// by protected /apiv2/ 2xx responses carrying the new Bearer token, with
+		// a consistent localStorage pair) hands the rotated pair here, and this
+		// closure compare-and-swaps it to disk under the per-account lock.
+		sidebar.KimiPageRotationSave = kimiPageRotationSaver(name)
 		url := "https://www.kimi.com/membership/subscription?tab=quota"
 		if err := sidebar.RunKimiPage(url, envJSON); err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户页浏览器不可用: %v", err))

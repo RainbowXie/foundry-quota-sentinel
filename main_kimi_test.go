@@ -464,3 +464,83 @@ func TestKimiReplayEnvelopePersistsInPageRotationNotInvalidateDisk(t *testing.T)
 		t.Fatalf("disk token = %q, want the page-rotated token", diskTok)
 	}
 }
+
+// TestKimiPageRotationSaverPersistsWhenDiskMatchesPrev (round-7 RED→GREEN)
+// proves the open-page rotation-save closure persists the SPA-rotated pair
+// atomically when the on-disk access token still equals the token the page
+// rotated FROM (the common case: nothing else rotated in between).
+func TestKimiPageRotationSaverPersistsWhenDiskMatchesPrev(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	_ = env.SetField("accessToken", "page-prev-access-AAAAAAAAAAAA")
+	_ = env.SetField("refreshToken", "page-prev-refresh-BBBBBBBBBBBB")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "pageacct", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+
+	saver := kimiPageRotationSaver("pageacct")
+	if saver == nil {
+		t.Fatal("kimiPageRotationSaver returned nil")
+	}
+	if err := saver("page-prev-access-AAAAAAAAAAAA", "spa-rotated-access-1234567890", "spa-rotated-refresh-1234567890"); err != nil {
+		t.Fatalf("saver: %v", err)
+	}
+	c := config.Load()
+	if len(c.KimiAccounts) != 1 {
+		t.Fatalf("account lost; got %d", len(c.KimiAccounts))
+	}
+	if got := c.KimiAccounts[0].Auth.AccessToken(); got != "spa-rotated-access-1234567890" {
+		t.Fatalf("disk access token = %q, want the SPA-rotated token persisted", got)
+	}
+	if got := c.KimiAccounts[0].Auth.RefreshToken(); got != "spa-rotated-refresh-1234567890" {
+		t.Fatalf("disk refresh token = %q, want the SPA-rotated token persisted", got)
+	}
+}
+
+// TestKimiPageRotationSaverSkipsWhenDiskMovedAhead (round-7 safety) proves the
+// compare-and-swap: when a concurrent CLI/Web rotation already moved the
+// on-disk access token AHEAD of the page's prev, the saver SKIPS the page's
+// pair instead of regressing disk to a revoked refresh token.
+func TestKimiPageRotationSaverSkipsWhenDiskMovedAhead(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	// Disk holds a NEWER credential (a concurrent CLI rotation already landed).
+	_ = env.SetField("accessToken", "cli-rotated-access-CCCCCCCCCCCC")
+	_ = env.SetField("refreshToken", "cli-rotated-refresh-DDDDDDDDDDDD")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "raceacct", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+
+	saver := kimiPageRotationSaver("raceacct")
+	// The page rotated FROM its replayed (older) token; disk has moved ahead.
+	if err := saver("page-prev-access-AAAAAAAAAAAA", "spa-rotated-access-1234567890", "spa-rotated-refresh-1234567890"); err != nil {
+		t.Fatalf("saver must skip cleanly, not error: %v", err)
+	}
+	c := config.Load()
+	if got := c.KimiAccounts[0].Auth.AccessToken(); got != "cli-rotated-access-CCCCCCCCCCCC" {
+		t.Fatalf("disk access token = %q — the page's stale pair REGRESSED the newer CLI credential", got)
+	}
+	if got := c.KimiAccounts[0].Auth.RefreshToken(); got != "cli-rotated-refresh-DDDDDDDDDDDD" {
+		t.Fatalf("disk refresh token = %q — the page's stale pair REGRESSED the newer CLI credential", got)
+	}
+}
