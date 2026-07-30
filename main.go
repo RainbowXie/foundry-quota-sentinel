@@ -179,6 +179,64 @@ func latestKimiAccount(name string) (config.KimiAccount, bool) {
 	return config.KimiAccount{}, false
 }
 
+// kimiReplayRefresh is the refresh step used by kimiReplayEnvelope, injectable
+// for tests so no real network call is made. It receives the latest account
+// and returns a non-nil RefreshResult if the access token was expired and
+// rotation happened (caller persists it). Default builds a KimiQuerier from the
+// account and runs FetchQuotaWithRefresh.
+var kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, error) {
+	q := &quota.KimiQuerier{AccessToken: acc.Auth.AccessToken(), RefreshToken: acc.Auth.RefreshToken(), Headers: kimiEnvelopeHeaders(&acc.Auth)}
+	_, rotated, err := q.FetchQuotaWithRefresh(context.Background())
+	return rotated, err
+}
+
+// kimiReplayEnvelope prepares the authenticated envelope for the open-page
+// replay, under the per-account cross-process lock. It reloads the LATEST
+// on-disk account (not the process-start snapshot), runs
+// FetchQuotaWithRefresh→SaveKimiTokens so an expired access token is rotated
+// and persisted BEFORE the envelope is encoded, then encodes the latest
+// envelope. This guarantees:
+//   - if a concurrent Web/CLI rotation already rotated the token, the replay
+//     uses the rotated token (not a stale snapshot);
+//   - if the access token is expired, the page's in-flight rotation is
+//     persisted to disk so the on-disk credential is not invalidated.
+// The lock is released before returning; the long browser replay runs after,
+// so it does not block concurrent refreshes for the page-open duration.
+func kimiReplayEnvelope(name string) (string, error) {
+	release, lerr := config.AcquireKimiAccountLock(name)
+	if lerr != nil {
+		return "", fmt.Errorf("Kimi 账户 %q 页面锁失败: %v", name, lerr)
+	}
+	defer release()
+	// Reload the latest on-disk account inside the lock.
+	acc, ok := latestKimiAccount(name)
+	if !ok {
+		return "", fmt.Errorf("Kimi 账户 %q 不存在", name)
+	}
+	// Refresh (and rotate+persist if expired) before encoding, so the replayed
+	// envelope carries the rotated token and disk stays current.
+	rotated, rerr := kimiReplayRefresh(&acc)
+	if rerr != nil {
+		return "", fmt.Errorf("Kimi 账户 %q 刷新失败: %v", name, rerr)
+	}
+	if rotated != nil {
+		if saveErr := config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken); saveErr != nil {
+			return "", fmt.Errorf("Kimi 账户 %q token 轮换保存失败，请重新登录", name)
+		}
+		// Reload the persisted envelope so the encoded JSON carries the rotated
+		// tokens just written.
+		acc, ok = latestKimiAccount(name)
+		if !ok {
+			return "", fmt.Errorf("Kimi 账户 %q 已不存在", name)
+		}
+	}
+	envJSON, err := acc.Auth.Encode()
+	if err != nil {
+		return "", fmt.Errorf("Kimi 账户 %q 凭证编码失败: %v", name, err)
+	}
+	return string(envJSON), nil
+}
+
 // kimiPersistRotated atomically persists rotated access/refresh tokens for a
 // named Kimi account after an auto-refresh. It delegates to the shared,
 // config-wide-locked config.SaveKimiTokens (serialized reload + atomic save),
@@ -780,33 +838,20 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("Ollama 账户页浏览器不可用: %v", err))
 		}
 	case "kimi":
-		// Read the account's envelope under the per-account cross-process lock
-		// so a concurrent rotation/login cannot overwrite it mid-read (the
-		// reload→capture span is serialized). The lock is released before the
-		// long-running browser replay so it does not block concurrent refreshes
-		// for the whole page-open duration.
-		release, lerr := config.AcquireKimiAccountLock(name)
-		if lerr != nil {
-			pageErr(fmt.Sprintf("Kimi 账户 %q 页面锁失败: %v", name, lerr))
-		}
-		var acc *config.KimiAccount
-		for i := range cfg.KimiAccounts {
-			if cfg.KimiAccounts[i].Name == name {
-				acc = &cfg.KimiAccounts[i]
-				break
-			}
-		}
-		if acc == nil {
-			release()
-			pageErr(fmt.Sprintf("Kimi 账户 %q 不存在", name))
-		}
-		envJSON, err := acc.Auth.Encode()
-		release()
+		// Prepare the replay envelope under the per-account cross-process lock:
+		// reload the LATEST on-disk account, run FetchQuotaWithRefresh→
+		// SaveKimiTokens so an expired token is rotated+persisted before
+		// encoding, then encode the latest envelope. This stops a concurrent
+		// rotation from leaving the replay with a stale token, and stops the
+		// page's in-flight rotation from invalidating the on-disk credential.
+		// The lock is released inside kimiReplayEnvelope before the long browser
+		// replay runs.
+		envJSON, err := kimiReplayEnvelope(name)
 		if err != nil {
-			pageErr(fmt.Sprintf("Kimi 账户 %q 凭证编码失败: %v", name, err))
+			pageErr(err.Error())
 		}
 		url := "https://www.kimi.com/membership/subscription?tab=quota"
-		if err := sidebar.RunKimiPage(url, string(envJSON)); err != nil {
+		if err := sidebar.RunKimiPage(url, envJSON); err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户页浏览器不可用: %v", err))
 		}
 	default:

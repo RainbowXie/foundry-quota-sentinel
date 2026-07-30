@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"foundry-quota-sentinel/internal/config"
+
+	"foundry-quota-sentinel/internal/quota"
 )
 
 // buildTestBinary builds the current main package into a temp binary and
@@ -334,5 +336,131 @@ func TestCrossProcessAccountLockSerializesThreeProcesses(t *testing.T) {
 	lockFile := filepath.Join(cfgDir, "kimi-refresh-lock3.lock")
 	if _, err := os.Stat(lockFile); err != nil {
 		t.Fatalf("lock file removed after release: %v — waiters must reuse the same inode, not a new file", err)
+	}
+}
+
+// TestKimiReplayEnvelopeUsesRotatedTokenNotStaleSnapshot (round-6 RED→GREEN)
+// proves the open-page envelope-replay path reloads the LATEST config and runs
+// FetchQuotaWithRefresh→SaveKimiTokens inside the account lock BEFORE encoding
+// the envelope — so if a concurrent Web/CLI rotation already rotated the token
+// (or the access token expired and refresh rotated it), the replayed envelope
+// carries the ROTATED token, not the stale process-start snapshot. RED: the
+// old open-page read the startup cfg snapshot and encoded a stale token.
+func TestKimiReplayEnvelopeUsesRotatedTokenNotStaleSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	_ = env.SetField("accessToken", "stale-startup-token-AAAAAAAAAAAA")
+	_ = env.SetField("refreshToken", "stale-refresh-BBBBBBBBBBBB")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "replayacct", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a concurrent rotation that already persisted a rotated token to
+	// disk BEFORE open-page's replay path runs. The replay must observe it.
+	var rotEnv config.KimiAuthEnvelope
+	_ = rotEnv.SetField("accessToken", "rotated-by-concurrent-process-1234567890")
+	_ = rotEnv.SetField("refreshToken", "rotated-refresh-1234567890")
+	rotated := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	rotated.UpsertKimiAccount(config.KimiAccount{Name: "replayacct", Auth: rotEnv})
+	rotData, _ := json.MarshalIndent(rotated, "", "  ")
+	if err := os.WriteFile(seed, rotData, 0600); err != nil {
+		t.Fatal(err)
+	}
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+
+	// Inject the refresh step so no real network call is made; it returns no
+	// rotation (the on-disk token is already the rotated one).
+	origRefresh := kimiReplayRefresh
+	defer func() { kimiReplayRefresh = origRefresh }()
+	kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, error) {
+		// No rotation needed — the latest disk token is already fresh.
+		return nil, nil
+	}
+
+	envJSON, err := kimiReplayEnvelope("replayacct")
+	if err != nil {
+		t.Fatalf("kimiReplayEnvelope: %v", err)
+	}
+	var got config.KimiAuthEnvelope
+	if err := got.Decode([]byte(envJSON)); err != nil {
+		t.Fatal(err)
+	}
+	tok := got.AccessToken()
+	if tok == "stale-startup-token-AAAAAAAAAAAA" {
+		t.Fatal("replay encoded the STALE startup snapshot token; must reload the latest (rotated) token inside the account lock")
+	}
+	if !strings.Contains(tok, "rotated-by-concurrent-process") {
+		t.Fatalf("replay token = %q, want the rotated token", tok)
+	}
+}
+
+// TestKimiReplayEnvelopePersistsInPageRotationNotInvalidateDisk (round-6
+// RED→GREEN) proves that when the access token is expired and the replay path's
+// refresh rotates it, the rotated token is persisted to disk via SaveKimiTokens
+// BEFORE the envelope is encoded — so the page's in-flight token rotation does
+// NOT leave the on-disk credential stale/invalid. RED: the old path encoded a
+// rotated token for the page but never persisted it, so disk kept the expired
+// token and a later CLI run would fail.
+func TestKimiReplayEnvelopePersistsInPageRotationNotInvalidateDisk(t *testing.T) {
+	dir := t.TempDir()
+	cfgDir := filepath.Join(dir, ".foundry-quota-sentinel")
+	if err := os.MkdirAll(cfgDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	seed := filepath.Join(cfgDir, "config.json")
+	seedCfg := &config.Config{ActiveProfile: "default", Profiles: map[string]config.Profile{}}
+	var env config.KimiAuthEnvelope
+	_ = env.SetField("accessToken", "expired-access-AAAAAAAAAAAA")
+	_ = env.SetField("refreshToken", "valid-refresh-BBBBBBBBBBBB")
+	seedCfg.UpsertKimiAccount(config.KimiAccount{Name: "rotateacct", Auth: env})
+	data, _ := json.MarshalIndent(seedCfg, "", "  ")
+	if err := os.WriteFile(seed, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	config.SetPathOverrideForTest(seed)
+	defer config.SetPathOverrideForTest("")
+
+	origRefresh := kimiReplayRefresh
+	defer func() { kimiReplayRefresh = origRefresh }()
+	kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, error) {
+		// The access token is expired → refresh rotates both tokens.
+		return &quota.RefreshResult{
+			AccessToken:  "page-rotated-access-1234567890",
+			RefreshToken: "page-rotated-refresh-1234567890",
+		}, nil
+	}
+
+	envJSON, err := kimiReplayEnvelope("rotateacct")
+	if err != nil {
+		t.Fatalf("kimiReplayEnvelope: %v", err)
+	}
+	// The encoded envelope must carry the rotated token (replay uses it).
+	var got config.KimiAuthEnvelope
+	if err := got.Decode([]byte(envJSON)); err != nil {
+		t.Fatal(err)
+	}
+	if got.AccessToken() != "page-rotated-access-1234567890" {
+		t.Fatalf("replay token = %q, want the page-rotated token", got.AccessToken())
+	}
+	// The DISK credential must ALSO be the rotated token (persisted), not the
+	// expired one — the page's in-flight rotation must not invalidate disk.
+	c := config.Load()
+	if len(c.KimiAccounts) != 1 {
+		t.Fatalf("account lost; got %d", len(c.KimiAccounts))
+	}
+	diskTok := c.KimiAccounts[0].Auth.AccessToken()
+	if diskTok == "expired-access-AAAAAAAAAAAA" {
+		t.Fatal("disk credential is still the EXPIRED token — the page's in-flight rotation was not persisted, so disk is invalidated")
+	}
+	if diskTok != "page-rotated-access-1234567890" {
+		t.Fatalf("disk token = %q, want the page-rotated token", diskTok)
 	}
 }
