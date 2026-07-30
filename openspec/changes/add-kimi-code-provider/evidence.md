@@ -615,3 +615,78 @@ Also: the un-adjudicated OpenSpec archive + spec sync were reverted
 Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
 valid. Task 6.4 requires a fresh real cross-expiry acceptance on the
 round-8 binary (exact-URL evidence + close-race drain in the real browser).
+
+## Credential-safety hardening round 8b (tasks 3.2/3.4) — commits `1141444`/`fda3b1e`
+
+Follow-up after the first round-8 real session exposed two empirical facts:
+
+1. **The membership SPA DOES refresh in-page (memory-type rotation)** —
+   observed live: at 14:43 the SPA rotated (567→606), but ≥5.3h later
+   localStorage STILL held the replayed pair — the SPA kept the rotated
+   pair in memory and never wrote localStorage, so the localStorage-based
+   capture path cannot see this flow. The exact-URL + valid-body quota
+   gate itself fired correctly (the real GetSubscriptionStats with the
+   new token passed every gate except localStorage consistency, which
+   correctly refused to persist the stale pair).
+2. **Prior refresh tokens are NOT revoked on rotation** — ~5.5h after the
+   SPA's in-page rotation, quota-kimi refreshed with the PRE-rotation disk
+   refresh token and succeeded; the SPA lineage and the CLI lineage forked
+   and coexisted. The page's in-flight rotation does NOT invalidate the
+   saved credential (this is the "prove rotation cannot [invalidate]"
+   branch of the round-7 directive, established empirically).
+
+Adjudicated design (user ruling, with correction): the exact RefreshToken
+response — `https://auth.kimi.com/api/account.gateway.v1.AuthService/
+RefreshToken` + responseReceived 2xx + loadingFinished + bounded body read
+(64KB) + strict parse (valid JSON, both accessToken/refreshToken non-empty,
+length-bounded, no whitespace/control chars) — IS the authoritative
+issuance evidence and is CAS-persisted IMMEDIATELY (never gated on a later
+quota call — a close in between would lose the pair). The subsequent exact
+GetSubscriptionStats carrying the new access token is usability
+corroboration exercised in the real acceptance, not a persistence gate.
+The localStorage path remains as a secondary source. CAS compares BOTH
+prevAccess AND prevRefresh against disk; persisted vs skipped is logged
+truthfully (never a false persisted); logs carry lengths + event order
+only. Supporting fixes: order-tolerant per-request fact accumulation
+(ExtraInfo may arrive after responseReceived) + redacted drop-reason
+diagnostics (`1141444`).
+
+RED→GREEN (runtime REDs demonstrated against the pre-implementation code):
+- `TestKimiWatcherPersistsMemoryRotationFromRefreshResponse` — RED "not
+  persisted immediately"; GREEN: refresh chain persists with no
+  localStorage and no quota call.
+- `TestKimiWatcherSkipsRefreshBusinessOrMalformedBody` — business error /
+  malformed JSON / missing field / empty token / oversize body all
+  rejected (2xx alone is not evidence).
+- `TestKimiWatcherSkipsRefreshResponseNon2xx`,
+  `TestKimiWatcherSkipsRefreshSameAccessToken`,
+  `TestKimiWatcherChainsRefreshRotations` (prev chaining).
+- `TestKimiWatcherCapturesWhenExtraInfoArrivesAfterResponse` — RED on the
+  `880c25e` state machine; GREEN with fact accumulation.
+- `TestKimiPageRotationSaverSkipsWhenOnlyAccessMatches` — CAS-both skips
+  when refresh differs; persisted=false on skip.
+- Drain/ordering/localStorage tests updated to the 4-arg signature.
+
+### Round-8b cross-expiry re-acceptance (post `fda3b1e`) — COMPLETED
+
+Fresh disposable HOME, canonical `go build` binary, same account:
+
+- `open-page` replayed the pair (567/568, access exp `22:13:32`),
+  authenticated membership page, held open across the expiry.
+- At `23:17:39` the SPA refreshed in-page: a first RefreshToken response
+  body FAILED strict validation (correctly rejected — the strict-parse
+  gate in vivo), a second completed: `RefreshToken 轮换签发已观测（新
+  access 长度 606），立即 CAS 持久化` → `已捕获并持久化（567→606）`.
+- At `23:18:00` a second SPA refresh chained: `606→606` persisted; disk
+  access exp became `23:33:00` = the SPA issuance time — the on-disk pair
+  IS the server-issued SPA pair. Multiple new-token requests on unrelated
+  endpoints (GetCurrentUser, ListFeeds, GetConfig, …) were all correctly
+  ignored by the exact-URL gate; stale 567-token late requests likewise.
+- Manual close at `23:20:52` (no flash-close), then `quota-kimi` returned
+  the four values (总 `10.98%`, 5h `41.52%`, 7d `52.23%`) with NO
+  re-login, using the watcher-persisted SPA pair directly.
+
+All disposable artifacts shredded. The real user config's fingerprint
+changed during the day (own normal usage — all acceptance steps ran under
+the isolated HOME; no acceptance path touches the real config). Task 6.4
+re-ticked.
