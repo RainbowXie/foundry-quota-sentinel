@@ -541,14 +541,16 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 
 // kimiRequestFacts accumulates what the watcher knows about one in-flight
 // request: its URL (requestWillBeSent), its Bearer token (ExtraInfo/request
-// headers), and the response status (responseReceived). CDP does NOT
+// headers), the response status, and the FINAL response URL
+// (responseReceived.response.url — after any redirect chain). CDP does NOT
 // guarantee the relative order of these events (ExtraInfo may arrive after
 // responseReceived), so facts are accumulated in ANY order and the evidence
 // chain is only evaluated once loadingFinished completes the request.
 type kimiRequestFacts struct {
-	url    string
-	token  string
-	status int // 0 = no responseReceived observed yet
+	url      string
+	token    string
+	status   int    // 0 = no responseReceived observed yet
+	finalURL string // "" = no responseReceived observed yet
 }
 
 // kimiWatchInPageRotation consumes CDP network events for the rest of the
@@ -628,7 +630,11 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 		}
 		if rr, ok := browserauth.DecodeResponseReceivedEvent(ev); ok {
 			if rr.RequestID != "" {
-				fact(rr.RequestID).status = rr.Status
+				fr := fact(rr.RequestID)
+				fr.status = rr.Status
+				if rr.URL != "" {
+					fr.finalURL = rr.URL
+				}
 			}
 			return
 		}
@@ -663,6 +669,13 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 				log.Printf("kimi: RefreshToken 响应状态 %d，不计为轮换", f.status)
 				return
 			}
+			// The FINAL response URL must also match the allowlist exactly: a
+			// cross host/path redirect chain that ends in a 2xx is NOT
+			// authoritative issuance evidence.
+			if f.finalURL == "" || !isKimiRefreshTokenURL(f.finalURL) {
+				log.Printf("kimi: RefreshToken 最终响应 URL 偏离精确 allowlist（重定向），不计为签发证据")
+				return
+			}
 			pair, ok := kimiParseRefreshResponseBody(ctx, cdp, lf.RequestID)
 			if !ok {
 				log.Printf("kimi: RefreshToken 响应体未通过严格校验（事件止于体校验），不计为轮换")
@@ -691,6 +704,13 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 		}
 		if f.status < 200 || f.status >= 300 {
 			log.Printf("kimi: 新 token（长度 %d）的 quota 请求状态 %d，不计为轮换证据", len(f.token), f.status)
+			return
+		}
+		// The FINAL response URL must also match the allowlist exactly: a
+		// cross host/path redirect chain that ends in a 2xx is NOT quota
+		// evidence.
+		if f.finalURL == "" || !isKimiProtectedURL(f.finalURL) {
+			log.Printf("kimi: 新 token（长度 %d）的 quota 最终响应 URL 偏离精确 allowlist（重定向），不计为轮换证据", len(f.token))
 			return
 		}
 		if !kimiResponseBodyValid(ctx, cdp, lf.RequestID) {

@@ -200,6 +200,7 @@ var kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, err
 //     uses the rotated token (not a stale snapshot);
 //   - if the access token is expired, the page's in-flight rotation is
 //     persisted to disk so the on-disk credential is not invalidated.
+//
 // The lock is released before returning; the long browser replay runs after,
 // so it does not block concurrent refreshes for the page-open duration.
 func kimiReplayEnvelope(name string) (string, error) {
@@ -882,12 +883,18 @@ func cmdOpenPage() {
 		if err != nil {
 			pageErr(err.Error())
 		}
-		// Round-7: persist the membership SPA's OWN in-page token rotation.
-		// While the page is open past the access-token expiry, the SPA refreshes
-		// itself and rotates BOTH tokens in localStorage; the watcher (evidenced
-		// by protected /apiv2/ 2xx responses carrying the new Bearer token, with
-		// a consistent localStorage pair) hands the rotated pair here, and this
-		// closure compare-and-swaps it to disk under the per-account lock.
+		// Persist the membership SPA's OWN in-page token rotation (round-8/9
+		// adjudicated design). While the page is open past the access-token
+		// expiry, the SPA refreshes itself and rotates BOTH tokens. The
+		// watcher's PRIMARY evidence is the exact RefreshToken response
+		// (https://auth.kimi.com/.../AuthService/RefreshToken: request AND
+		// final response URL exact, 2xx, loadingFinished, strictly-parsed
+		// non-empty pair — CAS-persisted immediately); the SECONDARY path is
+		// the exact GetSubscriptionStats response (request AND final response
+		// URL exact, 2xx, loadingFinished, valid quota body) with a consistent
+		// localStorage pair. Either way the rotated pair is handed here, and
+		// this closure compare-and-swaps BOTH fields to disk under the
+		// per-account lock (disk moved ahead → skip, never regress).
 		sidebar.KimiPageRotationSave = kimiPageRotationSaver(name)
 		url := "https://www.kimi.com/membership/subscription?tab=quota"
 		if err := sidebar.RunKimiPage(url, envJSON); err != nil {

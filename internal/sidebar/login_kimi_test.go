@@ -1191,3 +1191,103 @@ func TestKimiWatcherChainsRefreshRotations(t *testing.T) {
 		t.Fatal("second refresh rotation not captured")
 	}
 }
+
+// --- Round-9: cross host/path redirect is never evidence ---
+
+// kimiRefreshChainWithResponseURL builds the refresh evidence chain where the
+// response's FINAL url differs from the request URL (a redirect chain whose
+// last hop left the allowlist).
+func kimiRefreshChainWithResponseURL(requestID string, status int, responseURL string) []browserauth.Event {
+	reqEvt := fmt.Sprintf(`{"requestId":%q,"url":%q,"request":{"url":%q,"headers":{"content-type":"application/json"}}}`, requestID, kimiTestRefreshURL, kimiTestRefreshURL)
+	respEvt := fmt.Sprintf(`{"requestId":%q,"response":{"url":%q,"status":%d,"mimeType":"application/json"}}`, requestID, responseURL, status)
+	finEvt := fmt.Sprintf(`{"requestId":%q}`, requestID)
+	return []browserauth.Event{
+		{Method: "Network.requestWillBeSent", Params: json.RawMessage(reqEvt)},
+		{Method: "Network.responseReceived", Params: json.RawMessage(respEvt)},
+		{Method: "Network.loadingFinished", Params: json.RawMessage(finEvt)},
+	}
+}
+
+// TestKimiWatcherSkipsRefreshRedirectedResponse (round-9 RED→GREEN) proves
+// that an exact RefreshToken REQUEST whose 2xx response's FINAL URL left the
+// allowlist (cross host/path redirect) is NOT authoritative issuance
+// evidence — even with a strictly valid body. RED: only the request URL was
+// checked, so the redirected 2xx persisted the pair.
+func TestKimiWatcherSkipsRefreshRedirectedResponse(t *testing.T) {
+	cases := []struct {
+		name        string
+		responseURL string
+	}{
+		{"redirect to foreign host", "https://auth.kimi.com.evil.example/api/account.gateway.v1.AuthService/RefreshToken"},
+		{"redirect to different path on same host", "https://auth.kimi.com/api/account.gateway.v2.AuthService/RefreshToken"},
+		{"redirect to http downgrade", "http://auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+			cdp.mu.Lock()
+			cdp.responseBodies = map[string]string{
+				"ref1": `{"accessToken":"spa-issued-access-606-AAAAAAAAAAAA","refreshToken":"spa-issued-refresh-607-BBBBBBBBBBBB"}`,
+			}
+			cdp.mu.Unlock()
+			captured, stop, done := kimiWatcherTestRig(cdp)
+			defer func() { close(stop); close(cdp.events); <-done }()
+
+			for _, ev := range kimiRefreshChainWithResponseURL("ref1", 200, tc.responseURL) {
+				cdp.events <- ev
+			}
+			select {
+			case got := <-captured:
+				t.Fatalf("save fired (%+v) on a redirected RefreshToken 2xx — the final response URL must also match the allowlist exactly", got)
+			case <-time.After(400 * time.Millisecond):
+				// expected: no capture
+			}
+		})
+	}
+}
+
+// TestKimiWatcherSkipsQuotaRedirectedResponse (round-9 RED→GREEN) proves the
+// same final-URL gate on the quota/localStorage path: an exact
+// GetSubscriptionStats REQUEST whose 2xx response's FINAL URL left the
+// allowlist is NOT quota evidence — even with a valid body and a consistent
+// localStorage pair.
+func TestKimiWatcherSkipsQuotaRedirectedResponse(t *testing.T) {
+	cases := []struct {
+		name        string
+		responseURL string
+	}{
+		{"redirect to foreign host", "https://www.kimi.com.evil.example/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"},
+		{"redirect to different path on same host", "https://www.kimi.com/apiv2/kimi.gateway.membership.v3.MembershipService/GetSubscriptionStats"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+			cdp.setLocalStorage("access_token", "spa-rotated-access-1234567890")
+			cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
+			cdp.mu.Lock()
+			cdp.responseBodies = map[string]string{"q1": kimiSuccessBodyFixture()}
+			cdp.mu.Unlock()
+			captured, stop, done := kimiWatcherTestRig(cdp)
+			defer func() { close(stop); close(cdp.events); <-done }()
+
+			reqEvt := fmt.Sprintf(`{"requestId":"q1","url":%q,"request":{"url":%q,"headers":{}}}`, kimiProtectedQuotaURL, kimiProtectedQuotaURL)
+			extraEvt := `{"requestId":"q1","headers":{"authorization":"Bearer spa-rotated-access-1234567890"}}`
+			respEvt := fmt.Sprintf(`{"requestId":"q1","response":{"url":%q,"status":200,"mimeType":"application/json"}}`, tc.responseURL)
+			finEvt := `{"requestId":"q1"}`
+			for _, raw := range []struct{ method, params string }{
+				{"Network.requestWillBeSent", reqEvt},
+				{"Network.requestWillBeSentExtraInfo", extraEvt},
+				{"Network.responseReceived", respEvt},
+				{"Network.loadingFinished", finEvt},
+			} {
+				cdp.events <- browserauth.Event{Method: raw.method, Params: json.RawMessage(raw.params)}
+			}
+			select {
+			case got := <-captured:
+				t.Fatalf("save fired (%+v) on a redirected quota 2xx — the final response URL must also match the allowlist exactly", got)
+			case <-time.After(400 * time.Millisecond):
+				// expected: no capture
+			}
+		})
+	}
+}
