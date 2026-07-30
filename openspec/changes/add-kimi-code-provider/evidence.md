@@ -406,3 +406,38 @@ REDs (which fork the production binary). A direct CLI-vs-`_locktest` RED was
 attempted but is non-deterministic (synthetic-token fetch latency is
 unpredictable), so the 2/3-process `_locktest` REDs remain the deterministic
 proof of the shared lock.
+## Credential-safety hardening round 6 (tasks 3.2/3.4) — commit `f0ca2d7`
+
+Two more gaps found in the open-page replay path and fixed (RED→GREEN):
+
+1. **Stale-snapshot replay token** — `cmdOpenPage`'s kimi branch read the
+   envelope from the process-start `cfg` snapshot under the account lock. If a
+   concurrent Web/CLI rotation already rotated+persisted the token after
+   process start, the replay encoded the STALE snapshot token. Fix:
+   `kimiReplayEnvelope` reloads the LATEST on-disk account
+   (`latestKimiAccount`) inside the lock before encoding.
+2. **In-flight page rotation never persisted** — if the access token was
+   expired, the page's own rotation happened in the browser but was never
+   written back, so the on-disk credential stayed expired/invalid for later
+   CLI/Web runs. Fix: `kimiReplayEnvelope` runs
+   `FetchQuotaWithRefresh`→`SaveKimiTokens` inside the lock so an expired
+   token is rotated AND persisted BEFORE the envelope is encoded; the encoded
+   envelope is then reloaded from the just-persisted state.
+
+The lock is released before the long browser replay runs, so it does not block
+concurrent refreshes for the page-open duration. `kimiReplayRefresh` is an
+injectable var so tests avoid real network calls.
+
+RED→GREEN proof:
+- `TestKimiReplayEnvelopeUsesRotatedTokenNotStaleSnapshot` — RED: replay
+  encoded the stale startup token ("replay encoded the STALE startup snapshot
+  token"); GREEN: reloads and encodes the concurrently-rotated token.
+- `TestKimiReplayEnvelopePersistsInPageRotationNotInvalidateDisk` — RED: disk
+  kept the expired token ("disk credential is still the EXPIRED token — the
+  page's in-flight rotation was not persisted"); GREEN: `SaveKimiTokens`
+  persists the rotated token before encoding, and the encoded envelope carries
+  it.
+
+Tests: 6/6 default + 6/6 `-race -tags nogui` pass; `go vet` clean; openspec
+strict valid. Task 6.4 stays open pending a fresh real-browser re-acceptance
+on the round-6 binary.
