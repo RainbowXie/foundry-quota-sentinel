@@ -533,3 +533,37 @@ Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
 valid. Task 6.4 reopened for a fresh real-browser re-acceptance whose page
 session must SPAN the access-token expiry (prove the real SPA rotation is
 captured and persisted, then `quota-kimi` works with no re-login).
+
+### Round-7 cross-expiry re-acceptance (post `c53fd1e`) — COMPLETED end-to-end
+
+The full 6.4 chain was re-run under a fresh disposable HOME on a canonical
+`go build` binary, with the page session SPANNING the access-token expiry:
+
+- `login-kimi acceptance7` saved an isolated version-1 envelope (gen 1,
+  baseline access JWT exp `10:38:23`, access/refresh 606/607 chars).
+- `quota-kimi acceptance7` returned the four values via the production
+  Go-HTTP path (总 `3.14%`, 5h `18.35%`, 7d `14.86%`).
+- `open-page kimi acceptance7` replayed the envelope (6 cookies injected,
+  protected 200 loaderId-matched, three metrics valid, exact membership
+  URL) and held the authenticated page open.
+- **Cross-expiry**: the replayed access token expired at `10:38:23` while
+  the page stayed open. The idle membership SPA did not self-refresh; on
+  user interaction at `10:51` the SPA called its own refresh, rotated BOTH
+  tokens in localStorage, and retried a protected call carrying the NEW
+  Bearer token. The round-7 watcher observed the protected /apiv2/ 2xx
+  evidence, read the consistent localStorage pair, and persisted it —
+  log: `10:51:57 页面内 token 轮换已捕获并持久化（access 长度 606→606）`
+  (lengths coincided; the JWT exp is the rotation proof).
+- **Disk proof**: the persisted access token's exp is `11:06:57` = issued
+  exactly at `10:51:57` (the SPA's in-page rotation) — the on-disk pair IS
+  the SPA-rotated pair, not the invalidated replay pair.
+- **Post-close proof**: the user closed the page manually (clean exit, no
+  flash-close); `quota-kimi acceptance7` then returned the four values
+  (总 `3.81%`, 5h `34.38%`, 7d `18.08%`) with NO re-login — the
+  page-rotated on-disk pair works directly. The page's in-flight rotation
+  did NOT invalidate the saved credential: the round-7 gap is closed in
+  the real browser.
+
+All disposable artifacts shredded (disposable HOME, temp profiles, canonical
+binary, logs); real config unchanged (0 Kimi accounts); no secret artifacts
+retained. Task 6.4 re-ticked.
