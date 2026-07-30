@@ -441,3 +441,33 @@ RED→GREEN proof:
 Tests: 6/6 default + 6/6 `-race -tags nogui` pass; `go vet` clean; openspec
 strict valid. Task 6.4 stays open pending a fresh real-browser re-acceptance
 on the round-6 binary.
+
+### Round-6 hardening re-acceptance (post `f0ca2d7`)
+
+After the round-6 replay-envelope hardening (`kimiReplayEnvelope` — in-lock
+reload+refresh+persist before replay), the full 6.4 chain was re-run under a
+fresh disposable HOME on a canonical `go build` binary (`/tmp/fqs-accept`):
+
+- `login-kimi acceptance6` saved an isolated version-1 envelope (gen 1, 10
+  allowlisted fields, initial access/refresh 567/568 chars) from an interactive
+  login.
+- `quota-kimi acceptance6` returned the four values via the production Go-HTTP
+  path: 总使用量 `2.46%` (Kimi `0.02%` / Code `2.44%`) reset `2026-08-28`;
+  5 小时 Code `2.31%` reset `07-30 10:58`; 7 天 Code `11.64%` reset
+  `08-04 23:58`.
+- After ~16 min (access_token expired ~09:49), `quota-kimi` returned the four
+  values again (`2.48%` / `2.71%` / `11.72%` — live values moved slightly) with
+  NO re-login. Rotation proven by the JWT `exp` claim: the persisted access
+  token expires `10:06:21` = issued exactly at the 09:51:21 query time, i.e.
+  `FetchQuotaWithRefresh` auto-refreshed and persisted a fresh token. (Lengths
+  coincided at 567/568 this issuance; `exp` is the rotation proof.)
+- `open-page kimi acceptance6` exercised the round-6 `kimiReplayEnvelope` path:
+  6 cookies injected (0 failed), navigation epoch loaderId-matched, protected
+  interface 200 observed + loadingFinished, three metrics valid, final URL
+  exactly `host=www.kimi.com path=/membership/subscription`, authenticated
+  membership page reached. Page held open on `browser.Wait()` until the user
+  closed the window manually — no flash-close, clean exit.
+
+All disposable artifacts shredded (disposable HOME, temp profiles, canonical
+binary, logs); real config unchanged (0 Kimi accounts); no secret artifacts
+retained. Task 6.4 re-ticked.
