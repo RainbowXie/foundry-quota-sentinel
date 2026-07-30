@@ -567,3 +567,51 @@ The full 6.4 chain was re-run under a fresh disposable HOME on a canonical
 All disposable artifacts shredded (disposable HOME, temp profiles, canonical
 binary, logs); real config unchanged (0 Kimi accounts); no secret artifacts
 retained. Task 6.4 re-ticked.
+
+## Credential-safety hardening round 8 (tasks 3.2/3.4) — commit `880c25e`
+
+Blocking review of round 7 found two gaps in the in-page rotation watcher;
+both fixed with deterministic RED→GREEN:
+
+1. **Evidence rule was too loose** — the watcher treated ANY 2xx on the
+   `/apiv2/` namespace carrying a new Bearer token as rotation evidence,
+   violating the correlation spec ("Membership quota requests are correlated
+   and host-restricted … exact HTTPS host/path allowlist"). Tightened to the
+   full membership auth-decision chain: the candidate request must target the
+   EXACT protected GetSubscriptionStats URL (`isKimiProtectedURL`: https +
+   www.kimi.com + exact path), answered 2xx, completed by `loadingFinished`,
+   AND the response body must parse as the two-meter quota result
+   (`kimiResponseBodyValid`); only then is the localStorage pair read and
+   persisted (access_token == evidenced token, refresh_token non-empty). The
+   `/apiv2/` prefix matcher is removed.
+2. **Close-window race dropped queued rotation evidence** — `browser.Wait()`
+   returning closed `stop`, and the watcher's `select` could take the stop
+   branch while rotation events were still queued in the (buffered) events
+   channel → the rotation was dropped. Fixed structurally: after stop is
+   observed the watcher keeps processing until the events channel CLOSES
+   (verified: `browserauth` `readLoop` `defer close(c.events)` on connection
+   death; `Events()` documents "The channel closes when the connection
+   ends"), or ctx is cancelled as an escape hatch. `runKimiPage` now waits
+   for the watcher BEFORE cancelling its context (the old order killed
+   in-flight body/localStorage reads). Evidence reads on a dead connection
+   fail and skip — nothing garbage is persisted. The test fake now models
+   the real death semantics (`Wait()` closes the events channel once).
+
+RED→GREEN proof:
+- `TestRunKimiPageSkipsRotationWithoutProtectedEvidence/unrelated_endpoint_
+  inside_apiv2_namespace` — RED: save hook fired on an unrelated `/apiv2/`
+  2xx (`GetProfile`); GREEN: exact-URL gate rejects it.
+- `TestKimiWatcherDrainsQueuedRotationAfterStop` — deterministic RED: stop
+  closed FIRST with an empty channel (the old return-on-stop path exits
+  immediately), evidence chain delivered after, channel then closed; RED:
+  "queued rotation dropped on stop"; GREEN: the drain processes the
+  post-stop chain and the save fires before the watcher exits.
+- Round-7 capture/chain tests updated to the full evidence chain
+  (`loadingFinished` + valid body) and keep passing.
+
+Also: the un-adjudicated OpenSpec archive + spec sync were reverted
+(`325c8fb`); the change is active again with 6.4 reopened.
+
+Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
+valid. Task 6.4 requires a fresh real cross-expiry acceptance on the
+round-8 binary (exact-URL evidence + close-race drain in the real browser).
