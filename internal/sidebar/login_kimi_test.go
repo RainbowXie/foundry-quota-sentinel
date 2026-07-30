@@ -23,6 +23,11 @@ type fakeKimiBrowser struct {
 	onClose     func()
 	waitBlocks  bool
 	waitRelease chan struct{}
+	// eventsCloseOnce models the real death semantics exactly once: when the
+	// one-shot browser process exits (Wait returns), the CDP read loop dies
+	// and CLOSES the events channel (browserauth readLoop defer). The
+	// round-8 watcher's post-stop drain terminates on that close.
+	eventsCloseOnce sync.Once
 }
 
 func (b *fakeKimiBrowser) CDP(context.Context) (kimiCDP, error) { return b.cdp, nil }
@@ -31,6 +36,11 @@ func (b *fakeKimiBrowser) Wait() error {
 	if b.waitBlocks {
 		<-b.waitRelease
 	}
+	b.eventsCloseOnce.Do(func() {
+		if b.cdp != nil && b.cdp.events != nil {
+			close(b.cdp.events)
+		}
+	})
 	return nil
 }
 func (b *fakeKimiBrowser) Close() error {
@@ -650,15 +660,32 @@ func (c *fakeKimiCDP) setLocalStorage(key, value string) {
 // kimiRotationEventSequence builds the CDP events evidencing an in-page token
 // rotation: the SPA calls a protected API carrying a NEW Bearer token and the
 // server answers with the given status. requestWillBeSent carries the URL;
-// requestWillBeSentExtraInfo carries the Authorization header.
+// requestWillBeSentExtraInfo carries the Authorization header; loadingFinished
+// completes the body so the watcher can validate it.
 func kimiRotationEventSequence(requestID, newToken, url string, status int) []browserauth.Event {
 	reqEvt := fmt.Sprintf(`{"requestId":%q,"url":%q,"request":{"url":%q,"headers":{}}}`, requestID, url, url)
 	extraEvt := fmt.Sprintf(`{"requestId":%q,"headers":{"authorization":"Bearer %s"}}`, requestID, newToken)
 	respEvt := fmt.Sprintf(`{"requestId":%q,"response":{"url":%q,"status":%d,"mimeType":"application/json"}}`, requestID, url, status)
+	finEvt := fmt.Sprintf(`{"requestId":%q}`, requestID)
 	return []browserauth.Event{
 		{Method: "Network.requestWillBeSent", Params: json.RawMessage(reqEvt)},
 		{Method: "Network.requestWillBeSentExtraInfo", Params: json.RawMessage(extraEvt)},
 		{Method: "Network.responseReceived", Params: json.RawMessage(respEvt)},
+		{Method: "Network.loadingFinished", Params: json.RawMessage(finEvt)},
+	}
+}
+
+// pushKimiRotationSequence registers a valid two-meter response body for the
+// request and pushes the full evidence chain onto the fake event channel.
+func pushKimiRotationSequence(cdp *fakeKimiCDP, requestID, newToken, url string, status int) {
+	cdp.mu.Lock()
+	if cdp.responseBodies == nil {
+		cdp.responseBodies = map[string]string{}
+	}
+	cdp.responseBodies[requestID] = kimiSuccessBodyFixture()
+	cdp.mu.Unlock()
+	for _, ev := range kimiRotationEventSequence(requestID, newToken, url, status) {
+		cdp.events <- ev
 	}
 }
 
@@ -718,12 +745,11 @@ func TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence(t *testing.T) {
 	}
 
 	// The SPA rotates in-page: localStorage now carries the rotated pair and
-	// the retried protected call carries the NEW Bearer token (server: 200).
+	// the retried protected call carries the NEW Bearer token (server: 200,
+	// loadingFinished, valid two-meter body).
 	cdp.setLocalStorage("access_token", "spa-rotated-access-1234567890")
 	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
-	for _, ev := range kimiRotationEventSequence("rot1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200) {
-		cdp.events <- ev
-	}
+	pushKimiRotationSequence(cdp, "rot1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200)
 
 	select {
 	case got := <-captures:
@@ -749,24 +775,36 @@ func TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence(t *testing.T) {
 // rejected (401), or when localStorage disagrees with the evidenced token.
 func TestRunKimiPageSkipsRotationWithoutProtectedEvidence(t *testing.T) {
 	cases := []struct {
-		name   string
-		events []browserauth.Event
+		name     string
+		url      string
+		status   int
 		lsAccess string
 	}{
 		{
-			name:       "non-protected URL",
-			events:     kimiRotationEventSequence("np1", "spa-rotated-access-1234567890", "https://www.kimi.com/api/public/ping", 200),
-			lsAccess:   "spa-rotated-access-1234567890",
+			name:     "non-protected URL outside apiv2",
+			url:      "https://www.kimi.com/api/public/ping",
+			status:   200,
+			lsAccess: "spa-rotated-access-1234567890",
 		},
 		{
-			name:       "protected call rejected 401",
-			events:     kimiRotationEventSequence("rj1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 401),
-			lsAccess:   "spa-rotated-access-1234567890",
+			// Round-8: the /apiv2/ prefix alone MUST NOT count as evidence —
+			// only the exact GetSubscriptionStats host/path does.
+			name:     "unrelated endpoint inside apiv2 namespace",
+			url:      "https://www.kimi.com/apiv2/kimi.gateway.account.v1.AccountService/GetProfile",
+			status:   200,
+			lsAccess: "spa-rotated-access-1234567890",
 		},
 		{
-			name:       "localStorage disagrees with evidenced token",
-			events:     kimiRotationEventSequence("mm1", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200),
-			lsAccess:   "some-other-access-0000000000",
+			name:     "protected call rejected 401",
+			url:      kimiProtectedQuotaURL,
+			status:   401,
+			lsAccess: "spa-rotated-access-1234567890",
+		},
+		{
+			name:     "localStorage disagrees with evidenced token",
+			url:      kimiProtectedQuotaURL,
+			status:   200,
+			lsAccess: "some-other-access-0000000000",
 		},
 	}
 	for _, tc := range cases {
@@ -788,9 +826,7 @@ func TestRunKimiPageSkipsRotationWithoutProtectedEvidence(t *testing.T) {
 
 			cdp.setLocalStorage("access_token", tc.lsAccess)
 			cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
-			for _, ev := range tc.events {
-				cdp.events <- ev
-			}
+			pushKimiRotationSequence(cdp, "sk1", "spa-rotated-access-1234567890", tc.url, tc.status)
 
 			select {
 			case got := <-captures:
@@ -826,9 +862,7 @@ func TestRunKimiPageChainsSequentialRotations(t *testing.T) {
 	// First rotation.
 	cdp.setLocalStorage("access_token", "spa-rotated-access-1-1234567890")
 	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1-1234567890")
-	for _, ev := range kimiRotationEventSequence("rot1", "spa-rotated-access-1-1234567890", kimiProtectedQuotaURL, 200) {
-		cdp.events <- ev
-	}
+	pushKimiRotationSequence(cdp, "rot1", "spa-rotated-access-1-1234567890", kimiProtectedQuotaURL, 200)
 	select {
 	case got := <-captures:
 		if got.prev != "synthetic-bearer-jwt-1234567890" || got.newAccess != "spa-rotated-access-1-1234567890" {
@@ -841,9 +875,7 @@ func TestRunKimiPageChainsSequentialRotations(t *testing.T) {
 	// Second rotation (access expires again in a long session).
 	cdp.setLocalStorage("access_token", "spa-rotated-access-2-1234567890")
 	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-2-1234567890")
-	for _, ev := range kimiRotationEventSequence("rot2", "spa-rotated-access-2-1234567890", kimiProtectedQuotaURL, 200) {
-		cdp.events <- ev
-	}
+	pushKimiRotationSequence(cdp, "rot2", "spa-rotated-access-2-1234567890", kimiProtectedQuotaURL, 200)
 	select {
 	case got := <-captures:
 		if got.prev != "spa-rotated-access-1-1234567890" {
@@ -859,5 +891,53 @@ func TestRunKimiPageChainsSequentialRotations(t *testing.T) {
 	browser.waitRelease <- struct{}{}
 	if err := <-done; err != nil {
 		t.Fatalf("RunKimiPage returned error after user close: %v", err)
+	}
+}
+
+// TestKimiWatcherDrainsQueuedRotationAfterStop (round-8 close-race
+// RED→GREEN) proves the watcher does NOT let stop preempt queued rotation
+// evidence: when the window close fires stop while a rotation's events are
+// still in flight (the read loop forwards them before the connection dies),
+// the watcher keeps processing until the events channel CLOSES — the save
+// hook still fires. Deterministic: stop is closed FIRST with an empty
+// channel (the old return-on-stop code path exits immediately), and only
+// then is the evidence chain delivered; the channel close (browser death)
+// terminates the drain.
+func TestKimiWatcherDrainsQueuedRotationAfterStop(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+	cdp.setLocalStorage("access_token", "spa-rotated-access-1234567890")
+	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
+
+	stop := make(chan struct{})
+	close(stop) // window closed BEFORE the rotation events arrive
+
+	captured := make(chan kimiRotationCapture, 1)
+	save := func(prev, newAccess, newRefresh string) error {
+		captured <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
+		return nil
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", stop, save)
+	}()
+
+	// The rotation evidence chain arrives AFTER stop (read loop forwarded it
+	// while the connection was dying), then the channel closes (browser dead).
+	pushKimiRotationSequence(cdp, "rot-close", "spa-rotated-access-1234567890", kimiProtectedQuotaURL, 200)
+	close(cdp.events)
+
+	select {
+	case got := <-captured:
+		if got.prev != "synthetic-bearer-jwt-1234567890" || got.newAccess != "spa-rotated-access-1234567890" || got.newRefresh != "spa-rotated-refresh-1234567890" {
+			t.Fatalf("captured = %+v, want the SPA-rotated pair with replayed prev", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("queued rotation dropped on stop: watcher must keep processing queued evidence until the events channel closes (RED: stop preempted)")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("watcher did not exit after the events channel closed")
 	}
 }
