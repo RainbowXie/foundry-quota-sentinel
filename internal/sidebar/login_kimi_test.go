@@ -941,3 +941,59 @@ func TestKimiWatcherDrainsQueuedRotationAfterStop(t *testing.T) {
 		t.Fatal("watcher did not exit after the events channel closed")
 	}
 }
+
+// TestKimiWatcherCapturesWhenExtraInfoArrivesAfterResponse (round-8 event
+// ordering RED→GREEN) proves the watcher tolerates CDP event reordering:
+// requestWillBeSentExtraInfo (which carries the Authorization header) may
+// arrive AFTER Network.responseReceived for the same request. The evidence
+// chain must be evaluated at loadingFinished from accumulated facts, not
+// armed only when the token is seen before the response. RED (state-machine
+// version): responseReceived arrived unarmed, the URL/token facts were
+// dropped, and the late ExtraInfo could not re-arm — capture missed.
+func TestKimiWatcherCapturesWhenExtraInfoArrivesAfterResponse(t *testing.T) {
+	cdp := &fakeKimiCDP{events: make(chan browserauth.Event, 8)}
+	cdp.setLocalStorage("access_token", "spa-rotated-access-1234567890")
+	cdp.setLocalStorage("refresh_token", "spa-rotated-refresh-1234567890")
+
+	// Reordered chain: requestWillBeSent → responseReceived → ExtraInfo →
+	// loadingFinished (ExtraInfo AFTER the response).
+	reqEvt := fmt.Sprintf(`{"requestId":"reord1","url":%q,"request":{"url":%q,"headers":{}}}`, kimiProtectedQuotaURL, kimiProtectedQuotaURL)
+	respEvt := fmt.Sprintf(`{"requestId":"reord1","response":{"url":%q,"status":200,"mimeType":"application/json"}}`, kimiProtectedQuotaURL)
+	extraEvt := `{"requestId":"reord1","headers":{"authorization":"Bearer spa-rotated-access-1234567890"}}`
+	finEvt := `{"requestId":"reord1"}`
+	cdp.mu.Lock()
+	cdp.responseBodies = map[string]string{"reord1": kimiSuccessBodyFixture()}
+	cdp.mu.Unlock()
+	for _, raw := range []struct{ method, params string }{
+		{"Network.requestWillBeSent", reqEvt},
+		{"Network.responseReceived", respEvt},
+		{"Network.requestWillBeSentExtraInfo", extraEvt},
+		{"Network.loadingFinished", finEvt},
+	} {
+		cdp.events <- browserauth.Event{Method: raw.method, Params: json.RawMessage(raw.params)}
+	}
+
+	captured := make(chan kimiRotationCapture, 1)
+	save := func(prev, newAccess, newRefresh string) error {
+		captured <- kimiRotationCapture{prev: prev, newAccess: newAccess, newRefresh: newRefresh}
+		return nil
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		kimiWatchInPageRotation(context.Background(), cdp, cdp.events, "synthetic-bearer-jwt-1234567890", stop, save)
+	}()
+
+	select {
+	case got := <-captured:
+		if got.prev != "synthetic-bearer-jwt-1234567890" || got.newAccess != "spa-rotated-access-1234567890" || got.newRefresh != "spa-rotated-refresh-1234567890" {
+			t.Fatalf("captured = %+v, want the SPA-rotated pair", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("rotation missed when ExtraInfo arrived after responseReceived — facts must accumulate in any order and evaluate at loadingFinished")
+	}
+	close(stop)
+	close(cdp.events)
+	<-done
+}

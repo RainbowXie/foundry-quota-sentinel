@@ -520,24 +520,28 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 	return nil
 }
 
-// kimiRotationCandidate tracks one in-flight protected request that may
-// evidence an in-page rotation: the NEW Bearer token it carries and whether
-// the server answered 2xx.
-type kimiRotationCandidate struct {
-	token     string
-	responded bool
+// kimiRequestFacts accumulates what the watcher knows about one in-flight
+// request: its URL (requestWillBeSent), its Bearer token (ExtraInfo/request
+// headers), and the response status (responseReceived). CDP does NOT
+// guarantee the relative order of these events (ExtraInfo may arrive after
+// responseReceived), so facts are accumulated in ANY order and the evidence
+// chain is only evaluated once loadingFinished completes the request.
+type kimiRequestFacts struct {
+	url    string
+	token  string
+	status int // 0 = no responseReceived observed yet
 }
 
 // kimiWatchInPageRotation consumes CDP network events for the rest of the
 // page session and persists the SPA's in-page token rotations. The evidence
 // chain mirrors the membership auth decision, per the correlation spec —
-// ALL of:
-//  1. a request to the EXACT protected GetSubscriptionStats URL
+// ALL of, evaluated at loadingFinished:
+//  1. the request targeted the EXACT protected GetSubscriptionStats URL
 //     (isKimiProtectedURL: https + www.kimi.com + exact path — an unrelated
-//     /apiv2/ 2xx is NOT evidence) carrying a Bearer token ≠ lastKnown;
-//  2. a 2xx responseReceived for the same requestId;
-//  3. a loadingFinished for the same requestId, and a response body that
-//     parses as the two-meter quota result (kimiResponseBodyValid);
+//     /apiv2/ 2xx is NOT evidence) and carried a Bearer token ≠ lastKnown;
+//  2. responseReceived was 2xx;
+//  3. the response body parses as the two-meter quota result
+//     (kimiResponseBodyValid);
 //  4. localStorage access_token == the evidenced token and refresh_token
 //     non-empty (the SPA may have rotated again mid-read; the next chain
 //     retries).
@@ -546,6 +550,11 @@ type kimiRotationCandidate struct {
 // caller compare-and-swaps under its lock; lastKnown advances only after a
 // successful save.
 //
+// Observability: every request carrying a NEW Bearer token whose chain does
+// not complete is logged with the drop reason (host/path, status, token
+// LENGTHS only — never token values), so a real session shows exactly what
+// the SPA did after an in-page refresh.
+//
 // Close-race: after stop is observed (browser.Wait returned) the watcher
 // does NOT return immediately — it keeps processing until the events
 // channel CLOSES (the read loop closes it when the connection dies) or ctx
@@ -553,40 +562,42 @@ type kimiRotationCandidate struct {
 // dropped. Evidence reads (body/localStorage) on a dead connection simply
 // fail and skip — no garbage is persisted.
 func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan browserauth.Event, lastKnown string, stop <-chan struct{}, save func(prevAccess, newAccess, newRefresh string) error) {
-	tokens := map[string]string{}              // requestId → Bearer token (headers events)
-	urls := map[string]string{}                // requestId → URL (requestWillBeSent)
-	evidence := map[string]*kimiRotationCandidate{} // requestId → candidate
+	facts := map[string]*kimiRequestFacts{} // requestId → accumulated facts
+	fact := func(rid string) *kimiRequestFacts {
+		f, ok := facts[rid]
+		if !ok {
+			f = &kimiRequestFacts{}
+			facts[rid] = f
+		}
+		return f
+	}
 
 	handle := func(ev browserauth.Event) {
 		if rh, ok := browserauth.DecodeRequestHeadersEvent(ev); ok {
 			if rh.RequestID == "" {
 				return
 			}
+			f := fact(rh.RequestID)
 			if rh.URL != "" {
-				urls[rh.RequestID] = rh.URL
+				f.url = rh.URL
 			}
 			if tok := browserauth.BearerToken(rh.Headers); tok != "" {
-				tokens[rh.RequestID] = tok
-			}
-			if u, tok := urls[rh.RequestID], tokens[rh.RequestID]; u != "" && tok != "" && tok != lastKnown && isKimiProtectedURL(u) {
-				evidence[rh.RequestID] = &kimiRotationCandidate{token: tok}
+				f.token = tok
 			}
 			return
 		}
 		if rr, ok := browserauth.DecodeResponseReceivedEvent(ev); ok {
-			c, armed := evidence[rr.RequestID]
-			if !armed {
-				delete(tokens, rr.RequestID)
-				delete(urls, rr.RequestID)
-				return
+			if rr.RequestID != "" {
+				fact(rr.RequestID).status = rr.Status
 			}
-			if rr.Status >= 200 && rr.Status < 300 {
-				c.responded = true
-			} else {
-				// Rejected (e.g. 401): the server did not accept the token.
-				delete(evidence, rr.RequestID)
-				delete(tokens, rr.RequestID)
-				delete(urls, rr.RequestID)
+			return
+		}
+		if ev.Method == "Network.loadingFailed" {
+			var p struct {
+				RequestID string `json:"requestId"`
+			}
+			if json.Unmarshal(ev.Params, &p) == nil && p.RequestID != "" {
+				delete(facts, p.RequestID)
 			}
 			return
 		}
@@ -594,22 +605,39 @@ func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan bro
 		if !ok {
 			return
 		}
-		c, armed := evidence[lf.RequestID]
-		if !armed {
+		f, ok := facts[lf.RequestID]
+		if !ok {
 			return
 		}
-		delete(evidence, lf.RequestID)
-		delete(tokens, lf.RequestID)
-		delete(urls, lf.RequestID)
-		if !c.responded {
+		delete(facts, lf.RequestID)
+		if f.token == "" || f.token == lastKnown {
+			return // current-token traffic: nothing rotated
+		}
+		// A request carrying a NEW Bearer token completed — narrate the chain.
+		hostPath := "?"
+		if u, err := url.Parse(f.url); err == nil {
+			hostPath = u.Host + u.Path
+		}
+		if !isKimiProtectedURL(f.url) {
+			log.Printf("kimi: 新 token（长度 %d）出现在非 quota 端点 %s，不计为轮换证据", len(f.token), hostPath)
+			return
+		}
+		if f.status < 200 || f.status >= 300 {
+			log.Printf("kimi: 新 token（长度 %d）的 quota 请求状态 %d，不计为轮换证据", len(f.token), f.status)
 			return
 		}
 		if !kimiResponseBodyValid(ctx, cdp, lf.RequestID) {
+			log.Printf("kimi: 新 token（长度 %d）的 quota 响应体无效，不计为轮换证据", len(f.token))
 			return
 		}
 		at := kimiReadLocalStorage(ctx, cdp, "access_token")
 		rt := kimiReadLocalStorage(ctx, cdp, "refresh_token")
-		if at == "" || rt == "" || at != c.token {
+		if at == "" || rt == "" {
+			log.Printf("kimi: quota 新 token 已证据，但 localStorage 读取失败（页面可能已关闭）")
+			return
+		}
+		if at != f.token {
+			log.Printf("kimi: localStorage access（长度 %d）与证据 token（长度 %d）不一致，跳过（可能再次轮换）", len(at), len(f.token))
 			return
 		}
 		if err := save(lastKnown, at, rt); err != nil {
