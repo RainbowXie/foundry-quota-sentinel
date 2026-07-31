@@ -532,33 +532,26 @@
                 color: var(--accent);
                 margin-left: 8px;
             }
-            /* Kimi semantic card actions (booster + re-login): themed idle,
+            /* Kimi semantic re-login action (error state): themed idle,
                hover, active, and keyboard-focus states instead of inline
-               cursor styling. */
-            .kimiLogin,
-            .kimiAddon {
+               cursor styling. The booster card affordance was removed
+               (fix-kimi-card-layout); the generic context-menu account-page
+               action remains. */
+            .kimiLogin {
                 background: none;
                 border: none;
                 padding: 0;
                 font: inherit;
+                color: var(--text-sec);
                 cursor: pointer;
             }
-            .kimiLogin {
-                color: var(--text-sec);
-            }
-            .kimiAddon {
-                color: var(--accent);
-            }
-            .kimiLogin:hover,
-            .kimiAddon:hover {
+            .kimiLogin:hover {
                 text-decoration: underline;
             }
-            .kimiLogin:active,
-            .kimiAddon:active {
+            .kimiLogin:active {
                 opacity: 0.75;
             }
-            .kimiLogin:focus-visible,
-            .kimiAddon:focus-visible {
+            .kimiLogin:focus-visible {
                 outline: 1px solid var(--accent);
                 outline-offset: 2px;
                 border-radius: 3px;
@@ -1402,10 +1395,7 @@
                     body =
                         krow("Rolling", d.five_hour, "g2") +
                         krow("Weekly", d.seven_day, "g3") +
-                        ktotal(t) +
-                        '<div class=bc-d><button type="button" class=kimiAddon data-name="' +
-                        qesc(a.name) +
-                        '">购买加油包</button></div>';
+                        ktotal(t);
                 }
                 return (
                     '<div class=acard data-prov=kimi data-name="' +
@@ -1417,10 +1407,12 @@
                     "</div>"
                 );
             }
-            // ktotal renders the Monthly row: total % with a bar split into
-            // Kimi (g1) and Code (g3) segments and the monthly reset, followed
-            // immediately by the secondary Kimi/Code decimal breakdown line.
-            // Mirrors the membership page layout.
+            // ktotal renders the Monthly row: ONE truthful progress fill
+            // whose width is the real total percentage (the previous split
+            // Kimi+Code fills stacked vertically inside the 6px track, so the
+            // Code fill was clipped and a non-zero total looked empty), plus
+            // the monthly reset, followed immediately by the secondary
+            // Kimi/Code decimal breakdown as TEXT only.
             function ktotal(t) {
                 if (!t || t.total_percent === undefined)
                     return "<div class=qr><span class=ql>Monthly</span><span class=qtm>—</span></div>";
@@ -1432,10 +1424,8 @@
                 return (
                     "<div class=qr><span class=ql>Monthly</span>" +
                     '<div class=qbw><div class="qf g1" style="width:' +
-                    kim +
-                    '%"></div><div class="qf g3" style="width:' +
-                    cod +
-                    '%;margin-left:0"></div></div>' +
+                    tot +
+                    '%"></div></div>' +
                     '<span class="qp g1">' +
                     pctStr +
                     "</span><span class=qtm>" +
@@ -1949,8 +1939,6 @@
                     var t = e.target;
                     if (t.classList.contains("kimiLogin"))
                         kimiDoLogin(t.getAttribute("data-name"));
-                    if (t.classList.contains("kimiAddon"))
-                        openPage("kimi", t.getAttribute("data-name"));
                 });
             (function () {
                 var modal = document.getElementById("addModal");
@@ -2017,6 +2005,46 @@
                         document.getElementById("modalGo").click();
                 });
             })();
+            // openPage opens the account page and surfaces spawn
+            // failures. The previous fire-and-forget fetch hid a
+            // subprocess that failed before the browser launched
+            // (e.g. a rejected OpenCode cookie) — the user saw "no
+            // reaction". The response is read and success=false is
+            // surfaced via openPageError.
+            //
+            // TOP LEVEL on purpose: top-level delegated card listeners
+            // may call openPage from outside the context-menu IIFE —
+            // scoping it inside that IIFE left card clicks dead with a
+            // ReferenceError (the "booster no reaction" bug).
+            function openPage(prov, name) {
+                fetch(
+                    "/api/open?provider=" +
+                        encodeURIComponent(prov) +
+                        "&name=" +
+                        encodeURIComponent(name),
+                )
+                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        if (!r || !r.success) {
+                            openPageError((r && r.error) || "无法打开账户页");
+                        }
+                    })
+                    .catch(function () { openPageError("无法打开账户页"); });
+            }
+            function openPageError(msg) {
+                var box = document.getElementById("dsCards");
+                // Show in any active provider panel area; dsCards is
+                // always present and scrollable. Keep it transient.
+                if (!box) {
+                    alert(msg);
+                    return;
+                }
+                var note = document.createElement("div");
+                note.className = "er";
+                note.textContent = msg;
+                box.appendChild(note);
+                setTimeout(function () { note.remove(); }, 4000);
+            }
             /* 右键菜单：打开账户对应服务商页面（app 内窗口，注入该账户登录态） */
             (function () {
                 var menu = document.getElementById("ctxMenu");
@@ -2052,41 +2080,6 @@
                     openPage(cur.prov, cur.name);
                     hide();
                 });
-                // openPage opens the account page and surfaces spawn
-                // failures. The previous fire-and-forget fetch hid a
-                // subprocess that failed before the browser launched
-                // (e.g. a rejected OpenCode cookie) — the user saw "no
-                // reaction". The response is read and success=false is
-                // surfaced via openPageError.
-                function openPage(prov, name) {
-                    fetch(
-                        "/api/open?provider=" +
-                            encodeURIComponent(prov) +
-                            "&name=" +
-                            encodeURIComponent(name),
-                    )
-                        .then(function (r) { return r.json(); })
-                        .then(function (r) {
-                            if (!r || !r.success) {
-                                openPageError((r && r.error) || "无法打开账户页");
-                            }
-                        })
-                        .catch(function () { openPageError("无法打开账户页"); });
-                }
-                function openPageError(msg) {
-                    var box = document.getElementById("dsCards");
-                    // Show in any active provider panel area; dsCards is
-                    // always present and scrollable. Keep it transient.
-                    if (!box) {
-                        alert(msg);
-                        return;
-                    }
-                    var note = document.createElement("div");
-                    note.className = "er";
-                    note.textContent = msg;
-                    box.appendChild(note);
-                    setTimeout(function () { note.remove(); }, 4000);
-                }
                 /* 删除账户：二次确认 */
                 var cm = document.getElementById("confirmModal");
                 var ctext = document.getElementById("confirmText");

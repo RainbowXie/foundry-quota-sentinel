@@ -1,8 +1,27 @@
 # Evidence — fix-kimi-card-layout
 
-Implementation evidence for the Kimi sidebar-card presentation change.
-TDD: every presentation task landed RED first against the pre-change
-renderer, then GREEN.
+Historical implementation evidence for the first revision of the Kimi
+sidebar-card presentation change. The requirements were revised afterward;
+the completed evidence below does not establish acceptance of the current
+change.
+
+## Current requirement revision — pending implementation
+
+The current contract supersedes the earlier booster-button work:
+
+- `购买加油包` must be removed from Kimi cards, including `kimiAddon`
+  markup, card-specific styles, and delegated event wiring. The generic
+  context-menu/account-page action remains outside this scope.
+- Monthly must contain one visible fill whose width is derived from
+  `total.total_percent`. For total `11.92`, Kimi `0.03`, and Code `11.89`,
+  the bar must visibly fill `11.92%`; Kimi/Code remain text-only breakdown
+  values.
+
+Tasks 1.5, 1.6, 2.4, 2.5, and 3.2–3.5 in the revised `tasks.md` are open.
+No GREEN implementation or visual acceptance evidence for this revision
+has been recorded yet.
+
+## Superseded first-revision evidence
 
 ## Task 1.1 — Impact analysis (GitNexus unavailable → manual)
 
@@ -107,6 +126,43 @@ Verification:
   GitNexus-indexed symbol surface), matching the planned
   Kimi/sidebar-presentation-only scope.
 
-Task 3.4 (interactive pointer + keyboard booster activation with a
-disposable account) remains: it requires an interactive disposable Kimi
-login and manual activation.
+The former Task 3.4 (interactive pointer + keyboard booster activation) was
+removed when the user withdrew the booster affordance. It is not part of
+the current acceptance criteria.
+
+## Requirement revision (user, mid-implementation) — booster removal + truthful Monthly fill
+
+After round 1 landed, the user revised the change: REMOVE the booster
+affordance entirely (markup, kimiAddon CSS, delegated branch; generic
+context-menu openPage flow stays), and fix a newly-visible Monthly bar
+defect — the split Kimi+Code fills are block elements that stack
+VERTICALLY inside the 6px overflow track, so the Code fill was clipped
+and a non-zero total (13.1%) rendered as an effectively empty bar
+(observed in the round-1 wide screenshot).
+
+Also fixed during round-1 interactive testing (retained): `openPage` was
+declared inside the ctx-menu IIFE while the `#kimiCards` delegated listener
+is top-level — booster clicks died with a ReferenceError ("no reaction").
+Hoisted `openPage`/`openPageError` to top level; locked by
+`TestOpenPageReachableFromGlobalScope` (generic-path guard).
+
+RED→GREEN (revised):
+- `TestKimiCardMonthlySingleTruthfulFill` — RED (Monthly had 2 fills,
+  none at 11.92%); GREEN: exactly one `.qf` fill at
+  `width:11.92%` from `total.total_percent`; contributor values never
+  rendered as fills; zero total → `width:0%` with the row present.
+- `TestKimiCardOmitsBoosterAffordance` — RED (button rendered); GREEN:
+  neither success nor error cards render 购买加油包/kimiAddon; zero
+  kimiAddon refs in sidebar.html; ctxOpen → openPage(cur.prov, cur.name)
+  generic wiring asserted intact; kimiLogin re-login retained.
+- Legacy `TestSidebarRendersKimiCardsAndAddon` updated to assert booster
+  absence + shared vocabulary.
+
+Verification (revised): focused + full suites, `-race -tags nogui`,
+`go vet` (default + nogui), `gofmt`, openspec strict — all green.
+Visual (headless, isolated profile, real config read-only): wide 900px
+and narrow 340px both show the Monthly fill VISIBLY occupying ~14.5%
+(previously visually empty), breakdown `Kimi 0.02%  Code 14.48%` below
+Monthly, no booster, grid parity with the OpenCode card, no clipping.
+Screenshots inspected and shredded. `gitnexus_detect_changes`: 1 test
+symbol touched, 0 affected processes, risk low.

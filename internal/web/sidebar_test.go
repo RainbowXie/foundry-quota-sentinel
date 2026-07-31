@@ -97,9 +97,10 @@ func TestSidebarOpenPageHandlesResponse(t *testing.T) {
 // TestSidebarRendersKimiCardsAndAddon (task 5.5, updated by
 // fix-kimi-card-layout) proves the sidebar HTML has a Kimi cards container,
 // a kcard renderer using the shared Rolling/Weekly/Monthly labels (the old
-// provider-specific Chinese metric labels are gone from the renderer), an
-// add-on (购买加油包) action, and a Kimi provider option in the add-account
-// modal.
+// provider-specific Chinese metric labels are gone from the renderer), a
+// Kimi provider option in the add-account modal, and NO booster affordance
+// (购买加油包 / kimiAddon are removed from the card; the generic
+// context-menu account-page action remains).
 func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 	html, err := webAssets.ReadFile("static/sidebar.html")
 	if err != nil {
@@ -111,25 +112,18 @@ func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 		`function kcard`,
 		`krow("Rolling", d.five_hour`,
 		`krow("Weekly", d.seven_day`,
-		`kimiAddon`,
-		`购买加油包`,
 		`data-type="kimi"`,
 		`kimiDoLogin`,
 		`/api/kimi`,
 	} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("sidebar HTML missing %q (Kimi card/addon/modal wiring)", want)
+			t.Fatalf("sidebar HTML missing %q (Kimi card/modal wiring)", want)
 		}
 	}
-	for _, stale := range []string{`总使用量`, `5 小时用量`, `7 天用量`} {
+	for _, stale := range []string{`总使用量`, `5 小时用量`, `7 天用量`, `kimiAddon`, `购买加油包`} {
 		if strings.Contains(s, stale) {
-			t.Fatalf("Kimi renderer must not keep provider-specific label %q (shared Rolling/Weekly/Monthly vocabulary)", stale)
+			t.Fatalf("Kimi card must not contain %q (shared vocabulary; booster affordance removed)", stale)
 		}
-	}
-	// The account/details action opens the membership quota page (kimi
-	// provider), not a separate purchase route; no purchase is automated.
-	if !strings.Contains(s, `openPage("kimi"`) {
-		t.Fatal("购买加油包 must route through openPage(\"kimi\", ...) (membership page) without purchasing")
 	}
 }
 

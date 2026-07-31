@@ -276,50 +276,176 @@ func TestKimiCardRendersMonthlyKimiCodeBreakdown(t *testing.T) {
 	}
 }
 
-// --- 1.5 semantic interaction ---
+// --- 1.5 (revised) truthful Monthly fill ---
 
-// TestKimiBoosterIsSemanticKeyboardOperableControl proves 购买加油包 renders
-// as a real <button type="button"> (native Enter/Space activation), scoped
-// to the card's account, with themed hover and :focus-visible styles, and
-// that the existing delegated handler routes it through openPage("kimi",
-// name) — no purchase automation, no external unauthenticated link.
-func TestKimiBoosterIsSemanticKeyboardOperableControl(t *testing.T) {
+// TestKimiCardMonthlySingleTruthfulFill proves the Monthly track contains
+// exactly ONE progress fill whose width comes from total.total_percent —
+// not separate vertically-stacked Kimi/Code fills that clip inside the
+// fixed-height track and make a non-zero total look empty. The contributor
+// values appear only in the secondary text breakdown.
+func TestKimiCardMonthlySingleTruthfulFill(t *testing.T) {
+	dto := kimiSuccessDTO()
+	q := dto["quota"].(map[string]any)
+	q["total"] = map[string]any{"total_percent": 11.92, "kimi_percent": 0.03, "code_percent": 11.89, "reset_display": "RESET-TOTAL"}
+	out := renderKimiCard(t, dto)
+
+	segs := qrSegments(out)
+	var monthly string
+	for _, s := range segs {
+		if strings.Contains(s, "Monthly") {
+			monthly = s
+			break
+		}
+	}
+	if monthly == "" {
+		t.Fatalf("Monthly row missing; got:\n%s", out)
+	}
+	fills := regexp.MustCompile(`class="qf[^"]*"`).FindAllString(monthly, -1)
+	if len(fills) != 1 {
+		t.Fatalf("Monthly track must contain exactly one progress fill, got %d (%v); row: %s", len(fills), fills, monthly)
+	}
+	if !strings.Contains(monthly, "width:11.92%") {
+		t.Fatalf("the single Monthly fill must be width:11.92%% (total.total_percent); row: %s", monthly)
+	}
+	for _, contributor := range []string{"width:0.03%", "width:11.89%"} {
+		if strings.Contains(out, contributor) {
+			t.Fatalf("Kimi/Code contributor values must not be rendered as progress fills (%s); got:\n%s", contributor, out)
+		}
+	}
+	// Text breakdown stays.
+	if !strings.Contains(out, "Kimi 0.03%") || !strings.Contains(out, "Code 11.89%") {
+		t.Fatalf("secondary text breakdown must remain below Monthly; got:\n%s", out)
+	}
+
+	// Zero total: fill width 0%, row and value still present.
+	q["total"] = map[string]any{"total_percent": 0.0, "kimi_percent": 0.0, "code_percent": 0.0, "reset_display": "RESET-TOTAL"}
+	out0 := renderKimiCard(t, dto)
+	if !strings.Contains(out0, "Monthly") || !strings.Contains(out0, "0%") {
+		t.Fatalf("zero-total Monthly row must remain present with a formatted value; got:\n%s", out0)
+	}
+	segs0 := qrSegments(out0)
+	var m0 string
+	for _, s := range segs0 {
+		if strings.Contains(s, "Monthly") {
+			m0 = s
+			break
+		}
+	}
+	if m0 == "" || !strings.Contains(m0, "width:0%") {
+		t.Fatalf("zero-total Monthly fill must be width:0%%; row: %s", m0)
+	}
+}
+
+// --- 1.6 (revised) booster absence ---
+
+// TestKimiCardOmitsBoosterAffordance proves neither the successful nor the
+// error-state Kimi card renders 购买加油包 / a kimiAddon action, that no
+// kimiAddon CSS or delegated click branch remains, and that the UNRELATED
+// generic account-page flow (context menu → openPage) stays intact.
+func TestKimiCardOmitsBoosterAffordance(t *testing.T) {
 	out := renderKimiCard(t, kimiSuccessDTO())
-
-	btn := regexp.MustCompile(`<button[^>]*kimiAddon[^>]*>`)
-	loc := btn.FindString(out)
-	if loc == "" {
-		t.Fatalf("购买加油包 must render as <button ... class=kimiAddon ...>; got:\n%s", out)
+	for _, banned := range []string{"购买加油包", "kimiAddon"} {
+		if strings.Contains(out, banned) {
+			t.Fatalf("successful Kimi card must not render %q; got:\n%s", banned, out)
+		}
 	}
-	if !strings.Contains(loc, `type="button"`) {
-		t.Fatalf("booster button must declare type=\"button\"; got: %s", loc)
+	errOut := renderKimiCard(t, map[string]any{"name": "broken-account", "success": false, "error": "凭证已过期，请重新登录"})
+	for _, banned := range []string{"购买加油包", "kimiAddon"} {
+		if strings.Contains(errOut, banned) {
+			t.Fatalf("error-state Kimi card must not render %q; got:\n%s", banned, errOut)
+		}
 	}
-	if !strings.Contains(loc, `data-name="synthetic-account"`) {
-		t.Fatalf("booster button must carry the card account in data-name; got: %s", loc)
-	}
-	if !strings.Contains(out, ">购买加油包</button>") {
-		t.Fatalf("booster label must be the un-nested button text 购买加油包; got:\n%s", out)
-	}
-	if strings.Contains(out, "<span class=kimiAddon") {
-		t.Fatal("non-interactive span booster must be replaced by the semantic button")
-	}
-	if regexp.MustCompile(`kimiAddon[^>]*style=`).MatchString(out) {
-		t.Fatal("booster styling must come from a themed class, not inline styles")
+	if !strings.Contains(errOut, "kimiLogin") {
+		t.Fatalf("error-state card must keep its kimiLogin re-login affordance; got:\n%s", errOut)
 	}
 
 	html := readSidebarHTML(t)
-	for _, rule := range []string{`.kimiAddon:hover`, `.kimiAddon:focus-visible`, `.kimiAddon:active`} {
-		if !strings.Contains(html, rule) {
-			t.Fatalf("booster needs a themed %s rule (visible hover and keyboard-focus indicator)", rule)
-		}
+	if strings.Contains(html, "kimiAddon") {
+		t.Fatal("no kimiAddon markup, CSS, or delegated click branch may remain in the sidebar")
 	}
-	base := regexp.MustCompile(`(?s)\.kimiAddon\s*\{([^}]*)\}`)
-	bm := base.FindStringSubmatch(html)
-	if bm == nil || !strings.Contains(bm[1], "cursor") || !strings.Contains(bm[1], "pointer") {
-		t.Fatal("booster base class must set an explicit pointer cursor")
+	// The generic context-menu account-page action is unrelated wiring and
+	// must remain: menu item + handler routing through openPage.
+	if !strings.Contains(html, `id="ctxOpen"`) {
+		t.Fatal("generic context-menu open item (ctxOpen) must remain")
 	}
-	if !strings.Contains(html, `openPage("kimi"`) {
-		t.Fatal("booster activation must route through openPage(\"kimi\", name)")
+	if !regexp.MustCompile(`openItem\.addEventListener\("click"[\s\S]*?openPage\(cur\.prov, cur\.name\)`).MatchString(html) {
+		t.Fatal("generic context-menu open action must keep routing through openPage(cur.prov, cur.name)")
+	}
+}
+
+// TestOpenPageReachableFromGlobalScope (regression) proves openPage is
+// declared at the script's TOP LEVEL and is callable — the pre-existing
+// ctx-menu IIFE scoping left it invisible to top-level delegated listeners
+// (card clicks died with a ReferenceError and showed "no reaction"). The
+// fetch stub records calls so the assertion exercises the real call path,
+// not just the symbol's presence. This guards the generic account-page
+// path independently of any card-level affordance.
+func TestOpenPageReachableFromGlobalScope(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node unavailable: skipping renderer-execution test")
+	}
+	dir := t.TempDir()
+	harness := filepath.Join(dir, "harness.cjs")
+	script := `
+const fs = require("fs");
+const vm = require("vm");
+const html = fs.readFileSync(process.argv[2], "utf8");
+const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+	.map((m) => m[1])
+	.filter((s) => s.includes("function kcard"));
+function universal() {
+	const fn = function () { return pr; };
+	const pr = new Proxy(fn, {
+		get(t, k) { if (k === Symbol.toPrimitive) return () => ""; return pr; },
+		apply() { return pr; },
+		set() { return true; },
+	});
+	return pr;
+}
+const pr = universal();
+const calls = [];
+const sandbox = {
+	console,
+	document: pr,
+	window: pr,
+	echarts: pr,
+	fetch: (u) => { calls.push(String(u)); return new Promise(() => {}); },
+	alert: () => {},
+	confirm: () => false,
+	setInterval: () => 0,
+	setTimeout: () => 0,
+	clearTimeout: () => 0,
+	clearInterval: () => 0,
+	requestAnimationFrame: () => 0,
+	localStorage: { getItem: () => null, setItem: () => {} },
+};
+sandbox.globalThis = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(blocks[0], sandbox);
+if (typeof sandbox.openPage !== "function") {
+	console.error("openPage is " + typeof sandbox.openPage + " — scoped inside the ctx-menu IIFE, unreachable from the kimiCards delegation");
+	process.exit(3);
+}
+sandbox.openPage("kimi", "layout1");
+setImmediate(() => {
+	if (!calls.some((u) => u.includes("/api/open") && u.includes("provider=kimi") && u.includes("name=layout1"))) {
+		console.error("openPage did not fetch /api/open for the named account; calls=" + JSON.stringify(calls));
+		process.exit(4);
+	}
+	console.log("openPage reachable and fetches /api/open for the named account");
+});
+`
+	if err := os.WriteFile(harness, []byte(script), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sidebarPath, err := filepath.Abs(filepath.Join("static", "sidebar.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(node, harness, sidebarPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("openPage must be a top-level callable that fetches the authenticated page route: %v\n%s", err, out)
 	}
 }
 
