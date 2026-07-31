@@ -94,9 +94,10 @@ func TestSidebarOpenPageHandlesResponse(t *testing.T) {
 	}
 }
 
-// TestSidebarRendersKimiCardsAndAddon (task 5.5) proves the sidebar HTML has
-// a Kimi cards container, a kcard renderer that labels the membership metrics
-// (总使用量 with Kimi+Code, plus 5 小时 / 7 天 Code, not rolling/weekly), an
+// TestSidebarRendersKimiCardsAndAddon (task 5.5, updated by
+// fix-kimi-card-layout) proves the sidebar HTML has a Kimi cards container,
+// a kcard renderer using the shared Rolling/Weekly/Monthly labels (the old
+// provider-specific Chinese metric labels are gone from the renderer), an
 // add-on (购买加油包) action, and a Kimi provider option in the add-account
 // modal.
 func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
@@ -108,9 +109,8 @@ func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 	for _, want := range []string{
 		`id="kimiCards"`,
 		`function kcard`,
-		`总使用量`,
-		`5 小时用量`,
-		`7 天用量`,
+		`krow("Rolling", d.five_hour`,
+		`krow("Weekly", d.seven_day`,
 		`kimiAddon`,
 		`购买加油包`,
 		`data-type="kimi"`,
@@ -119,6 +119,11 @@ func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("sidebar HTML missing %q (Kimi card/addon/modal wiring)", want)
+		}
+	}
+	for _, stale := range []string{`总使用量`, `5 小时用量`, `7 天用量`} {
+		if strings.Contains(s, stale) {
+			t.Fatalf("Kimi renderer must not keep provider-specific label %q (shared Rolling/Weekly/Monthly vocabulary)", stale)
 		}
 	}
 	// The account/details action opens the membership quota page (kimi

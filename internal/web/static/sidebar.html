@@ -520,6 +520,49 @@
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
             }
+            /* Kimi Monthly breakdown (secondary line directly below Monthly) */
+            .kbr {
+                font-size: 11px;
+                color: var(--text-sec);
+            }
+            .kbr-k {
+                color: var(--text);
+            }
+            .kbr-c {
+                color: var(--accent);
+                margin-left: 8px;
+            }
+            /* Kimi semantic card actions (booster + re-login): themed idle,
+               hover, active, and keyboard-focus states instead of inline
+               cursor styling. */
+            .kimiLogin,
+            .kimiAddon {
+                background: none;
+                border: none;
+                padding: 0;
+                font: inherit;
+                cursor: pointer;
+            }
+            .kimiLogin {
+                color: var(--text-sec);
+            }
+            .kimiAddon {
+                color: var(--accent);
+            }
+            .kimiLogin:hover,
+            .kimiAddon:hover {
+                text-decoration: underline;
+            }
+            .kimiLogin:active,
+            .kimiAddon:active {
+                opacity: 0.75;
+            }
+            .kimiLogin:focus-visible,
+            .kimiAddon:focus-visible {
+                outline: 1px solid var(--accent);
+                outline-offset: 2px;
+                border-radius: 3px;
+            }
             .bc-d {
                 font-size: 8px;
                 color: var(--text-sec);
@@ -998,7 +1041,8 @@
             }
             #accountCards,
             #ollamaCards,
-            #dsCards {
+            #dsCards,
+            #kimiCards {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
                 gap: 8px;
@@ -1006,7 +1050,8 @@
             }
             #accountCards > *,
             #ollamaCards > *,
-            #dsCards > * {
+            #dsCards > *,
+            #kimiCards > * {
                 margin-bottom: 0;
             }
         </style>
@@ -1065,7 +1110,7 @@
                                 </div>
                                 <div class="prov" data-type="kimi">
                                     <span class="prov-n">Kimi Code</span
-                                    ><span class="prov-d">总使用量 / 5 小时 / 7 天</span>
+                                    ><span class="prov-d">Rolling / Weekly / Monthly</span>
                                 </div>
                             </div>
                             <div id="modalStep2" class="hide">
@@ -1348,19 +1393,19 @@
                         "<div class=qerr>" +
                         qesc(a.error || "查询失败") +
                         "</div>" +
-                        '<div class=bc-d><span class=olLogin data-name="' +
+                        '<div class=bc-d><button type="button" class=kimiLogin data-name="' +
                         qesc(a.name) +
-                        '" style="cursor:pointer;color:var(--text-sec)">重新登录</span></div>';
+                        '">重新登录</button></div>';
                 } else {
                     var d = a.quota || {};
                     var t = d.total || {};
                     body =
+                        krow("Rolling", d.five_hour, "g2") +
+                        krow("Weekly", d.seven_day, "g3") +
                         ktotal(t) +
-                        krow("5 小时用量 · Code", d.five_hour, "g2") +
-                        krow("7 天用量 · Code", d.seven_day, "g3") +
-                        '<div class=bc-d><span class=kimiAddon data-name="' +
+                        '<div class=bc-d><button type="button" class=kimiAddon data-name="' +
                         qesc(a.name) +
-                        '" style="cursor:pointer;color:var(--accent)">购买加油包</span></div>';
+                        '">购买加油包</button></div>';
                 }
                 return (
                     '<div class=acard data-prov=kimi data-name="' +
@@ -1372,19 +1417,20 @@
                     "</div>"
                 );
             }
-            // ktotal renders the grouped total-usage card: total % with a bar
-            // split into Kimi (black) and Code (blue) segments, a legend, and
-            // the shared reset date. Mirrors the membership page layout.
+            // ktotal renders the Monthly row: total % with a bar split into
+            // Kimi (g1) and Code (g3) segments and the monthly reset, followed
+            // immediately by the secondary Kimi/Code decimal breakdown line.
+            // Mirrors the membership page layout.
             function ktotal(t) {
                 if (!t || t.total_percent === undefined)
-                    return "<div class=qr><span class=ql>总使用量</span><span class=qtm>—</span></div>";
+                    return "<div class=qr><span class=ql>Monthly</span><span class=qtm>—</span></div>";
                 var tot = t.total_percent,
                     kim = t.kimi_percent || 0,
                     cod = t.code_percent || 0,
                     pctStr = kpct(tot),
                     reset = t.reset_display || "";
                 return (
-                    "<div class=qr><span class=ql>总使用量</span>" +
+                    "<div class=qr><span class=ql>Monthly</span>" +
                     '<div class=qbw><div class="qf g1" style="width:' +
                     kim +
                     '%"></div><div class="qf g3" style="width:' +
@@ -1395,10 +1441,9 @@
                     "</span><span class=qtm>" +
                     reset +
                     "</span></div>" +
-                    '<div class=qr style="font-size:11px;color:var(--text-sec)">' +
-                    '<span style="color:var(--text)">Kimi ' +
+                    '<div class="qr kbr"><span class=kbr-k>Kimi ' +
                     kpct(kim) +
-                    "</span> &nbsp; <span style=\"color:var(--accent)\">Code " +
+                    '</span><span class=kbr-c>Code ' +
                     kpct(cod) +
                     "</span></div>"
                 );
