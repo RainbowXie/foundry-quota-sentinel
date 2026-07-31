@@ -722,3 +722,29 @@ pre-existing drift in files this change does not touch).
 Tests: full suite + `-race -tags nogui` pass; `go vet` clean; openspec strict
 valid. Task 6.4 reopened for a fresh real cross-expiry acceptance on the
 round-9 binary (interactive login + page interaction required).
+
+### Round-9 cross-expiry re-acceptance (post `05e6070`) — COMPLETED end-to-end
+
+Fresh disposable HOME, canonical `go build` binary, fresh interactive login:
+
+- `login-kimi acceptance9` saved an isolated version-1 envelope (606/607,
+  access exp `09:05:28`); `quota-kimi` returned the four values (总
+  `11.49%`, 5h `7.9%`, 7d `54.69%`).
+- `open-page` authenticated the membership page (6 cookies, protected 200
+  loaderId-matched, three metrics valid, exact membership URL) and held
+  open across the `09:05:28` expiry.
+- At `09:08:52` the SPA refreshed in-page (memory-type): FOUR new-token
+  requests on unrelated endpoints (GetConfig, ListPromotionalAssets,
+  GetCurrentUser, ListFeeds) were all rejected by the exact-URL gate; the
+  RefreshToken response chain (exact request URL + exact final response
+  URL + 2xx + loadingFinished + strictly-parsed pair) completed →
+  `RefreshToken 轮换签发已观测（新 access 长度 606），立即 CAS 持久化` →
+  `已捕获并持久化（606→606）`. Disk access exp became `09:23:52` = the
+  SPA issuance time — the on-disk pair IS the server-issued SPA pair.
+- Manual close at `09:10:25` (no flash-close); post-close `quota-kimi`
+  returned the four values (总 `11.86%`, 5h `16.71%`, 7d `56.45%`) with
+  NO re-login, using the watcher-persisted SPA pair directly.
+
+All disposable artifacts shredded; real config fingerprint UNCHANGED
+(baseline verified before/after); no secret artifacts retained. Task 6.4
+re-ticked.
