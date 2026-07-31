@@ -94,14 +94,14 @@ func TestSidebarOpenPageHandlesResponse(t *testing.T) {
 	}
 }
 
-// TestSidebarRendersKimiCardsAndAddon (task 5.5, updated by
+// TestSidebarRendersKimiCardsWithoutBooster (task 5.5, updated by
 // fix-kimi-card-layout) proves the sidebar HTML has a Kimi cards container,
 // a kcard renderer using the shared Rolling/Weekly/Monthly labels (the old
 // provider-specific Chinese metric labels are gone from the renderer), a
 // Kimi provider option in the add-account modal, and NO booster affordance
 // (购买加油包 / kimiAddon are removed from the card; the generic
 // context-menu account-page action remains).
-func TestSidebarRendersKimiCardsAndAddon(t *testing.T) {
+func TestSidebarRendersKimiCardsWithoutBooster(t *testing.T) {
 	html, err := webAssets.ReadFile("static/sidebar.html")
 	if err != nil {
 		t.Fatal(err)

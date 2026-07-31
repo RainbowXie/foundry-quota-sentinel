@@ -1,33 +1,34 @@
 # Evidence — fix-kimi-card-layout
 
-Historical implementation evidence for the first revision of the Kimi
-sidebar-card presentation change. The requirements were revised afterward;
-the completed evidence below does not establish acceptance of the current
-change.
+Implementation evidence for the Kimi sidebar-card presentation change.
+The change went through two requirement revisions: (1) the original
+booster-button contract, and (2) the final contract — booster affordance
+removed, truthful single Monthly fill. The final revision's RED→GREEN,
+suites, visual acceptance, and scope checks are recorded in the LAST
+section of this file ("Requirement revision (user, mid-implementation)");
+the earlier sections are historical point-in-time records of the first
+revision, kept for audit.
 
-## Current requirement revision — pending implementation
+Formatting note: all Go files TOUCHED by this change are `gofmt`-clean.
+Repo-wide `gofmt -l` additionally lists 5 pre-existing historical files
+(`internal/formatter/format.go`, `internal/quota/deepseek.go`,
+`internal/quota/opencode.go`, `internal/quota/types.go`,
+`internal/storage/reader.go`) that this change does not touch and leaves
+untouched.
 
-The current contract supersedes the earlier booster-button work:
+## Superseded first-revision evidence (historical)
 
-- `购买加油包` must be removed from Kimi cards, including `kimiAddon`
-  markup, card-specific styles, and delegated event wiring. The generic
-  context-menu/account-page action remains outside this scope.
-- Monthly must contain one visible fill whose width is derived from
-  `total.total_percent`. For total `11.92`, Kimi `0.03`, and Code `11.89`,
-  the bar must visibly fill `11.92%`; Kimi/Code remain text-only breakdown
-  values.
+## Task 1.1 — Impact analysis (GitNexus attempted; JS symbols not indexed → manual)
 
-Tasks 1.5, 1.6, 2.4, 2.5, and 3.2–3.5 in the revised `tasks.md` are open.
-No GREEN implementation or visual acceptance evidence for this revision
-has been recorded yet.
-
-## Superseded first-revision evidence
-
-## Task 1.1 — Impact analysis (GitNexus unavailable → manual)
-
-GitNexus MCP was non-functional during this change (known outage, per
-project convention established in `add-kimi-code-provider`); manual impact
-analysis was performed instead. All edited symbols live inside the embedded
+GitNexus MCP was attempted for the mandated pre-edit impact analysis. The
+edited symbols are JavaScript functions inside the embedded
+`internal/web/static/sidebar.html`, which GitNexus does not index —
+`impact`/`context` queries for `kcard`, `ktotal`, etc. return not-found /
+risk UNKNOWN. A manual call-chain impact analysis was therefore performed
+and is recorded below; once GitNexus became usable again during the
+change, `detect_changes` was run at both commit points for scope
+verification (each time: 1 test symbol touched, 0 affected execution
+flows, risk LOW). All edited symbols live inside the embedded
 `internal/web/static/sidebar.html`:
 
 | Symbol | Callers | Blast radius |
