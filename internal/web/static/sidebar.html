@@ -520,24 +520,29 @@
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
             }
-            /* Kimi Monthly breakdown (secondary line directly below Monthly) */
-            .kbr {
+            /* Shared row-detail extension (secondary line directly below a
+               standard meter row, e.g. Kimi's Monthly Kimi/Code breakdown).
+               Namespaced per-label classes (.qrd-*) own only the unique
+               content colors; .qrd owns the shared layout. */
+            .qrd {
                 font-size: 11px;
                 color: var(--text-sec);
             }
-            .kbr-k {
+            .qrd-kimi {
                 color: var(--text);
             }
-            .kbr-c {
+            .qrd-code {
                 color: var(--accent);
                 margin-left: 8px;
             }
-            /* Kimi semantic re-login action (error state): themed idle,
-               hover, active, and keyboard-focus states instead of inline
-               cursor styling. The booster card affordance was removed
-               (fix-kimi-card-layout); the generic context-menu account-page
-               action remains. */
-            .kimiLogin {
+            /* Shared account action button (re-login etc., error state):
+               semantic button with themed idle, hover, active, and
+               keyboard-focus states. Applies to EVERY provider's action
+               (Ollama's olLogin included) so no provider falls back to the
+               browser-native gray button. Provider-specific classes
+               (.kimiLogin/.olLogin) remain for event delegation; the
+               shared .qact class owns the visual contract. */
+            .qact {
                 background: none;
                 border: none;
                 padding: 0;
@@ -545,16 +550,22 @@
                 color: var(--text-sec);
                 cursor: pointer;
             }
-            .kimiLogin:hover {
+            .qact:hover {
                 text-decoration: underline;
             }
-            .kimiLogin:active {
+            .qact:active {
                 opacity: 0.75;
             }
-            .kimiLogin:focus-visible {
+            .qact:focus-visible {
                 outline: 1px solid var(--accent);
                 outline-offset: 2px;
                 border-radius: 3px;
+            }
+            /* Provider-specific action classes: delegation hooks only; the
+               shared .qact styles apply to both. */
+            .kimiLogin,
+            .olLogin {
+                color: var(--text-sec);
             }
             .bc-d {
                 font-size: 8px;
@@ -988,26 +999,31 @@
             .prov {
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
+                justify-content: center;
+                width: 100%;
                 padding: 10px 12px;
                 border-radius: 10px;
                 border: 1px solid var(--input-bd);
                 margin-bottom: 8px;
                 cursor: pointer;
+                font: inherit;
+                color: var(--text);
+                background: none;
+                text-align: center;
                 transition: all 0.15s;
             }
             .prov:hover {
                 border-color: var(--accent);
                 background: rgba(var(--accent-rgb), 0.08);
             }
+            .prov:focus-visible {
+                outline: 1px solid var(--accent);
+                outline-offset: 2px;
+            }
             .prov-n {
                 font-size: 13px;
                 font-weight: 600;
                 color: var(--text);
-            }
-            .prov-d {
-                font-size: 10px;
-                color: var(--text-sec);
             }
             .modal-in {
                 width: 100%;
@@ -1089,22 +1105,7 @@
                                 <div class="modal-sub">
                                     选择服务商 / Choose provider
                                 </div>
-                                <div class="prov" data-type="opencode">
-                                    <span class="prov-n">OpenCode Go</span
-                                    ><span class="prov-d">套餐额度</span>
-                                </div>
-                                <div class="prov" data-type="deepseek">
-                                    <span class="prov-n">DeepSeek</span
-                                    ><span class="prov-d">用量 / 余额</span>
-                                </div>
-                                <div class="prov" data-type="ollama">
-                                    <span class="prov-n">Ollama</span
-                                    ><span class="prov-d">Cloud 用量</span>
-                                </div>
-                                <div class="prov" data-type="kimi">
-                                    <span class="prov-n">Kimi Code</span
-                                    ><span class="prov-d">Rolling / Weekly / Monthly</span>
-                                </div>
+                                <div id="modalProviders"></div>
                             </div>
                             <div id="modalStep2" class="hide">
                                 <div class="modal-sub" id="modalProvLabel"></div>
@@ -1268,59 +1269,276 @@
                     }[c];
                 });
             }
-            function qrow(label, u, cl) {
-                if (!u)
-                    return (
-                        "<div class=qr><span class=ql>" +
-                        label +
-                        '</span><div class=qbw><div class="qf ' +
-                        cl +
-                        '" style="width:0%"></div></div><span class="qp ' +
-                        cl +
-                        '">∞</span><span class=qtm>无限</span></div>'
-                    );
-                var pct = u.usage_percent,
-                    w = bg(pct),
-                    bc = w || cl;
-                return (
-                    "<div class=qr><span class=ql>" +
-                    label +
-                    '</span><div class=qbw><div class="qf ' +
-                    bc +
-                    '" style="width:' +
-                    pct +
-                    '%"></div></div><span class="qp ' +
-                    bc +
-                    '">' +
-                    pct +
-                    "%</span><span class=qtm>" +
-                    (u.reset_display || "") +
-                    "</span></div>"
-                );
-            }
-            function acard(a) {
-                var body;
-                if (!a.success) {
-                    body =
-                        "<div class=qerr>" +
-                        qesc(a.error || "查询失败") +
-                        "</div>";
-                } else {
-                    var d = a.quota;
-                    body =
-                        qrow("Rolling", d.rolling, "g1") +
-                        qrow("Weekly", d.weekly, "g2") +
-                        qrow("Monthly", d.monthly, "g3");
+
+            /* ===== Shared Quota-Card Foundation (Task 2.1-2.2) ===== */
+
+            // formatDurationCompact formats seconds as a compact relative duration.
+            // Matches Go FormatDurationCompact: floors the largest applicable whole unit.
+            // Task 2.1: Pure formatter for shared quota-card reset column.
+            function formatDurationCompact(seconds) {
+                // Clamp invalid/expired values to safe non-negative display
+                if (seconds === undefined || seconds === null || isNaN(seconds) || !isFinite(seconds) || seconds < 0) {
+                    return "0s";
                 }
-                return (
-                    '<div class=acard data-prov=opencode data-name="' +
-                    qesc(a.name) +
-                    '"><div class=acard-h><span class=ctype>OpenCode Go</span><span class=cname>' +
-                    qesc(a.name) +
-                    "</span></div>" +
-                    body +
-                    "</div>"
-                );
+                var s = Math.floor(seconds);
+                if (s < 60) return s + "s";
+                if (s < 3600) return Math.floor(s / 60) + "m";
+                if (s < 86400) return Math.floor(s / 3600) + "h";
+                return Math.floor(s / 86400) + "d";
+            }
+
+            // formatPercent formats a percentage with declarative precision.
+            // percentPrecision: 0 = integer, 1-2 = decimal places (trailing zeros trimmed).
+            function formatPercent(percent, precision) {
+                if (percent === undefined || percent === null || isNaN(percent)) return "0%";
+                if (precision === 0 || precision === undefined) {
+                    return Math.round(percent) + "%";
+                }
+                // Decimal precision: round to precision, trim trailing zeros
+                var rounded = Math.round(percent * Math.pow(10, precision)) / Math.pow(10, precision);
+                if (rounded === 0) return "0%";
+                var str = rounded.toString();
+                // Trim trailing zeros after decimal point, then trim trailing decimal point
+                if (str.indexOf(".") >= 0) {
+                    str = str.replace(/0+$/, "").replace(/\.$/, "");
+                }
+                return str + "%";
+            }
+
+            // renderQuotaRow renders one standard quota row from the shared view model.
+            // Task 2.2: Shared row renderer with label, track, fill, percentage, reset, details.
+            // Safety: null/undefined rows and non-finite percents render a safe
+            // placeholder; ONE validated value drives color, fill width, and text.
+            function renderQuotaRow(row) {
+                if (!row) return "";
+                var label = qesc(row.label || "");
+                var pct = row.percent;
+                var finite = typeof pct === "number" && isFinite(pct);
+                if (!finite) {
+                    // Missing/invalid data row placeholder
+                    return '<div class="qr"><span class="ql">' + label + '</span><span class="qtm">—</span></div>';
+                }
+                var tone = row.tone || "";
+                var w = bg(pct);
+                var bc = w || tone;
+                var pctStr = formatPercent(pct, row.percentPrecision);
+                var resetStr = formatDurationCompact(row.resetInSec);
+                var clampedWidth = Math.max(0, Math.min(100, pct));
+
+                var html = '<div class="qr">' +
+                    '<span class="ql">' + label + '</span>' +
+                    '<div class="qbw"><div class="qf ' + bc + '" style="width:' + clampedWidth + '%"></div></div>' +
+                    '<span class="qp ' + bc + '">' + pctStr + '</span>' +
+                    '<span class="qtm">' + resetStr + '</span>' +
+                    '</div>';
+
+                // Render row details (typed extension slot for Kimi/Code breakdown, etc.)
+                if (row.details && row.details.length > 0) {
+                    html += '<div class="qr qrd">';
+                    for (var i = 0; i < row.details.length; i++) {
+                        var d = row.details[i];
+                        if (!d) continue;
+                        html += '<span class="qrd-' + qesc(String(d.label || "").toLowerCase()) + '">' +
+                            qesc(d.label || "") + ' ' + qesc(d.value || "") + '</span>';
+                    }
+                    html += '</div>';
+                }
+                return html;
+            }
+
+            // renderQuotaCard renders a complete quota card from the shared view model.
+            // Task 2.2: Shared shell/header, error region, ordered rows, extension slots.
+            function renderQuotaCard(view) {
+                var body;
+                if (!view.success) {
+                    // Error state with optional action: rendered as a real
+                    // <button> so the re-login affordance is keyboard-
+                    // focusable (a span is not). The shared .qact class
+                    // provides unified styling; the declared class (e.g.
+                    // kimiLogin/olLogin) is retained for per-container
+                    // delegated dispatch.
+                    body = '<div class="qerr">' + qesc(view.error || "查询失败") + '</div>';
+                    if (view.errorAction) {
+                        body += '<div class="bc-d"><button type="button" class="qact ' + qesc(view.errorAction.class || "") +
+                            '" data-action="relogin" data-name="' + qesc(view.accountName) + '">' +
+                            qesc(view.errorAction.label) + '</button></div>';
+                    }
+                } else {
+                    // Success state: render ordered rows
+                    body = "";
+                    if (view.rows && view.rows.length > 0) {
+                        for (var i = 0; i < view.rows.length; i++) {
+                            body += renderQuotaRow(view.rows[i]);
+                        }
+                    }
+                }
+
+                // Build card shell
+                var html = '<div class="acard" data-prov="' + qesc(view.provider) +
+                    '" data-name="' + qesc(view.accountName) + '">' +
+                    '<div class="acard-h">' +
+                    '<span class="ctype">' + qesc(view.providerLabel) + '</span>' +
+                    '<span class="cname">' + qesc(view.accountName) + '</span>';
+
+                // Header extension slot (badges, etc.)
+                if (view.headerExtension) {
+                    html += '<span class="' + qesc(view.headerExtension.class || "") + '">' +
+                        qesc(view.headerExtension.content || "") + '</span>';
+                }
+                html += '</div>'; // .acard-h
+
+                // Body extensions (before rows)
+                if (view.bodyExtensions && view.bodyExtensions.length > 0) {
+                    for (var i = 0; i < view.bodyExtensions.length; i++) {
+                        var ext = view.bodyExtensions[i];
+                        html += '<div class="' + qesc(ext.class || "") + '">' +
+                            qesc(ext.content || "") + '</div>';
+                    }
+                }
+
+                html += body;
+
+                // Footer extension slot
+                if (view.footerExtension) {
+                    html += '<div class="' + qesc(view.footerExtension.class || "") + '">' +
+                        qesc(view.footerExtension.content || "") + '</div>';
+                }
+
+                html += '</div>'; // .acard
+                return html;
+            }
+
+            /* ===== Provider Adapters (Tasks 2.3-2.5) ===== */
+
+            // opencodeAdapter converts OpenCode Go DTO to shared view model.
+            // Task 2.3: Rolling, Weekly, optional Monthly with integer precision.
+            function opencodeAdapter(a) {
+                var view = {
+                    provider: "opencode",
+                    providerLabel: "OpenCode Go",
+                    accountName: a.name,
+                    success: a.success,
+                    error: a.error,
+                    rows: []
+                };
+                if (a.success && a.quota) {
+                    var d = a.quota;
+                    if (d.rolling) view.rows.push({
+                        label: "Rolling",
+                        percent: d.rolling.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.rolling.reset_in_sec,
+                        tone: "g1"
+                    });
+                    if (d.weekly) view.rows.push({
+                        label: "Weekly",
+                        percent: d.weekly.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.weekly.reset_in_sec,
+                        tone: "g2"
+                    });
+                    if (d.monthly) view.rows.push({
+                        label: "Monthly",
+                        percent: d.monthly.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.monthly.reset_in_sec,
+                        tone: "g3"
+                    });
+                }
+                return view;
+            }
+
+            // ollamaAdapter converts Ollama DTO to shared view model.
+            // Task 2.4: Session, Weekly (no Monthly) with re-login action on error.
+            function ollamaAdapter(a) {
+                var view = {
+                    provider: "ollama",
+                    providerLabel: "Ollama",
+                    accountName: a.name,
+                    success: a.success,
+                    error: a.error,
+                    rows: []
+                };
+                if (!a.success) {
+                    view.errorAction = { label: "重新登录", class: "olLogin" };
+                } else if (a.quota) {
+                    var d = a.quota;
+                    if (d.rolling) view.rows.push({
+                        label: "Session",
+                        percent: d.rolling.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.rolling.reset_in_sec,
+                        tone: "g1"
+                    });
+                    if (d.weekly) view.rows.push({
+                        label: "Weekly",
+                        percent: d.weekly.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.weekly.reset_in_sec,
+                        tone: "g2"
+                    });
+                }
+                return view;
+            }
+
+            // kimiAdapter converts Kimi DTO to shared view model.
+            // Task 2.5: five_hour→Rolling, seven_day→Weekly, total→Monthly with decimal precision.
+            function kimiAdapter(a) {
+                var view = {
+                    provider: "kimi",
+                    providerLabel: "Kimi Code",
+                    accountName: a.name,
+                    success: a.success,
+                    error: a.error,
+                    rows: []
+                };
+                if (!a.success) {
+                    view.errorAction = { label: "重新登录", class: "kimiLogin" };
+                } else if (a.quota) {
+                    var d = a.quota;
+                    var t = d.total || {};
+                    if (d.five_hour) view.rows.push({
+                        label: "Rolling",
+                        percent: d.five_hour.usage_percent,
+                        percentPrecision: 2,
+                        resetInSec: d.five_hour.reset_in_sec,
+                        tone: "g2"
+                    });
+                    if (d.seven_day) view.rows.push({
+                        label: "Weekly",
+                        percent: d.seven_day.usage_percent,
+                        percentPrecision: 2,
+                        resetInSec: d.seven_day.reset_in_sec,
+                        tone: "g3"
+                    });
+                    if (t.total_percent !== undefined) {
+                        var monthlyRow = {
+                            label: "Monthly",
+                            percent: t.total_percent,
+                            percentPrecision: 2,
+                            resetInSec: t.reset_in_sec,
+                            tone: "g1",
+                            details: []
+                        };
+                        // Attach Kimi/Code breakdown as typed row detail
+                        if (t.kimi_percent !== undefined) {
+                            monthlyRow.details.push({ label: "Kimi", value: formatPercent(t.kimi_percent, 2) });
+                        }
+                        if (t.code_percent !== undefined) {
+                            monthlyRow.details.push({ label: "Code", value: formatPercent(t.code_percent, 2) });
+                        }
+                        view.rows.push(monthlyRow);
+                    }
+                }
+                return view;
+            }
+
+            /* ===== Legacy Renderers (removed; all cards use the shared
+                   quota-card foundation via provider adapters) ===== */
+
+            function acard(a) {
+                // Use shared quota-card foundation via adapter (Task 2.3)
+                return renderQuotaCard(opencodeAdapter(a));
             }
             async function fq() {
                 try {
@@ -1338,30 +1556,8 @@
             }
             /* Ollama cards */
             function olcard(a) {
-                var body;
-                if (!a.success) {
-                    body =
-                        "<div class=qerr>" +
-                        qesc(a.error || "查询失败") +
-                        "</div>" +
-                        '<div class=bc-d><span class=olLogin data-name="' +
-                        qesc(a.name) +
-                        '" style="cursor:pointer;color:var(--text-sec)">重新登录</span></div>';
-                } else {
-                    var d = a.quota || {};
-                    body =
-                        qrow("Session", d.rolling, "g1") +
-                        qrow("Weekly", d.weekly, "g2");
-                }
-                return (
-                    '<div class=acard data-prov=ollama data-name="' +
-                    qesc(a.name) +
-                    '"><div class=acard-h><span class=ctype>Ollama</span><span class=cname>' +
-                    qesc(a.name) +
-                    "</span></div>" +
-                    body +
-                    "</div>"
-                );
+                // Use shared quota-card foundation via adapter (Task 2.4)
+                return renderQuotaCard(ollamaAdapter(a));
             }
             async function fo() {
                 try {
@@ -1380,89 +1576,8 @@
             }
             /* kimi cards */
             function kcard(a) {
-                var body;
-                if (!a.success) {
-                    body =
-                        "<div class=qerr>" +
-                        qesc(a.error || "查询失败") +
-                        "</div>" +
-                        '<div class=bc-d><button type="button" class=kimiLogin data-name="' +
-                        qesc(a.name) +
-                        '">重新登录</button></div>';
-                } else {
-                    var d = a.quota || {};
-                    var t = d.total || {};
-                    body =
-                        krow("Rolling", d.five_hour, "g2") +
-                        krow("Weekly", d.seven_day, "g3") +
-                        ktotal(t);
-                }
-                return (
-                    '<div class=acard data-prov=kimi data-name="' +
-                    qesc(a.name) +
-                    '"><div class=acard-h><span class=ctype>Kimi Code</span><span class=cname>' +
-                    qesc(a.name) +
-                    "</span></div>" +
-                    body +
-                    "</div>"
-                );
-            }
-            // ktotal renders the Monthly row: ONE truthful progress fill
-            // whose width is the real total percentage (the previous split
-            // Kimi+Code fills stacked vertically inside the 6px track, so the
-            // Code fill was clipped and a non-zero total looked empty), plus
-            // the monthly reset, followed immediately by the secondary
-            // Kimi/Code decimal breakdown as TEXT only.
-            function ktotal(t) {
-                if (!t || t.total_percent === undefined)
-                    return "<div class=qr><span class=ql>Monthly</span><span class=qtm>—</span></div>";
-                var tot = t.total_percent,
-                    kim = t.kimi_percent || 0,
-                    cod = t.code_percent || 0,
-                    pctStr = kpct(tot),
-                    reset = t.reset_display || "";
-                return (
-                    "<div class=qr><span class=ql>Monthly</span>" +
-                    '<div class=qbw><div class="qf g1" style="width:' +
-                    tot +
-                    '%"></div></div>' +
-                    '<span class="qp g1">' +
-                    pctStr +
-                    "</span><span class=qtm>" +
-                    reset +
-                    "</span></div>" +
-                    '<div class="qr kbr"><span class=kbr-k>Kimi ' +
-                    kpct(kim) +
-                    '</span><span class=kbr-c>Code ' +
-                    kpct(cod) +
-                    "</span></div>"
-                );
-            }
-            // kpct renders a decimal percentage (2 places, trailing zeros trimmed).
-            function kpct(p) {
-                if (p === 0 || p === undefined) return "0%";
-                return (Math.round(p * 100) / 100).toString().replace(/\.?0+$/, "") + "%";
-            }
-            // krow renders one Kimi decimal Code-window metric.
-            function krow(label, u, cl) {
-                if (!u) return "<div class=qr><span class=ql>" + label + "</span><span class=qtm>—</span></div>";
-                var pct = u.usage_percent;
-                var pctStr = kpct(pct);
-                return (
-                    "<div class=qr><span class=ql>" +
-                    label +
-                    '</span><div class=qbw><div class="qf ' +
-                    cl +
-                    '" style="width:' +
-                    pct +
-                    '%"></div></div><span class="qp ' +
-                    cl +
-                    '">' +
-                    pctStr +
-                    "</span><span class=qtm>" +
-                    (u.reset_display || "") +
-                    "</span></div>"
-                );
+                // Use shared quota-card foundation via adapter (Task 2.5)
+                return renderQuotaCard(kimiAdapter(a));
             }
             async function fk() {
                 try {
@@ -1940,12 +2055,32 @@
                     if (t.classList.contains("kimiLogin"))
                         kimiDoLogin(t.getAttribute("data-name"));
                 });
+            /* Provider registry — single source of truth for the Add Account
+               dialog AND account actions. A future provider is a one-line
+               data entry here: step-one options, the step-two provider
+               label, the default account name, the login dispatch, and the
+               card-refresh handler are all derived from this table. Unknown
+               types error explicitly instead of silently mapping to a
+               provider. */
+            var quotaProviders = [
+                { type: "opencode", label: "OpenCode Go", defaultName: "OpenCode", login: "ocDoLogin", refresh: "fq" },
+                { type: "deepseek", label: "DeepSeek", defaultName: "DeepSeek", login: "dsDoLogin", refresh: "fd" },
+                { type: "ollama", label: "Ollama", defaultName: "Ollama", login: "olDoLogin", refresh: "fo" },
+                { type: "kimi", label: "Kimi Code", defaultName: "Kimi", login: "kimiDoLogin", refresh: "fk" }
+            ];
+            function quotaProviderByType(type) {
+                for (var i = 0; i < quotaProviders.length; i++) {
+                    if (quotaProviders[i].type === type) return quotaProviders[i];
+                }
+                return null;
+            }
             (function () {
                 var modal = document.getElementById("addModal");
                 var s1 = document.getElementById("modalStep1");
                 var s2 = document.getElementById("modalStep2");
                 var nameIn = document.getElementById("modalName");
                 var provLabel = document.getElementById("modalProvLabel");
+                var provHost = document.getElementById("modalProviders");
                 var curType = "";
                 function openModal() {
                     s2.classList.add("hide");
@@ -1964,40 +2099,51 @@
                 modal.addEventListener("click", function (e) {
                     if (e.target === modal) closeModal();
                 });
-                document.querySelectorAll(".prov").forEach(function (p) {
-                    p.addEventListener("click", function () {
-                        curType = p.getAttribute("data-type");
-                        provLabel.textContent =
-                            (curType === "opencode"
-                                ? "OpenCode Go"
-                                : curType === "deepseek"
-                                  ? "DeepSeek"
-                                  : curType === "ollama"
-                                    ? "Ollama"
-                                    : "Kimi Code") + " · 账户名称";
-                        nameIn.value =
-                            curType === "opencode"
-                                ? "OpenCode"
-                                : curType === "deepseek"
-                                  ? "DeepSeek"
-                                  : curType === "ollama"
-                                    ? "Ollama"
-                                    : "Kimi";
-                        s1.classList.add("hide");
-                        s2.classList.remove("hide");
-                        nameIn.focus();
-                        nameIn.select();
-                    });
+                // Render step-one choices from the registry (data-driven).
+                quotaProviders.forEach(function (p) {
+                    var opt = document.createElement("button");
+                    opt.type = "button";
+                    opt.className = "prov";
+                    opt.setAttribute("data-type", p.type);
+                    opt.textContent = p.label;
+                    provHost.appendChild(opt);
+                });
+                provHost.addEventListener("click", function (e) {
+                    var opt =
+                        e.target.closest
+                            ? e.target.closest(".prov")
+                            : null;
+                    if (!opt || !provHost.contains(opt)) return;
+                    var type = opt.getAttribute("data-type");
+                    var p = quotaProviderByType(type);
+                    if (!p) {
+                        alert("未知服务商: " + type);
+                        return;
+                    }
+                    curType = p.type;
+                    provLabel.textContent = p.label + " · 账户名称";
+                    nameIn.value = p.defaultName;
+                    s1.classList.add("hide");
+                    s2.classList.remove("hide");
+                    nameIn.focus();
+                    nameIn.select();
                 });
                 document
                     .getElementById("modalGo")
                     .addEventListener("click", function () {
                         var nm = nameIn.value.trim();
                         if (!nm) return;
-                        if (curType === "opencode") ocDoLogin(nm);
-                        else if (curType === "deepseek") dsDoLogin(nm);
-                        else if (curType === "ollama") olDoLogin(nm);
-                        else if (curType === "kimi") kimiDoLogin(nm);
+                        var p = quotaProviderByType(curType);
+                        if (!p) {
+                            alert("未知服务商，无法登录");
+                            return;
+                        }
+                        var fn = window[p.login];
+                        if (typeof fn !== "function") {
+                            alert("服务商登录处理器缺失: " + p.type);
+                            return;
+                        }
+                        fn(nm);
                         closeModal();
                     });
                 nameIn.addEventListener("keydown", function (e) {
@@ -2091,12 +2237,12 @@
                     if (!cur.prov) return;
                     pend.prov = cur.prov;
                     pend.name = cur.name;
-                    var label =
-                        cur.prov === "opencode"
-                            ? "OpenCode Go"
-                            : cur.prov === "deepseek"
-                              ? "DeepSeek"
-                              : "Ollama";
+                    // Provider label comes from the registry so every
+                    // provider (including Kimi) gets its own confirm text;
+                    // unknown types fall back to the raw type, never to a
+                    // wrong provider's label.
+                    var p = quotaProviderByType(cur.prov);
+                    var label = p ? p.label : cur.prov;
                     ctext.textContent =
                         "确定删除 " +
                         label +
@@ -2119,18 +2265,30 @@
                     .getElementById("confirmOk")
                     .addEventListener("click", function () {
                         if (!pend.prov) return;
+                        // Snapshot the pending deletion at the async
+                        // boundary: the request AND the post-response refresh
+                        // must both use THIS provider/name. pend can change
+                        // while the request is in flight (the user may open a
+                        // new delete confirm for another provider), so
+                        // re-reading it later would refresh the wrong card.
+                        var deletedProvider = pend.prov;
+                        var deletedName = pend.name;
                         fetch(
                             "/api/delete?provider=" +
-                                encodeURIComponent(pend.prov) +
+                                encodeURIComponent(deletedProvider) +
                                 "&name=" +
-                                encodeURIComponent(pend.name),
+                                encodeURIComponent(deletedName),
                         )
                             .then(function () {
                                 closeConfirm();
                                 setTimeout(function () {
-                                    fq();
-                                    fo();
-                                    fd();
+                                    // Refresh only the deleted provider's
+                                    // container so the removed card disappears
+                                    // immediately, without redundant network
+                                    // requests to unrelated providers.
+                                    var p = quotaProviderByType(deletedProvider);
+                                    var fn = p ? window[p.refresh] : null;
+                                    if (typeof fn === "function") fn();
                                 }, 300);
                             })
                             .catch(function () {

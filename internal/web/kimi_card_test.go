@@ -124,21 +124,26 @@ func kimiSuccessDTO() map[string]any {
 		"name":    "synthetic-account",
 		"success": true,
 		"quota": map[string]any{
-			"five_hour": map[string]any{"usage_percent": 7.9, "reset_display": "RESET-5H"},
-			"seven_day": map[string]any{"usage_percent": 56.45, "reset_display": "RESET-7D"},
+			"five_hour": map[string]any{"usage_percent": 7.9, "reset_display": "RESET-5H", "reset_in_sec": 18000},
+			"seven_day": map[string]any{"usage_percent": 56.45, "reset_display": "RESET-7D", "reset_in_sec": 172800},
 			"total": map[string]any{
 				"total_percent": 11.86,
 				"kimi_percent":  0.03,
 				"code_percent":  11.83,
 				"reset_display": "RESET-TOTAL",
+				"reset_in_sec":  1987200,
 			},
 		},
 	}
 }
 
 // qrSegments splits rendered card markup into its quota-row segments.
+// Accepts both unquoted (<div class=qr) and quoted (<div class="qr") forms.
 func qrSegments(html string) []string {
-	parts := strings.Split(html, "<div class=qr")
+	parts := strings.Split(html, "<div class=\"qr\"")
+	if len(parts) == 1 {
+		parts = strings.Split(html, "<div class=qr")
+	}
 	segs := make([]string, 0, len(parts))
 	for _, p := range parts[1:] {
 		segs = append(segs, p)
@@ -216,9 +221,9 @@ func TestKimiCardRendersRollingWeeklyMonthlyMapping(t *testing.T) {
 		t.Fatalf("could not locate all three labeled rows; segments: %#v", segs)
 	}
 	expect := map[string][2]string{
-		"Rolling": {"7.9%", "RESET-5H"},
-		"Weekly":  {"56.45%", "RESET-7D"},
-		"Monthly": {"11.86%", "RESET-TOTAL"},
+		"Rolling": {"7.9%", "5h"},
+		"Weekly":  {"56.45%", "2d"},
+		"Monthly": {"11.86%", "23d"},
 	}
 	rows := map[string]string{"Rolling": rolling, "Weekly": weekly, "Monthly": monthly}
 	for label, want := range expect {
@@ -260,9 +265,9 @@ func TestKimiCardRendersMonthlyKimiCodeBreakdown(t *testing.T) {
 	// preserved exactly.
 	dto := kimiSuccessDTO()
 	q := dto["quota"].(map[string]any)
-	q["five_hour"] = map[string]any{"usage_percent": 7.90, "reset_display": "R1"}
-	q["seven_day"] = map[string]any{"usage_percent": 0.0, "reset_display": "R2"}
-	q["total"] = map[string]any{"total_percent": 11.0, "kimi_percent": 0.0, "code_percent": 11.0, "reset_display": "R3"}
+	q["five_hour"] = map[string]any{"usage_percent": 7.90, "reset_display": "R1", "reset_in_sec": 3600}
+	q["seven_day"] = map[string]any{"usage_percent": 0.0, "reset_display": "R2", "reset_in_sec": 86400}
+	q["total"] = map[string]any{"total_percent": 11.0, "kimi_percent": 0.0, "code_percent": 11.0, "reset_display": "R3", "reset_in_sec": 172800}
 	out2 := renderKimiCard(t, dto)
 	for _, want := range []string{"7.9%", "11%", "Kimi 0%", "Code 11%"} {
 		if !strings.Contains(out2, want) {
@@ -286,7 +291,7 @@ func TestKimiCardRendersMonthlyKimiCodeBreakdown(t *testing.T) {
 func TestKimiCardMonthlySingleTruthfulFill(t *testing.T) {
 	dto := kimiSuccessDTO()
 	q := dto["quota"].(map[string]any)
-	q["total"] = map[string]any{"total_percent": 11.92, "kimi_percent": 0.03, "code_percent": 11.89, "reset_display": "RESET-TOTAL"}
+	q["total"] = map[string]any{"total_percent": 11.92, "kimi_percent": 0.03, "code_percent": 11.89, "reset_display": "RESET-TOTAL", "reset_in_sec": 1987200}
 	out := renderKimiCard(t, dto)
 
 	segs := qrSegments(out)
@@ -318,7 +323,7 @@ func TestKimiCardMonthlySingleTruthfulFill(t *testing.T) {
 	}
 
 	// Zero total: fill width 0%, row and value still present.
-	q["total"] = map[string]any{"total_percent": 0.0, "kimi_percent": 0.0, "code_percent": 0.0, "reset_display": "RESET-TOTAL"}
+	q["total"] = map[string]any{"total_percent": 0.0, "kimi_percent": 0.0, "code_percent": 0.0, "reset_display": "RESET-TOTAL", "reset_in_sec": 1987200}
 	out0 := renderKimiCard(t, dto)
 	if !strings.Contains(out0, "Monthly") || !strings.Contains(out0, "0%") {
 		t.Fatalf("zero-total Monthly row must remain present with a formatted value; got:\n%s", out0)
@@ -480,21 +485,6 @@ func TestKimiCardErrorStateFabricatesNoMetrics(t *testing.T) {
 	}
 }
 
-// TestKimiRefreshAndDeleteWiringIntact proves the non-renderer behaviors
-// the presentation change must not replace: periodic kimi refresh, the
-// fetch-failure error path, and the shared account delete flow.
-func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
-	html := readSidebarHTML(t)
-	if !regexp.MustCompile(`fk\(\);\s*\n?\s*setInterval\(fk,`).MatchString(html) {
-		t.Fatal("Kimi cards must keep their periodic refresh (fk(); setInterval(fk, ...))")
-	}
-	if !regexp.MustCompile(`if \(!r\.success\) throw`).MatchString(html) {
-		t.Fatal("Kimi fetch failures must surface as card errors, not fabricated metrics")
-	}
-	if !strings.Contains(html, `id="ctxDelete"`) {
-		t.Fatal("shared delete affordance (ctxDelete) must remain")
-	}
-	if !strings.Contains(html, "/api/delete") && !regexp.MustCompile(`/api/[a-z]+/delete`).MatchString(html) {
-		t.Fatal("account delete endpoint wiring must remain")
-	}
-}
+// TestKimiRefreshAndDeleteWiringIntact is defined in delete_flow_test.go
+// (moved there with expanded registry-driven delete-flow assertions for the
+// unify-quota-card-template change).

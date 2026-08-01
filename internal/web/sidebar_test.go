@@ -110,9 +110,14 @@ func TestSidebarRendersKimiCardsWithoutBooster(t *testing.T) {
 	for _, want := range []string{
 		`id="kimiCards"`,
 		`function kcard`,
-		`krow("Rolling", d.five_hour`,
-		`krow("Weekly", d.seven_day`,
-		`data-type="kimi"`,
+		`function kimiAdapter`,
+		`label: "Rolling"`,
+		`label: "Weekly"`,
+		`label: "Monthly"`,
+		`d.five_hour`,
+		`d.seven_day`,
+		`t.total_percent`,
+		`type: "kimi"`,
 		`kimiDoLogin`,
 		`/api/kimi`,
 	} {
