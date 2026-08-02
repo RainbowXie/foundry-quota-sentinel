@@ -101,6 +101,12 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 //     in-flight guard must still block the second request (exactly ONE
 //     /api/delete), and the ORIGINAL success must close the reopened
 //     account's dialog and refresh /api/kimi.
+//   - "reopen-before-refresh":  Kimi A's delete SUCCEEDS (immediate) and
+//     the modal closes, but the 300ms refresh timer has NOT run yet. The
+//     user reopens the same account and confirms again: the per-account
+//     guard must still block a duplicate (the key is only released after
+//     the refresh settles), so exactly ONE /api/delete total. After the
+//     refresh runs, /api/kimi is fetched.
 const deleteFlowHarnessScript = `
 const fs = require("fs");
 const vm = require("vm");
@@ -248,8 +254,7 @@ setImmediate(() => {
 		// Response resolved; modal must already be closed (microtasks flushed).
 		if (!getEl("confirmModal").classList.contains("hide")) {
 			fail("success must close the confirm modal", 11);
-		}
-		// RACE: during the 300ms refresh-delay window the user opens another
+		}		// RACE: during the 300ms refresh-delay window the user opens another
 		// provider's confirm, overwriting internal pending state.
 		openConfirm("ollama", "Ollama B");
 		const pre = fetchCalls.length;
@@ -339,6 +344,42 @@ setImmediate(() => {
 				if (after.includes(ep)) {
 					fail("reopen must NOT refresh unrelated " + ep + "; after=" + JSON.stringify(after), 34);
 				}
+			}
+		});
+	} else if (scenario === "reopen-before-refresh") {
+		// Success already arrived and the modal closed, but the 300ms
+		// refresh timer has NOT run yet. Reopening the SAME account and
+		// confirming again must be blocked: the per-account guard is held
+		// until the refresh settles (the old card is still in the DOM).
+		if (!getEl("confirmModal").classList.contains("hide")) {
+			fail("success must close the confirm modal", 11);
+		}
+		openConfirm("kimi", "Kimi A"); // reopen same account before refresh
+		okClick();                        // confirm again -> must be blocked
+		const deletesBeforeRefresh = fetchCalls.filter((u) => u.startsWith("/api/delete"));
+		if (deletesBeforeRefresh.length !== 1) {
+			fail("reopen before refresh must NOT send a 2nd delete; got " + deletesBeforeRefresh.length + ": " + JSON.stringify(deletesBeforeRefresh), 40);
+		}
+		// Now run the refresh timer: /api/kimi refreshes and the guard
+		// releases after the refresh settles.
+		const pre = fetchCalls.length;
+		timers.forEach((fn) => fn());
+		setImmediate(() => {
+			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+			if (!after.includes("/api/kimi")) {
+				fail("refresh must call /api/kimi after success; after=" + JSON.stringify(after), 41);
+			}
+			for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
+				if (after.includes(ep)) {
+					fail("refresh must NOT call unrelated " + ep + "; after=" + JSON.stringify(after), 42);
+				}
+			}
+			// After the refresh settles the guard is released: a fresh
+			// confirm for the account may now send a request again.
+			okClick();
+			const deletesAfter = fetchCalls.filter((u) => u.startsWith("/api/delete"));
+			if (deletesAfter.length !== 2) {
+				fail("guard must release after refresh settles (2nd delete allowed); got " + deletesAfter.length, 43);
 			}
 		});
 	} else if (scenario === "stale-success" || scenario === "stale-failure") {
@@ -471,4 +512,13 @@ func TestDoubleConfirmSendsSingleRequest(t *testing.T) {
 // refreshes /api/kimi.
 func TestReopenSameAccountCannotBypassGuard(t *testing.T) {
 	runDeleteFlowScenario(t, "reopen")
+}
+
+// TestReopenBeforeRefreshStillBlocked proves that after a SUCCESS response
+// the per-account guard is held until the provider refresh settles: a
+// reopen+confirm of the same account between success and the refresh timer
+// cannot send a duplicate /api/delete (which would fail with
+// account-not-found), and the guard releases only after the refresh.
+func TestReopenBeforeRefreshStillBlocked(t *testing.T) {
+	runDeleteFlowScenario(t, "reopen-before-refresh")
 }

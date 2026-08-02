@@ -73,26 +73,31 @@ confirmOk.addEventListener("click", function () {
             return r.json().catch(function () { return null; });
         })
         .then(function (res) {
-            delete inFlightDeletes[key];        // request done; retry allowed
             // Only touch the modal while it still shows THIS account;
             // pend holds the last opened confirm.
             var ownsDialog = pend.prov === deletedProvider &&
                              pend.name === deletedName;
             if (!res || res.success !== true) {
+                delete inFlightDeletes[key];   // failure: release NOW, retry allowed
                 if (ownsDialog) {
                     ctext.textContent = "删除失败：" + ((res && res.error) || "未知错误");
                 }
                 return;
             }
             if (ownsDialog) { closeConfirm(); }
-            setTimeout(function () {              // refresh NOT dialog-gated
+            setTimeout(function () {          // success: hold guard until refresh settles
                 var p = quotaProviderByType(deletedProvider);
                 var fn = p ? window[p.refresh] : null;
-                if (typeof fn === "function") fn();
+                function release() { delete inFlightDeletes[key]; }
+                if (typeof fn === "function") {
+                    Promise.resolve(fn()).then(release, release);
+                } else {
+                    release();
+                }
             }, 300);
         })
         .catch(function () {                      // real network failure only
-            delete inFlightDeletes[key];
+            delete inFlightDeletes[key];          // release NOW, retry allowed
             if (pend.prov === deletedProvider && pend.name === deletedName) {
                 ctext.textContent = "删除失败：网络错误";
             }
@@ -106,6 +111,24 @@ must never close on an uncertain outcome. `delItem` (opening a confirm
 dialog) sets `pend` and shows the modal but MUST NOT clear any in-flight
 state — a per-account map, not a dialog-level boolean, is what prevents a
 closed-and-reopened same-account dialog from bypassing the guard.
+
+### Guard release timing (lifecycle)
+
+The per-account guard is released at DIFFERENT points depending on the
+outcome:
+
+- **Failure / network error / malformed body:** release immediately on the
+  response, so the user can retry the delete right away (nothing was
+  deleted).
+- **Success:** hold the guard until the provider refresh SETTLES (the
+  async refresh promise resolves or rejects after the 300ms timer), so the
+  old card has left the DOM before the same account can be deleted again.
+  Releasing on success-response arrival would reopen the race: the user
+  could confirm the same account again between the success response and the
+  refresh, sending a second `/api/delete` that fails with
+  account-not-found and wrongly overwrites the success. The refresh is
+  always issued from the confirm-time snapshot regardless of which dialog
+  is current, and the guard release does not depend on modal ownership.
 
 ### Three independent concerns, each with its own guard
 

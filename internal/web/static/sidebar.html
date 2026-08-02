@@ -2310,10 +2310,6 @@
                                 });
                             })
                             .then(function (res) {
-                                // The request is no longer in flight; the
-                                // account may be retried or deleted again
-                                // later.
-                                delete inFlightDeletes[key];
                                 // Only touch the modal while it still shows
                                 // THIS account (pend holds the last opened
                                 // confirm). A stale response for a different
@@ -2323,9 +2319,9 @@
                                     pend.name === deletedName;
                                 if (!res || res.success !== true) {
                                     // Non-success (server failure, malformed
-                                    // body) keeps the modal open with the
-                                    // error; retry is re-enabled because the
-                                    // in-flight entry was cleared above.
+                                    // body): release the per-account guard
+                                    // immediately so the user may retry.
+                                    delete inFlightDeletes[key];
                                     if (ownsDialog) {
                                         ctext.textContent =
                                             "删除失败：" +
@@ -2339,14 +2335,31 @@
                                 if (ownsDialog) {
                                     closeConfirm();
                                 }
-                                // The delete succeeded server-side: always
-                                // refresh the deleted provider's container,
-                                // from the confirm-time snapshot, regardless
-                                // of which dialog is now current.
+                                // Success: the delete is confirmed
+                                // server-side. Keep the per-account guard
+                                // until the provider refresh has replaced the
+                                // card — clearing on response arrival would
+                                // let the user reopen the same account and
+                                // send a duplicate delete that fails with
+                                // account-not-found. Refresh functions are
+                                // async (return promises), so release once
+                                // the refresh settles (card replaced, or
+                                // refresh failed — the delete already
+                                // happened server-side either way).
                                 setTimeout(function () {
                                     var p = quotaProviderByType(deletedProvider);
                                     var fn = p ? window[p.refresh] : null;
-                                    if (typeof fn === "function") fn();
+                                    function release() {
+                                        delete inFlightDeletes[key];
+                                    }
+                                    if (typeof fn === "function") {
+                                        Promise.resolve(fn()).then(
+                                            release,
+                                            release,
+                                        );
+                                    } else {
+                                        release();
+                                    }
                                 }, 300);
                             })
                             .catch(function () {

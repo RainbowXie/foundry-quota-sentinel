@@ -52,9 +52,14 @@ and `delItem` listener):
   returns an error for an unknown account), so a duplicate would fail after
   the first succeeds and wrongly overwrite the success with
   `删除失败：account not found`. Different accounts remain independently
-  deletable. The entry is removed on response (any outcome), re-enabling
-  retry. `delItem` deliberately does NOT clear in-flight state — a
-  dialog-level boolean reset on open was the close-and-reopen bypass.
+  deletable. The entry is removed at outcome-specific points: failures
+  release immediately (retry allowed); SUCCESS holds the guard until the
+  provider refresh SETTLES so the old card has left the DOM before the
+  same account can be deleted again (releasing on success-response arrival
+  would let a reopen-between-response-and-refresh send a second delete that
+  fails with account-not-found). `delItem` deliberately does NOT clear
+  in-flight state — a dialog-level boolean reset on open was the
+  close-and-reopen bypass.
   Modal mutations (close, error text) are gated by `pend` account matching:
   the response only touches the dialog while it still shows the same
   account as the request, and the ORIGINAL success closes a reopened
@@ -73,10 +78,10 @@ and `delItem` listener):
 
 Verification:
 
-- Focused: all 8 delete-flow scenarios GREEN via the stub-DOM harness
+- Focused: all 9 delete-flow scenarios GREEN via the stub-DOM harness
   (success / failure / network / malformed / stale-success / stale-failure /
-  double-confirm / reopen-same-account).
-- Full `internal/web` suite: 76 tests green. `go test ./...` green.
+  double-confirm / reopen-same-account / reopen-before-refresh).
+- Full `internal/web` suite: 77 tests green. `go test ./...` green.
 - Touched Go files `gofmt`-clean (repo-wide `gofmt -l` still lists 5
   pre-existing historical files this change does not touch:
   `internal/formatter/format.go`, `internal/quota/deepseek.go`,
