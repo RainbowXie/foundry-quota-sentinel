@@ -88,7 +88,16 @@ confirmOk.addEventListener("click", function () {
             setTimeout(function () {          // success: hold guard until refresh settles
                 var p = quotaProviderByType(deletedProvider);
                 var fn = p ? window[p.refresh] : null;
-                function release() { delete inFlightDeletes[key]; }
+                function release() {
+                    // Invalidate a stale dialog still pointing at the
+                    // deleted account, then release the guard.
+                    if (pend.prov === deletedProvider &&
+                        pend.name === deletedName) {
+                        closeConfirm();
+                        pend.prov = ""; pend.name = "";
+                    }
+                    delete inFlightDeletes[key];
+                }
                 if (typeof fn === "function") {
                     Promise.resolve(fn()).then(release, release);
                 } else {
@@ -129,6 +138,17 @@ outcome:
   account-not-found and wrongly overwrites the success. The refresh is
   always issued from the confirm-time snapshot regardless of which dialog
   is current, and the guard release does not depend on modal ownership.
+- **Refresh settle also invalidates a stale dialog.** Simply releasing the
+  guard at refresh settle is not enough: a confirm dialog reopened for the
+  SAME account before the refresh ran is still open and its `pend` still
+  points at the deleted account. Releasing the guard alone would let the
+  user confirm that stale dialog and delete a now-missing account. The
+  release therefore FIRST checks `pend` — if it still matches the deleted
+  provider+name, close the dialog and clear `pend` (making its confirm
+  action inert), THEN release the guard. A dialog for a different account
+  is untouched. A recreated same-named account is NOT blocked: the
+  re-appearing card's `delItem` opens a fresh confirm that resets `pend`,
+  so the recreated account is deletable again.
 
 ### Three independent concerns, each with its own guard
 

@@ -2350,6 +2350,29 @@
                                     var p = quotaProviderByType(deletedProvider);
                                     var fn = p ? window[p.refresh] : null;
                                     function release() {
+                                        // The delete succeeded server-side and
+                                        // the refresh has settled (old card is
+                                        // gone). If the currently-open dialog
+                                        // still points at THIS deleted account
+                                        // (a confirm reopened before the
+                                        // refresh ran), close and invalidate it
+                                        // so its confirm action becomes inert —
+                                        // otherwise the user could confirm the
+                                        // stale dialog and delete an account
+                                        // that no longer exists, showing
+                                        // 删除失败. A dialog for a DIFFERENT
+                                        // account is left untouched, and a
+                                        // recreated same-named account gets a
+                                        // fresh pend via delItem, so it stays
+                                        // deletable.
+                                        if (
+                                            pend.prov === deletedProvider &&
+                                            pend.name === deletedName
+                                        ) {
+                                            closeConfirm();
+                                            pend.prov = "";
+                                            pend.name = "";
+                                        }
                                         delete inFlightDeletes[key];
                                     }
                                     if (typeof fn === "function") {

@@ -57,7 +57,13 @@ and `delItem` listener):
   provider refresh SETTLES so the old card has left the DOM before the
   same account can be deleted again (releasing on success-response arrival
   would let a reopen-between-response-and-refresh send a second delete that
-  fails with account-not-found). `delItem` deliberately does NOT clear
+  fails with account-not-found). At refresh settle the guard release ALSO
+  closes and invalidates a stale dialog that still points at the deleted
+  account (`pend` matches → `closeConfirm()` + clear `pend`), so its
+  confirm action is inert and cannot delete the now-missing account; a
+  dialog for a different account is untouched, and a recreated same-named
+  account gets a fresh `pend` via `delItem` so it remains deletable.
+  `delItem` deliberately does NOT clear
   in-flight state — a dialog-level boolean reset on open was the
   close-and-reopen bypass.
   Modal mutations (close, error text) are gated by `pend` account matching:
@@ -78,10 +84,11 @@ and `delItem` listener):
 
 Verification:
 
-- Focused: all 9 delete-flow scenarios GREEN via the stub-DOM harness
+- Focused: all 10 delete-flow scenarios GREEN via the stub-DOM harness
   (success / failure / network / malformed / stale-success / stale-failure /
-  double-confirm / reopen-same-account / reopen-before-refresh).
-- Full `internal/web` suite: 77 tests green. `go test ./...` green.
+  double-confirm / reopen-same-account / reopen-before-refresh /
+  recreated-account-deletable-again).
+- Full `internal/web` suite: 79 tests green. `go test ./...` green.
 - Touched Go files `gofmt`-clean (repo-wide `gofmt -l` still lists 5
   pre-existing historical files this change does not touch:
   `internal/formatter/format.go`, `internal/quota/deepseek.go`,

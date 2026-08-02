@@ -106,7 +106,14 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 //     user reopens the same account and confirms again: the per-account
 //     guard must still block a duplicate (the key is only released after
 //     the refresh settles), so exactly ONE /api/delete total. After the
-//     refresh runs, /api/kimi is fetched.
+//     refresh runs, /api/kimi is fetched, the STALE reopened dialog for the
+//     deleted account is closed/invalidated, and confirming it must NOT
+//     send a second delete.
+//   - "recreated":  after the successful refresh settles (old card gone), a
+//     NEW card for the same provider+name appears (account re-added) and a
+//     fresh confirm is opened via delItem. The recreated account's delete
+//     MUST be allowed (the guard is released and pend is reset by the new
+//     delItem): a new /api/delete is sent.
 const deleteFlowHarnessScript = `
 const fs = require("fs");
 const vm = require("vm");
@@ -374,13 +381,46 @@ setImmediate(() => {
 					fail("refresh must NOT call unrelated " + ep + "; after=" + JSON.stringify(after), 42);
 				}
 			}
-			// After the refresh settles the guard is released: a fresh
-			// confirm for the account may now send a request again.
+			// BUG (to be fixed): after the refresh settles, the stale
+			// reopened dialog for the now-deleted account must be closed and
+			// invalidated. Calling the old okClick must NOT send a second
+			// /api/delete (the account no longer exists server-side; a second
+			// request would return account-not-found and wrongly show
+			// 删除失败). The old dialog's confirm action must be inert.
+			if (!getEl("confirmModal").classList.contains("hide")) {
+				fail("refresh settle must close the stale reopened dialog for the deleted account; modal still open", 44);
+			}
 			okClick();
 			const deletesAfter = fetchCalls.filter((u) => u.startsWith("/api/delete"));
-			if (deletesAfter.length !== 2) {
-				fail("guard must release after refresh settles (2nd delete allowed); got " + deletesAfter.length, 43);
+			if (deletesAfter.length !== 1) {
+				fail("stale dialog confirm after refresh must NOT send a 2nd delete; got " + deletesAfter.length + ": " + JSON.stringify(deletesAfter), 43);
 			}
+		});
+	} else if (scenario === "recreated") {
+		// Success resolves; wait for the refresh timer to run and settle
+		// (old card gone, stale dialog invalidated, guard released).
+		setImmediate(() => {
+			const pre = fetchCalls.length;
+			timers.forEach((fn) => fn());
+			setImmediate(() => {
+				const refreshed = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+				if (!refreshed.includes("/api/kimi")) {
+					fail("refresh must call /api/kimi after success; refreshed=" + JSON.stringify(refreshed), 41);
+				}
+				// A NEW card for the same provider+name appears (account
+				// re-added) and a fresh confirm is opened via delItem: this
+				// MUST reset pend and allow a NEW delete.
+				openConfirm("kimi", "Kimi A");
+				const newText = getEl("confirmText").textContent;
+				if (!newText.includes("Kimi Code") || !newText.includes("Kimi A")) {
+					fail("recreated confirm must show Kimi A text, got: " + newText, 45);
+				}
+				okClick();
+				const deletes = fetchCalls.filter((u) => u.startsWith("/api/delete"));
+				if (deletes.length !== 2) {
+					fail("recreated account must be deletable again (2nd /api/delete); got " + deletes.length + ": " + JSON.stringify(deletes), 46);
+				}
+			});
 		});
 	} else if (scenario === "stale-success" || scenario === "stale-failure") {
 		// RACE BEFORE RESPONSE: the user closes A's dialog and opens a new
@@ -518,7 +558,17 @@ func TestReopenSameAccountCannotBypassGuard(t *testing.T) {
 // the per-account guard is held until the provider refresh settles: a
 // reopen+confirm of the same account between success and the refresh timer
 // cannot send a duplicate /api/delete (which would fail with
-// account-not-found), and the guard releases only after the refresh.
+// account-not-found), the stale dialog is closed/invalidated at refresh
+// settle, and confirming it afterwards must NOT send a second request.
 func TestReopenBeforeRefreshStillBlocked(t *testing.T) {
 	runDeleteFlowScenario(t, "reopen-before-refresh")
+}
+
+// TestRecreatedAccountDeletableAgain proves that once the refresh has
+// settled and the account is re-added (a new card appears and a fresh
+// delItem confirm is opened), deleting the same provider+name again is
+// allowed: the guard is released and pend is reset by the new delItem, so a
+// new /api/delete is sent.
+func TestRecreatedAccountDeletableAgain(t *testing.T) {
+	runDeleteFlowScenario(t, "recreated")
 }
