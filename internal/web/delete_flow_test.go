@@ -1,12 +1,15 @@
 package web
 
 // Delete-flow regression tests for the shared quota-card template change
-// (unify-quota-card-template). The pre-fix delete flow hard-coded the
-// Ollama label in the confirm text (so deleting a Kimi account asked to
-// delete an "Ollama 账户") and refreshed only fq/fo/fd after deletion,
-// leaving the deleted Kimi card stale until the next 30s poll. The flow
-// must be registry-driven: confirm label from quotaProviders, refresh via
-// each provider's refresh handler (including fk).
+// (unify-quota-card-template) AND the delete-failure surfacing change
+// (delete-failure-surfacing). Earlier fixes: the confirm label comes from
+// the provider registry (Kimi Code, never an Ollama fallback), the
+// post-delete refresh targets only the deleted provider's container from a
+// confirm-time snapshot (race-safe). This change adds response parsing:
+// {success:false} / malformed body / network failure keep the modal open
+// with the right error text, and refresh nothing; a stale in-flight
+// response must not operate on a modal that now belongs to another
+// confirmation (generation ownership).
 
 import (
 	"os"
@@ -18,7 +21,7 @@ import (
 )
 
 // TestKimiRefreshAndDeleteWiringIntact proves the non-renderer behaviors
-// the presentation change must not replace: periodic kimi refresh, the
+// the presentation changes must not replace: periodic kimi refresh, the
 // fetch-failure error path, and the shared account delete flow.
 func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 	html := readSidebarHTML(t)
@@ -48,27 +51,49 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 	if !strings.Contains(html, `refresh: "fk"`) {
 		t.Fatal("registry must map kimi to its fk refresh handler")
 	}
+	// The delete handler must parse the /api/delete response and branch on
+	// success (failure-surfacing change): the modal must NOT close on a
+	// non-success response, and errors are shown in the confirm region.
+	if !strings.Contains(html, `success !== true`) {
+		t.Fatal("delete handler must branch on success !== true (non-success keeps modal open)")
+	}
+	if !strings.Contains(html, `删除失败`) {
+		t.Fatal("delete handler must surface 删除失败 with the server error")
+	}
+	// Concurrency: a response must only touch the modal while its own
+	// confirmation generation still owns it, and a JSON parse failure must
+	// not be reported as a network error.
+	if !strings.Contains(html, `confirmGen`) {
+		t.Fatal("delete handler must track confirmation ownership (confirmGen)")
+	}
+	if !strings.Contains(html, `r.json().catch`) {
+		t.Fatal("JSON parse failure must be converted to null, not a network error")
+	}
 }
 
-// TestDeleteFlowRefreshesOnlyDeletedProvider executes the real script
-// block with a stubbed DOM, drives a Kimi account through the delete
-// context-menu flow, and proves: (1) the confirm text names Kimi Code (not
-// Ollama), (2) confirmOk deletes /api/delete?provider=kimi&name=..., (3) the
-// post-delete refresh calls ONLY the deleted provider's refresh handler
-// (/api/kimi, no unrelated provider fetches), and (4) the refresh uses the
-// provider snapshot taken at confirm time — even if the user opens a new
-// delete confirm for another provider while the request is in flight, the
-// deleted Kimi card is still the one refreshed.
-func TestDeleteFlowRefreshesOnlyDeletedProvider(t *testing.T) {
-	node, err := exec.LookPath("node")
-	if err != nil {
-		t.Skip("node unavailable: skipping renderer-execution test")
-	}
-	dir := t.TempDir()
-	harness := filepath.Join(dir, "harness.cjs")
-	script := `
+// deleteFlowHarnessScript is the shared stub-DOM driver. Scenario (argv[3]):
+//
+//   - "success":        /api/delete resolves {success:true}; modal closes,
+//     only the snapshotted deleted provider (/api/kimi) refreshes; the
+//     refresh survives an Ollama confirm opened during the delay window.
+//   - "failure":        /api/delete resolves {success:false, error:"delete
+//     not supported"}; modal stays open, #confirmText shows
+//     "删除失败：delete not supported", NO provider refreshes.
+//   - "network":        /api/delete rejects; modal stays open, #confirmText
+//     shows "删除失败：网络错误", NO provider refreshes.
+//   - "malformed":      /api/delete body fails JSON parse; modal stays open,
+//     #confirmText shows "删除失败：未知错误" (NOT 网络错误), NO refresh.
+//   - "stale-success":  /api/delete is deferred. After confirming Kimi A a
+//     new Ollama B confirm is opened, THEN A resolves {success:true}. The B
+//     modal must stay open with its own text, and the refresh must still
+//     target /api/kimi (confirm-time snapshot, not generation-gated).
+//   - "stale-failure":  /api/delete deferred; after opening Ollama B, A
+//     resolves {success:false, error:"kimi delete failed"}. B's modal and
+//     text must be untouched; NO provider refreshes.
+const deleteFlowHarnessScript = `
 const fs = require("fs");
 const vm = require("vm");
+const scenario = process.argv[3];
 const html = fs.readFileSync(process.argv[2], "utf8");
 const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
 	.map((m) => m[1])
@@ -81,8 +106,11 @@ function makeEl(id) {
 		_listeners: {},
 		_attrs: {},
 		classList: {
-			add() {}, remove() {}, toggle() {},
-			contains() { return false; },
+			_s: new Set(),
+			add(c) { this._s.add(c); },
+			remove(c) { this._s.delete(c); },
+			toggle(c, force) { if (force === true) this._s.add(c); else if (force === false) this._s.delete(c); else if (this._s.has(c)) this._s.delete(c); else this._s.add(c); },
+			contains(c) { return this._s.has(c); },
 		},
 		addEventListener(ev, fn) {
 			(this._listeners[ev] = this._listeners[ev] || []).push(fn);
@@ -105,6 +133,7 @@ function getEl(id) { return (els[id] = els[id] || makeEl(id)); }
 const docListeners = {};
 const fetchCalls = [];
 const timers = [];
+const pendingDeletes = []; // resolvers for deferred /api/delete responses
 
 const document = {
 	getElementById: getEl,
@@ -122,7 +151,20 @@ const sandbox = {
 	document,
 	fetch: (u) => {
 		fetchCalls.push(String(u));
-		return Promise.resolve({ json: () => Promise.resolve({ success: true, data: [] }) });
+		const isDelete = String(u).startsWith("/api/delete");
+		if (isDelete && (scenario === "stale-success" || scenario === "stale-failure")) {
+			return new Promise((resolve) => pendingDeletes.push(resolve));
+		}
+		if (isDelete && scenario === "malformed") {
+			return Promise.resolve({ json: () => Promise.reject(new SyntaxError("bad json")) });
+		}
+		if (isDelete && scenario === "failure") {
+			return Promise.resolve({ json: () => Promise.resolve({ success: false, error: "delete not supported" }) });
+		}
+		if (isDelete && scenario === "network") {
+			return Promise.reject(new Error("network down"));
+		}
+		return Promise.resolve({ json: () => Promise.resolve({ success: true }) });
 	},
 	alert: () => {},
 	setTimeout: (fn) => { timers.push(fn); return timers.length; },
@@ -144,75 +186,193 @@ try {
 	process.exit(5);
 }
 
-// Drive the context-menu flow: right-click a Kimi card.
-const ctxHandlers = docListeners["contextmenu"] || [];
-if (!ctxHandlers.length) { console.error("no contextmenu listener"); process.exit(6); }
-const cardEl = makeEl("card");
-cardEl.setAttribute("data-prov", "kimi");
-cardEl.setAttribute("data-name", "Kimi A");
-ctxHandlers.forEach((fn) => fn({ target: { closest: () => cardEl }, clientX: 5, clientY: 5, preventDefault: () => {} }));
+// openConfirm opens the context-menu delete confirm for a card.
+function openConfirm(prov, name) {
+	const cardEl = makeEl("card-" + prov);
+	cardEl.setAttribute("data-prov", prov);
+	cardEl.setAttribute("data-name", name);
+	(docListeners["contextmenu"] || []).forEach((fn) =>
+		fn({ target: { closest: () => cardEl }, clientX: 5, clientY: 5, preventDefault: () => {} }));
+	(docListeners["click"] || []); // no-op: ctx menu item handled below
+	const delItem = getEl("ctxDelete");
+	delItem._listeners["click"][0]();
+}
 
-// Open delete confirm.
-const delItem = getEl("ctxDelete");
-const delListeners = delItem._listeners["click"] || [];
-if (!delListeners.length) { console.error("ctxDelete has no click listener"); process.exit(7); }
-const delClick = delListeners[0];
-delClick();
+function fail(msg, code) {
+	console.error(msg);
+	process.exit(code);
+}
+
+// --- Step 1: confirm deleting Kimi A ---
+openConfirm("kimi", "Kimi A");
 const confirmText = getEl("confirmText").textContent;
 if (!confirmText.includes("Kimi Code") || confirmText.includes("Ollama")) {
-	console.error("confirm text must name Kimi Code, got: " + confirmText);
-	process.exit(8);
+	fail("confirm text must name Kimi Code, got: " + confirmText, 8);
 }
 
-// Confirm deletion.
 const okBtn = getEl("confirmOk");
 const okClick = (okBtn._listeners["click"] || []).pop();
-if (!okClick) { console.error("confirmOk has no click listener"); process.exit(9); }
+if (!okClick) { fail("confirmOk has no click listener", 9); }
 okClick();
 if (!fetchCalls.includes("/api/delete?provider=kimi&name=Kimi%20A")) {
-	console.error("must delete /api/delete?provider=kimi&name=Kimi A; calls=" + JSON.stringify(fetchCalls));
-	process.exit(10);
+	fail("must delete /api/delete?provider=kimi&name=Kimi A; calls=" + JSON.stringify(fetchCalls), 10);
 }
 
-// The refresh callback is scheduled inside fetch().then(), i.e. after the
-// promise microtask resolves; give it a tick before running timers.
+// --- Step 2: scenario-specific continuation ---
 setImmediate(() => {
-	// RACE: while the Kimi delete request is in flight (before its refresh
-	// timer fires), the user opens a delete confirm for another provider
-	// (Ollama), which overwrites the internal pending provider/name.
-	const ollamaCard = makeEl("ocard");
-	ollamaCard.setAttribute("data-prov", "ollama");
-	ollamaCard.setAttribute("data-name", "Ollama B");
-	ctxHandlers.forEach((fn) => fn({ target: { closest: () => ollamaCard }, clientX: 5, clientY: 5, preventDefault: () => {} }));
-	delClick(); // pend.prov now ollama; NOT confirmed
-
-	const pre = fetchCalls.length;
-	timers.forEach((fn) => fn());
-	const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
-	// The refresh must target the SNAPSHOTTED deleted provider (kimi → fk),
-	// not the newly-pending Ollama.
-	if (!after.includes("/api/kimi")) {
-		console.error("post-delete refresh must call /api/kimi (snapshotted deleted provider); after=" + JSON.stringify(after));
-		process.exit(13);
-	}
-	for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
-		if (after.includes(ep)) {
-			console.error("post-delete refresh must NOT call unrelated " + ep + "; after=" + JSON.stringify(after));
-			process.exit(14);
+	if (scenario === "success") {
+		// Response resolved; modal must already be closed (microtasks flushed).
+		if (!getEl("confirmModal").classList.contains("hide")) {
+			fail("success must close the confirm modal", 11);
 		}
+		// RACE: during the 300ms refresh-delay window the user opens another
+		// provider's confirm, overwriting internal pending state.
+		openConfirm("ollama", "Ollama B");
+		const pre = fetchCalls.length;
+		timers.forEach((fn) => fn());
+		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+		if (!after.includes("/api/kimi")) {
+			fail("post-delete refresh must call /api/kimi (snapshotted deleted provider); after=" + JSON.stringify(after), 12);
+		}
+		for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
+			if (after.includes(ep)) {
+				fail("post-delete refresh must NOT call unrelated " + ep + "; after=" + JSON.stringify(after), 13);
+			}
+		}
+	} else if (scenario === "failure" || scenario === "network" || scenario === "malformed") {
+		if (getEl("confirmModal").classList.contains("hide")) {
+			fail("non-success must keep the confirm modal open", 14);
+		}
+		const text = getEl("confirmText").textContent;
+		if (scenario === "failure") {
+			if (!text.includes("删除失败") || !text.includes("delete not supported")) {
+				fail("failure must show 删除失败：delete not supported, got: " + text, 15);
+			}
+		} else if (scenario === "network") {
+			if (!text.includes("删除失败") || !text.includes("网络错误")) {
+				fail("network failure must show 删除失败：网络错误, got: " + text, 16);
+			}
+		} else { // malformed
+			if (!text.includes("删除失败") || !text.includes("未知错误") || text.includes("网络错误")) {
+				fail("malformed body must show 删除失败：未知错误 (not 网络错误), got: " + text, 18);
+			}
+		}
+		const pre = fetchCalls.length;
+		timers.forEach((fn) => fn());
+		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+		if (after.length !== 0) {
+			fail("non-success must NOT refresh any provider; after=" + JSON.stringify(after), 17);
+		}
+	} else if (scenario === "stale-success" || scenario === "stale-failure") {
+		// RACE BEFORE RESPONSE: the user closes A's dialog and opens a new
+		// Ollama B confirm while A's request is still in flight.
+		openConfirm("ollama", "Ollama B");
+		const bText = getEl("confirmText").textContent;
+		if (!bText.includes("Ollama") || !bText.includes("Ollama B")) {
+			fail("B confirm must show Ollama B text, got: " + bText, 19);
+		}
+		// Now A's response arrives.
+		if (pendingDeletes.length !== 1) { fail("expected 1 deferred delete, got " + pendingDeletes.length, 20); }
+		if (scenario === "stale-success") {
+			pendingDeletes[0]({ json: () => Promise.resolve({ success: true }) });
+		} else {
+			pendingDeletes[0]({ json: () => Promise.resolve({ success: false, error: "kimi delete failed" }) });
+		}
+		setImmediate(() => {
+			// B's modal must survive A's response.
+			if (getEl("confirmModal").classList.contains("hide")) {
+				fail("stale response must not close the newer B modal", 21);
+			}
+			if (getEl("confirmText").textContent !== bText) {
+				fail("stale response must not rewrite the newer B confirm text; got: " + getEl("confirmText").textContent, 22);
+			}
+			const pre = fetchCalls.length;
+			timers.forEach((fn) => fn());
+			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+			if (scenario === "stale-success") {
+				// The deleted provider refresh is NOT generation-gated: A was
+				// really deleted, so /api/kimi refreshes.
+				if (!after.includes("/api/kimi")) {
+					fail("stale success must still refresh /api/kimi (snapshot); after=" + JSON.stringify(after), 23);
+				}
+				for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
+					if (after.includes(ep)) {
+						fail("stale success must NOT refresh unrelated " + ep + "; after=" + JSON.stringify(after), 24);
+					}
+				}
+			} else {
+				if (after.length !== 0) {
+					fail("stale failure must NOT refresh any provider; after=" + JSON.stringify(after), 25);
+				}
+			}
+		});
 	}
-	console.log("delete flow ok");
+	console.log("delete flow ok (" + scenario + ")");
 });
 `
-	if err := os.WriteFile(harness, []byte(script), 0o600); err != nil {
+
+// runDeleteFlowScenario executes the shared stub-DOM harness for a scenario.
+func runDeleteFlowScenario(t *testing.T, scenario string) {
+	t.Helper()
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node unavailable: skipping renderer-execution test")
+	}
+	dir := t.TempDir()
+	harness := filepath.Join(dir, "harness.cjs")
+	if err := os.WriteFile(harness, []byte(deleteFlowHarnessScript), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	sidebarPath, err := filepath.Abs(filepath.Join("static", "sidebar.html"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command(node, harness, sidebarPath).CombinedOutput()
+	out, err := exec.Command(node, harness, sidebarPath, scenario).CombinedOutput()
 	if err != nil {
-		t.Fatalf("delete flow harness failed: %v\n%s", err, out)
+		t.Fatalf("delete flow harness (%s) failed: %v\n%s", scenario, err, out)
 	}
+}
+
+// TestDeleteFlowRefreshesOnlyDeletedProvider (success scenario) proves: the
+// confirm text names Kimi Code, confirmOk deletes the Kimi account, the
+// modal closes, only /api/kimi refreshes (from the confirm-time snapshot),
+// and the snapshot survives an Ollama confirm opened mid-refresh-delay.
+func TestDeleteFlowRefreshesOnlyDeletedProvider(t *testing.T) {
+	runDeleteFlowScenario(t, "success")
+}
+
+// TestDeleteFailureKeepsModalOpenAndShowsError proves a {success:false}
+// response keeps the confirm modal open, shows "删除失败：<server error>" in
+// the confirm region, and refreshes NO provider.
+func TestDeleteFailureKeepsModalOpenAndShowsError(t *testing.T) {
+	runDeleteFlowScenario(t, "failure")
+}
+
+// TestDeleteNetworkFailureKeepsModalOpenAndShowsError proves a network
+// failure keeps the confirm modal open, shows "删除失败：网络错误", and
+// refreshes NO provider.
+func TestDeleteNetworkFailureKeepsModalOpenAndShowsError(t *testing.T) {
+	runDeleteFlowScenario(t, "network")
+}
+
+// TestDeleteMalformedBodyShowsUnknownError proves an unparseable response
+// body is reported as "删除失败：未知错误" — NOT "网络错误" — with the modal
+// open and no refresh.
+func TestDeleteMalformedBodyShowsUnknownError(t *testing.T) {
+	runDeleteFlowScenario(t, "malformed")
+}
+
+// TestStaleDeleteSuccessDoesNotTouchNewerModal proves a success response
+// arriving AFTER a new Ollama B confirm was opened does not close or rewrite
+// B's modal, while still refreshing the original deleted provider (/api/kimi)
+// from the confirm-time snapshot.
+func TestStaleDeleteSuccessDoesNotTouchNewerModal(t *testing.T) {
+	runDeleteFlowScenario(t, "stale-success")
+}
+
+// TestStaleDeleteFailureDoesNotTouchNewerModal proves a failure response
+// arriving after a new Ollama B confirm was opened leaves B's modal and text
+// untouched and refreshes nothing.
+func TestStaleDeleteFailureDoesNotTouchNewerModal(t *testing.T) {
+	runDeleteFlowScenario(t, "stale-failure")
 }

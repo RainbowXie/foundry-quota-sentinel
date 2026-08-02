@@ -2230,11 +2230,22 @@
                 var cm = document.getElementById("confirmModal");
                 var ctext = document.getElementById("confirmText");
                 var pend = { prov: "", name: "" };
+                // confirmGen owns the modal: every time a confirm dialog is
+                // opened (delItem) or a delete is confirmed (confirmOk) it
+                // increments. An in-flight response only closes the modal or
+                // writes the error text while its own generation still owns
+                // the dialog; a response for a superseded confirmation must
+                // not touch a modal that now belongs to another account.
+                var confirmGen = 0;
                 function closeConfirm() {
                     cm.classList.add("hide");
                 }
                 delItem.addEventListener("click", function () {
                     if (!cur.prov) return;
+                    // New confirmation dialog: bump the generation so any
+                    // in-flight response for a previous confirm no longer
+                    // owns the modal.
+                    confirmGen++;
                     pend.prov = cur.prov;
                     pend.name = cur.name;
                     // Provider label comes from the registry so every
@@ -2265,12 +2276,12 @@
                     .getElementById("confirmOk")
                     .addEventListener("click", function () {
                         if (!pend.prov) return;
-                        // Snapshot the pending deletion at the async
-                        // boundary: the request AND the post-response refresh
-                        // must both use THIS provider/name. pend can change
-                        // while the request is in flight (the user may open a
-                        // new delete confirm for another provider), so
-                        // re-reading it later would refresh the wrong card.
+                        // This confirmation owns the modal from now on; a
+                        // response for an earlier confirmation must not touch
+                        // it. The provider/name snapshot is independent of the
+                        // generation: the success refresh always uses THIS
+                        // provider regardless of which dialog is current.
+                        var gen = ++confirmGen;
                         var deletedProvider = pend.prov;
                         var deletedName = pend.name;
                         fetch(
@@ -2279,20 +2290,52 @@
                                 "&name=" +
                                 encodeURIComponent(deletedName),
                         )
-                            .then(function () {
-                                closeConfirm();
+                            .then(function (r) {
+                                // A JSON parse failure is a malformed body
+                                // (unknown delete failure), NOT a network
+                                // error. Convert it to null so the failure
+                                // branch below reports 未知错误; the outer
+                                // .catch stays reserved for real network
+                                // failures.
+                                return r.json().catch(function () {
+                                    return null;
+                                });
+                            })
+                            .then(function (res) {
+                                // Only a confirmed success refreshes. Any
+                                // non-success (server failure, malformed body)
+                                // keeps the modal open with the error.
+                                if (!res || res.success !== true) {
+                                    if (gen === confirmGen) {
+                                        ctext.textContent =
+                                            "删除失败：" +
+                                            ((res && res.error) || "未知错误");
+                                    }
+                                    return;
+                                }
+                                // Close the modal only while this confirmation
+                                // still owns it; a newer dialog must survive.
+                                if (gen === confirmGen) {
+                                    closeConfirm();
+                                }
+                                // The delete succeeded server-side: always
+                                // refresh the deleted provider's container,
+                                // from the confirm-time snapshot, regardless
+                                // of which dialog is now current.
                                 setTimeout(function () {
-                                    // Refresh only the deleted provider's
-                                    // container so the removed card disappears
-                                    // immediately, without redundant network
-                                    // requests to unrelated providers.
                                     var p = quotaProviderByType(deletedProvider);
                                     var fn = p ? window[p.refresh] : null;
                                     if (typeof fn === "function") fn();
                                 }, 300);
                             })
                             .catch(function () {
-                                closeConfirm();
+                                // Only a real network failure reaches here
+                                // (JSON parse failures are converted to null
+                                // above). Surface it only while this
+                                // confirmation still owns the modal.
+                                if (gen === confirmGen) {
+                                    ctext.textContent = "删除失败：网络错误";
+                                }
                             });
                     });
                 document.addEventListener("click", hide);
