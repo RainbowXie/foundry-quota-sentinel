@@ -90,6 +90,11 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 //   - "stale-failure":  /api/delete deferred; after opening Ollama B, A
 //     resolves {success:false, error:"kimi delete failed"}. B's modal and
 //     text must be untouched; NO provider refreshes.
+//   - "double-confirm":  #confirmOk is clicked twice. Exactly ONE
+//     /api/delete must be sent (deletePending guard — the server delete is
+//     not idempotent); the success response closes the modal and refreshes
+//     /api/kimi, and the success state is not overwritten by a would-be
+//     second failure.
 const deleteFlowHarnessScript = `
 const fs = require("fs");
 const vm = require("vm");
@@ -214,8 +219,20 @@ const okBtn = getEl("confirmOk");
 const okClick = (okBtn._listeners["click"] || []).pop();
 if (!okClick) { fail("confirmOk has no click listener", 9); }
 okClick();
+if (scenario === "double-confirm") {
+	// Double-click: the second click must be inert (deletePending guard;
+	// the server delete is not idempotent, so a duplicate request would
+	// fail with "account not found" and wrongly overwrite the success).
+	okClick();
+}
 if (!fetchCalls.includes("/api/delete?provider=kimi&name=Kimi%20A")) {
 	fail("must delete /api/delete?provider=kimi&name=Kimi A; calls=" + JSON.stringify(fetchCalls), 10);
+}
+if (scenario === "double-confirm") {
+	const deletes = fetchCalls.filter((u) => u.startsWith("/api/delete"));
+	if (deletes.length !== 1) {
+		fail("double-confirm must send exactly ONE /api/delete; got " + deletes.length + ": " + JSON.stringify(deletes), 26);
+	}
 }
 
 // --- Step 2: scenario-specific continuation ---
@@ -262,6 +279,27 @@ setImmediate(() => {
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (after.length !== 0) {
 			fail("non-success must NOT refresh any provider; after=" + JSON.stringify(after), 17);
+		}
+	} else if (scenario === "double-confirm") {
+		// The single request resolves success: the modal closes and the
+		// deleted provider refreshes; the success state must NOT be
+		// overwritten by a phantom second failure.
+		if (!getEl("confirmModal").classList.contains("hide")) {
+			fail("double-confirm success must close the confirm modal", 27);
+		}
+		if (getEl("confirmText").textContent.includes("删除失败")) {
+			fail("double-confirm must end in success, not 删除失败; text=" + getEl("confirmText").textContent, 28);
+		}
+		const pre = fetchCalls.length;
+		timers.forEach((fn) => fn());
+		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+		if (!after.includes("/api/kimi")) {
+			fail("double-confirm success must refresh /api/kimi; after=" + JSON.stringify(after), 29);
+		}
+		for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
+			if (after.includes(ep)) {
+				fail("double-confirm must NOT refresh unrelated " + ep + "; after=" + JSON.stringify(after), 30);
+			}
 		}
 	} else if (scenario === "stale-success" || scenario === "stale-failure") {
 		// RACE BEFORE RESPONSE: the user closes A's dialog and opens a new
@@ -375,4 +413,13 @@ func TestStaleDeleteSuccessDoesNotTouchNewerModal(t *testing.T) {
 // untouched and refreshes nothing.
 func TestStaleDeleteFailureDoesNotTouchNewerModal(t *testing.T) {
 	runDeleteFlowScenario(t, "stale-failure")
+}
+
+// TestDoubleConfirmSendsSingleRequest proves clicking #confirmOk twice in a
+// row sends exactly ONE /api/delete (deletePending re-entrancy guard — the
+// server delete is not idempotent and a duplicate would fail with "account
+// not found"), and the success state (modal closed, deleted provider
+// refreshed) is not overwritten by a phantom second failure.
+func TestDoubleConfirmSendsSingleRequest(t *testing.T) {
+	runDeleteFlowScenario(t, "double-confirm")
 }

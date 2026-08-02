@@ -2236,7 +2236,12 @@
                 // writes the error text while its own generation still owns
                 // the dialog; a response for a superseded confirmation must
                 // not touch a modal that now belongs to another account.
+                // deletePending guards against double-confirm on the SAME
+                // dialog: while a request is in flight the button is inert,
+                // and retry is re-enabled only after the current
+                // generation's response (failure keeps the modal open).
                 var confirmGen = 0;
+                var deletePending = false;
                 function closeConfirm() {
                     cm.classList.add("hide");
                 }
@@ -2244,8 +2249,9 @@
                     if (!cur.prov) return;
                     // New confirmation dialog: bump the generation so any
                     // in-flight response for a previous confirm no longer
-                    // owns the modal.
+                    // owns the modal, and start with a fresh pending state.
                     confirmGen++;
+                    deletePending = false;
                     pend.prov = cur.prov;
                     pend.name = cur.name;
                     // Provider label comes from the registry so every
@@ -2276,12 +2282,21 @@
                     .getElementById("confirmOk")
                     .addEventListener("click", function () {
                         if (!pend.prov) return;
+                        // Re-entrancy guard: while this dialog's delete is
+                        // in flight, double-clicking 确认 must NOT send a
+                        // second identical request (the server delete is not
+                        // idempotent — a second attempt after the account is
+                        // gone fails and would wrongly overwrite the success
+                        // outcome). deletePending is reset when the response
+                        // arrives or when a new dialog opens.
+                        if (deletePending) return;
                         // This confirmation owns the modal from now on; a
                         // response for an earlier confirmation must not touch
                         // it. The provider/name snapshot is independent of the
                         // generation: the success refresh always uses THIS
                         // provider regardless of which dialog is current.
                         var gen = ++confirmGen;
+                        deletePending = true;
                         var deletedProvider = pend.prov;
                         var deletedName = pend.name;
                         fetch(
@@ -2310,6 +2325,10 @@
                                         ctext.textContent =
                                             "删除失败：" +
                                             ((res && res.error) || "未知错误");
+                                        // Retry is re-enabled only after the
+                                        // current generation's failure
+                                        // response.
+                                        deletePending = false;
                                     }
                                     return;
                                 }
@@ -2317,6 +2336,7 @@
                                 // still owns it; a newer dialog must survive.
                                 if (gen === confirmGen) {
                                     closeConfirm();
+                                    deletePending = false;
                                 }
                                 // The delete succeeded server-side: always
                                 // refresh the deleted provider's container,
@@ -2332,9 +2352,11 @@
                                 // Only a real network failure reaches here
                                 // (JSON parse failures are converted to null
                                 // above). Surface it only while this
-                                // confirmation still owns the modal.
+                                // confirmation still owns the modal, and
+                                // re-enable retry.
                                 if (gen === confirmGen) {
                                     ctext.textContent = "删除失败：网络错误";
+                                    deletePending = false;
                                 }
                             });
                     });
