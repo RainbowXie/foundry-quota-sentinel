@@ -60,11 +60,12 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 	if !strings.Contains(html, `删除失败`) {
 		t.Fatal("delete handler must surface 删除失败 with the server error")
 	}
-	// Concurrency: a response must only touch the modal while its own
-	// confirmation generation still owns it, and a JSON parse failure must
-	// not be reported as a network error.
-	if !strings.Contains(html, `confirmGen`) {
-		t.Fatal("delete handler must track confirmation ownership (confirmGen)")
+	// Concurrency: the delete handler tracks per-account in-flight deletes
+	// (provider+name keyed, so closing and reopening the SAME account cannot
+	// bypass the re-entrancy guard), and a JSON parse failure must not be
+	// reported as a network error.
+	if !strings.Contains(html, `inFlightDeletes`) {
+		t.Fatal("delete handler must track per-account in-flight deletes (inFlightDeletes)")
 	}
 	if !strings.Contains(html, `r.json().catch`) {
 		t.Fatal("JSON parse failure must be converted to null, not a network error")
@@ -91,10 +92,15 @@ func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 //     resolves {success:false, error:"kimi delete failed"}. B's modal and
 //     text must be untouched; NO provider refreshes.
 //   - "double-confirm":  #confirmOk is clicked twice. Exactly ONE
-//     /api/delete must be sent (deletePending guard — the server delete is
-//     not idempotent); the success response closes the modal and refreshes
-//     /api/kimi, and the success state is not overwritten by a would-be
-//     second failure.
+//     /api/delete must be sent (per-account in-flight guard — the server
+//     delete is not idempotent); the success response closes the modal and
+//     refreshes /api/kimi, and the success state is not overwritten by a
+//     would-be second failure.
+//   - "reopen":  Kimi A delete is deferred; the user closes the modal and
+//     reopens Kimi A's confirm, then confirms again. The per-account
+//     in-flight guard must still block the second request (exactly ONE
+//     /api/delete), and the ORIGINAL success must close the reopened
+//     account's dialog and refresh /api/kimi.
 const deleteFlowHarnessScript = `
 const fs = require("fs");
 const vm = require("vm");
@@ -157,7 +163,7 @@ const sandbox = {
 	fetch: (u) => {
 		fetchCalls.push(String(u));
 		const isDelete = String(u).startsWith("/api/delete");
-		if (isDelete && (scenario === "stale-success" || scenario === "stale-failure")) {
+		if (isDelete && (scenario === "stale-success" || scenario === "stale-failure" || scenario === "reopen")) {
 			return new Promise((resolve) => pendingDeletes.push(resolve));
 		}
 		if (isDelete && scenario === "malformed") {
@@ -220,9 +226,10 @@ const okClick = (okBtn._listeners["click"] || []).pop();
 if (!okClick) { fail("confirmOk has no click listener", 9); }
 okClick();
 if (scenario === "double-confirm") {
-	// Double-click: the second click must be inert (deletePending guard;
-	// the server delete is not idempotent, so a duplicate request would
-	// fail with "account not found" and wrongly overwrite the success).
+	// Double-click: the second click must be inert (per-account in-flight
+	// guard; the server delete is not idempotent, so a duplicate request
+	// would fail with "account not found" and wrongly overwrite the
+	// success).
 	okClick();
 }
 if (!fetchCalls.includes("/api/delete?provider=kimi&name=Kimi%20A")) {
@@ -301,6 +308,39 @@ setImmediate(() => {
 				fail("double-confirm must NOT refresh unrelated " + ep + "; after=" + JSON.stringify(after), 30);
 			}
 		}
+	} else if (scenario === "reopen") {
+		// RACE BEFORE RESPONSE: the user closes A's dialog, then reopens the
+		// SAME Kimi A confirm and confirms again. The per-account in-flight
+		// guard must block the second request (exactly ONE /api/delete), and
+		// the ORIGINAL success must close the reopened dialog and refresh
+		// /api/kimi.
+		getEl("confirmClose")._listeners["click"][0](); // close A's dialog
+		openConfirm("kimi", "Kimi A");                  // reopen same account
+		okClick();                                       // confirm again → blocked
+		const deletes = fetchCalls.filter((u) => u.startsWith("/api/delete"));
+		if (deletes.length !== 1) {
+			fail("reopen must still send exactly ONE /api/delete; got " + deletes.length + ": " + JSON.stringify(deletes), 31);
+		}
+		if (pendingDeletes.length !== 1) { fail("expected 1 deferred delete, got " + pendingDeletes.length, 20); }
+		pendingDeletes[0]({ json: () => Promise.resolve({ success: true }) });
+		setImmediate(() => {
+			// The reopened dialog for the SAME account must be closed by the
+			// original success (no stale confirm box left behind).
+			if (!getEl("confirmModal").classList.contains("hide")) {
+				fail("original success must close the reopened same-account dialog", 32);
+			}
+			const pre = fetchCalls.length;
+			timers.forEach((fn) => fn());
+			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
+			if (!after.includes("/api/kimi")) {
+				fail("reopen success must refresh /api/kimi; after=" + JSON.stringify(after), 33);
+			}
+			for (const ep of ["/api/accounts", "/api/deepseek", "/api/ollama"]) {
+				if (after.includes(ep)) {
+					fail("reopen must NOT refresh unrelated " + ep + "; after=" + JSON.stringify(after), 34);
+				}
+			}
+		});
 	} else if (scenario === "stale-success" || scenario === "stale-failure") {
 		// RACE BEFORE RESPONSE: the user closes A's dialog and opens a new
 		// Ollama B confirm while A's request is still in flight.
@@ -416,10 +456,19 @@ func TestStaleDeleteFailureDoesNotTouchNewerModal(t *testing.T) {
 }
 
 // TestDoubleConfirmSendsSingleRequest proves clicking #confirmOk twice in a
-// row sends exactly ONE /api/delete (deletePending re-entrancy guard — the
-// server delete is not idempotent and a duplicate would fail with "account
-// not found"), and the success state (modal closed, deleted provider
-// refreshed) is not overwritten by a phantom second failure.
+// row sends exactly ONE /api/delete (per-account in-flight re-entrancy
+// guard — the server delete is not idempotent and a duplicate would fail
+// with "account not found"), and the success state (modal closed, deleted
+// provider refreshed) is not overwritten by a phantom second failure.
 func TestDoubleConfirmSendsSingleRequest(t *testing.T) {
 	runDeleteFlowScenario(t, "double-confirm")
+}
+
+// TestReopenSameAccountCannotBypassGuard proves closing and REOPENING the
+// same account's delete confirm while the request is in flight cannot send
+// a duplicate /api/delete (per-account in-flight guard keyed by
+// provider+name), and the ORIGINAL success closes the reopened dialog and
+// refreshes /api/kimi.
+func TestReopenSameAccountCannotBypassGuard(t *testing.T) {
+	runDeleteFlowScenario(t, "reopen")
 }

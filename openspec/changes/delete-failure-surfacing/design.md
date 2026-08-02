@@ -51,47 +51,50 @@ Cancel/✕ affordances still close it, and the user can retry the delete.
 
 ### Parse the response and branch before closing, with generation ownership
 
-The handler SHALL capture a confirmation generation, parse the response,
-and only act on the modal while that generation still owns it:
+The handler SHALL track in-flight deletes PER ACCOUNT (provider + name),
+parse the response, and only act on the modal while it still shows that
+account:
 
 ```js
-// confirmGen owns the modal; deletePending guards double-confirm.
-var confirmGen = 0, deletePending = false;
+// inFlightDeletes keyed by "provider\u0000name": a per-account guard.
+var inFlightDeletes = {};
+function deleteKey(provider, name) { return provider + "\u0000" + name; }
 
 confirmOk.addEventListener("click", function () {
     if (!pend.prov) return;
-    if (deletePending) return;          // re-entrancy: no duplicate request
-    var gen = ++confirmGen;
-    deletePending = true;
     var deletedProvider = pend.prov;    // confirm-time snapshot
     var deletedName = pend.name;
+    var key = deleteKey(deletedProvider, deletedName);
+    if (inFlightDeletes[key]) return;   // same account already in flight
+    inFlightDeletes[key] = true;
     fetch(url)
         .then(function (r) {
             // JSON parse failure -> null (unknown failure), NOT network error
             return r.json().catch(function () { return null; });
         })
         .then(function (res) {
+            delete inFlightDeletes[key];        // request done; retry allowed
+            // Only touch the modal while it still shows THIS account;
+            // pend holds the last opened confirm.
+            var ownsDialog = pend.prov === deletedProvider &&
+                             pend.name === deletedName;
             if (!res || res.success !== true) {
-                if (gen === confirmGen) {         // still owns the modal
+                if (ownsDialog) {
                     ctext.textContent = "删除失败：" + ((res && res.error) || "未知错误");
-                    deletePending = false;        // retry re-enabled on failure
                 }
                 return;
             }
-            if (gen === confirmGen) {             // close only while owned
-                closeConfirm();
-                deletePending = false;
-            }
-            setTimeout(function () {              // refresh NOT gen-gated
+            if (ownsDialog) { closeConfirm(); }
+            setTimeout(function () {              // refresh NOT dialog-gated
                 var p = quotaProviderByType(deletedProvider);
                 var fn = p ? window[p.refresh] : null;
                 if (typeof fn === "function") fn();
             }, 300);
         })
         .catch(function () {                      // real network failure only
-            if (gen === confirmGen) {
+            delete inFlightDeletes[key];
+            if (pend.prov === deletedProvider && pend.name === deletedName) {
                 ctext.textContent = "删除失败：网络错误";
-                deletePending = false;
             }
         });
 });
@@ -99,31 +102,38 @@ confirmOk.addEventListener("click", function () {
 
 Reading the response as JSON and checking `success !== true` (rather than
 `=== false`) treats a malformed/absent body as a failure too — the modal
-must never close on an uncertain outcome. `delItem` (opening a new confirm)
-increments `confirmGen` and resets `deletePending`, so a response for a
-superseded confirmation never touches the newer dialog.
+must never close on an uncertain outcome. `delItem` (opening a confirm
+dialog) sets `pend` and shows the modal but MUST NOT clear any in-flight
+state — a per-account map, not a dialog-level boolean, is what prevents a
+closed-and-reopened same-account dialog from bypassing the guard.
 
 ### Three independent concerns, each with its own guard
 
-1. **Modal ownership (concurrency).** `confirmGen` increments on every
-   dialog open (`delItem`) and every confirm (`confirmOk`). A response only
-   closes the modal or writes error text while `gen === confirmGen`. A
+1. **Modal ownership (concurrency).** A response only closes the modal or
+   writes error text while the currently-open dialog still shows the SAME
+   account as the response (`pend` matches the confirm-time snapshot). A
    stale in-flight response — success or failure — must not close, rewrite,
-   or otherwise operate on a modal that now belongs to another account.
+   or otherwise operate on a modal that now belongs to a different account.
+   If the SAME account is reopened before its response arrives, the response
+   still owns that account's dialog: success closes it (no stale confirm
+   box left behind), failure shows the error there.
 2. **Malformed body vs. network failure.** `r.json()` can reject for two
    unrelated reasons: an unparseable body (server misbehavior) and a
    network failure (transport). Converting the JSON parse rejection to
    `null` routes malformed bodies into the failure branch (`未知错误`),
    leaving the outer `.catch` reserved for real network failures
    (`网络错误`).
-3. **Double-confirm re-entrancy.** The server delete is NOT idempotent
-   (`internal/config/kimi.go:171` returns an error for an unknown account).
-   A double-click on `#confirmOk` must not send two identical requests:
-   the second attempt would fail after the first succeeded, and — because
-   it owns the newest generation — would overwrite the success outcome
-   with `删除失败：account not found`. `deletePending` makes the button
-   inert while a request is in flight and re-enables retry only after the
-   current generation's response (failure keeps the modal open).
+3. **Per-account in-flight guard (idempotency).** The server delete is NOT
+   idempotent (`internal/config/kimi.go:171` returns an error for an
+   unknown account). A second confirm for the SAME account — double-click,
+   or close-and-reopen of that account's dialog — must not send a duplicate
+   request: the second attempt would fail after the first succeeded and
+   would wrongly overwrite the success outcome with
+   `删除失败：account not found`. The guard is keyed by provider+name, so
+   different accounts remain independently deletable while the same
+   account is blocked until its response arrives (then retry is allowed).
+   A dialog-level boolean is deliberately NOT used: resetting it on every
+   dialog open is exactly how the close-and-reopen bypass worked.
 
 Alternatives considered:
 
@@ -142,16 +152,19 @@ Alternatives considered:
 - **[Failure text persists in the question region]** → The modal stays open
   with the error; the user can close via Cancel/✕ or retry. Acceptable and
   explicit. The success path always closes and clears the modal.
-- **[Stale response races a newer dialog]** → `confirmGen` ownership guards
-  every modal mutation. The failure path no longer claims to be safe merely
-  because it "only writes text" — that reasoning was proven wrong (a stale
-  failure used to rewrite the newer dialog's confirm text). Ownership is
-  enforced explicitly, and both stale-success and stale-failure are covered
-  by deferred-promise stub-DOM tests.
-- **[Double-confirm sends a duplicate delete]** → `deletePending` blocks
-  re-entry while a request is in flight, so exactly one `/api/delete` is
-  sent per confirmation; the deterministic test confirms a double-click
-  sends one request and ends in the success state.
+- **[Stale response races a newer dialog]** → Modal mutations are gated by
+  `pend` account matching (the response only touches the dialog while it
+  still shows the same account). The failure path no longer claims to be
+  safe merely because it "only writes text" — that reasoning was proven
+  wrong (a stale failure used to rewrite the newer dialog's confirm text).
+  Ownership is enforced explicitly, and both stale-success and
+  stale-failure are covered by deferred-promise stub-DOM tests.
+- **[Double-confirm / close-and-reopen sends a duplicate delete]** → The
+  per-account `inFlightDeletes` map blocks a second request for the SAME
+  account while one is in flight, so exactly one `/api/delete` is sent per
+  account confirmation; the deterministic tests confirm both a double-click
+  and a close-and-reopen of the same account send one request and end in
+  the success state.
 - **[Regression to the success path]** → The stub-DOM harness keeps
   asserting: success closes the modal, refreshes only `/api/kimi`, and the
   refresh honors the snapshot; failure/malformed/network/stale scenarios

@@ -39,20 +39,26 @@ evals the real inline `<script>` block):
 Implementation (`internal/web/static/sidebar.html`, `#confirmOk` handler
 and `delItem` listener):
 
-- `confirmGen` ownership counter: every `delItem` open and every
-  `confirmOk` click increments it; a response only closes the modal or
-  writes error text while `gen === confirmGen` (its own confirmation still
-  owns the dialog). A stale response for a superseded confirmation never
-  touches the newer modal.
-- `deletePending` re-entrancy guard: while a confirmation's delete is in
-  flight, a second click on `#confirmOk` is inert. The server delete is not
-  idempotent (`internal/config/kimi.go:171` returns an error for an unknown
-  account), so a double-click would otherwise send a duplicate request that
-  fails after the first succeeds and — owning the newest generation —
-  wrongly overwrite the success with `删除失败：account not found`. Retry
-  is re-enabled only after the current generation's response (failure keeps
-  the modal open; success closes it). `delItem` resets the flag for a fresh
-  dialog.
+- Modal ownership by `pend` account matching: a response only closes the
+  modal or writes error text while the currently-open dialog still shows
+  the SAME account as the request (`pend` equals the confirm-time
+  snapshot). A stale response for a different account never touches that
+  account's dialog; a reopened same-account dialog is still owned by the
+  original response (success closes it).
+- `inFlightDeletes` per-account guard keyed by `provider\u0000name`: while
+  an account's delete is in flight, a second confirm for the SAME account
+  — double-click, or close-and-reopen of that account's dialog — is inert.
+  The server delete is not idempotent (`internal/config/kimi.go:171`
+  returns an error for an unknown account), so a duplicate would fail after
+  the first succeeds and wrongly overwrite the success with
+  `删除失败：account not found`. Different accounts remain independently
+  deletable. The entry is removed on response (any outcome), re-enabling
+  retry. `delItem` deliberately does NOT clear in-flight state — a
+  dialog-level boolean reset on open was the close-and-reopen bypass.
+  Modal mutations (close, error text) are gated by `pend` account matching:
+  the response only touches the dialog while it still shows the same
+  account as the request, and the ORIGINAL success closes a reopened
+  same-account dialog (no stale confirm box left behind).
 - Response parsing: `.then(r => r.json().catch(() => null))` converts a
   JSON parse failure to `null` so the failure branch reports
   `删除失败：未知错误`; the outer `.catch` is reserved for real network
@@ -67,9 +73,9 @@ and `delItem` listener):
 
 Verification:
 
-- Focused: all 7 delete-flow scenarios GREEN via the stub-DOM harness
+- Focused: all 8 delete-flow scenarios GREEN via the stub-DOM harness
   (success / failure / network / malformed / stale-success / stale-failure /
-  double-confirm).
+  double-confirm / reopen-same-account).
 - Full `internal/web` suite: 76 tests green. `go test ./...` green.
 - Touched Go files `gofmt`-clean (repo-wide `gofmt -l` still lists 5
   pre-existing historical files this change does not touch:

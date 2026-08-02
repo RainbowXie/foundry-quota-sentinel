@@ -2230,28 +2230,28 @@
                 var cm = document.getElementById("confirmModal");
                 var ctext = document.getElementById("confirmText");
                 var pend = { prov: "", name: "" };
-                // confirmGen owns the modal: every time a confirm dialog is
-                // opened (delItem) or a delete is confirmed (confirmOk) it
-                // increments. An in-flight response only closes the modal or
-                // writes the error text while its own generation still owns
-                // the dialog; a response for a superseded confirmation must
-                // not touch a modal that now belongs to another account.
-                // deletePending guards against double-confirm on the SAME
-                // dialog: while a request is in flight the button is inert,
-                // and retry is re-enabled only after the current
-                // generation's response (failure keeps the modal open).
-                var confirmGen = 0;
-                var deletePending = false;
+                // In-flight delete tracking, keyed by account (provider +
+                // name). While an account's delete request is in flight, a
+                // second confirm for the SAME account is blocked (the server
+                // delete is not idempotent — a duplicate would fail with
+                // account-not-found and wrongly overwrite the success).
+                // Different accounts remain independently deletable. The key
+                // derives from the confirm-time snapshot, so closing and
+                // reopening the same account cannot bypass the guard, and
+                // the original response still owns the account's dialog.
+                var inFlightDeletes = {};
+                function deleteKey(provider, name) {
+                    return provider + "\u0000" + name;
+                }
                 function closeConfirm() {
                     cm.classList.add("hide");
                 }
                 delItem.addEventListener("click", function () {
                     if (!cur.prov) return;
-                    // New confirmation dialog: bump the generation so any
-                    // in-flight response for a previous confirm no longer
-                    // owns the modal, and start with a fresh pending state.
-                    confirmGen++;
-                    deletePending = false;
+                    // NOTE: deliberately does NOT clear in-flight state.
+                    // Reopening the same account must stay blocked while its
+                    // delete is in flight; only the response (or a new
+                    // account) changes the per-account in-flight map.
                     pend.prov = cur.prov;
                     pend.name = cur.name;
                     // Provider label comes from the registry so every
@@ -2282,23 +2282,16 @@
                     .getElementById("confirmOk")
                     .addEventListener("click", function () {
                         if (!pend.prov) return;
-                        // Re-entrancy guard: while this dialog's delete is
-                        // in flight, double-clicking 确认 must NOT send a
-                        // second identical request (the server delete is not
-                        // idempotent — a second attempt after the account is
-                        // gone fails and would wrongly overwrite the success
-                        // outcome). deletePending is reset when the response
-                        // arrives or when a new dialog opens.
-                        if (deletePending) return;
-                        // This confirmation owns the modal from now on; a
-                        // response for an earlier confirmation must not touch
-                        // it. The provider/name snapshot is independent of the
-                        // generation: the success refresh always uses THIS
-                        // provider regardless of which dialog is current.
-                        var gen = ++confirmGen;
-                        deletePending = true;
+                        // Re-entrancy guard keyed by account: while THIS
+                        // account's delete is in flight, confirming again
+                        // (double-click, or close+reopen of the SAME account)
+                        // must NOT send a duplicate request. Different
+                        // accounts are independently deletable.
                         var deletedProvider = pend.prov;
                         var deletedName = pend.name;
+                        var key = deleteKey(deletedProvider, deletedName);
+                        if (inFlightDeletes[key]) return;
+                        inFlightDeletes[key] = true;
                         fetch(
                             "/api/delete?provider=" +
                                 encodeURIComponent(deletedProvider) +
@@ -2317,26 +2310,34 @@
                                 });
                             })
                             .then(function (res) {
-                                // Only a confirmed success refreshes. Any
-                                // non-success (server failure, malformed body)
-                                // keeps the modal open with the error.
+                                // The request is no longer in flight; the
+                                // account may be retried or deleted again
+                                // later.
+                                delete inFlightDeletes[key];
+                                // Only touch the modal while it still shows
+                                // THIS account (pend holds the last opened
+                                // confirm). A stale response for a different
+                                // account must not close or rewrite it.
+                                var ownsDialog =
+                                    pend.prov === deletedProvider &&
+                                    pend.name === deletedName;
                                 if (!res || res.success !== true) {
-                                    if (gen === confirmGen) {
+                                    // Non-success (server failure, malformed
+                                    // body) keeps the modal open with the
+                                    // error; retry is re-enabled because the
+                                    // in-flight entry was cleared above.
+                                    if (ownsDialog) {
                                         ctext.textContent =
                                             "删除失败：" +
                                             ((res && res.error) || "未知错误");
-                                        // Retry is re-enabled only after the
-                                        // current generation's failure
-                                        // response.
-                                        deletePending = false;
                                     }
                                     return;
                                 }
-                                // Close the modal only while this confirmation
-                                // still owns it; a newer dialog must survive.
-                                if (gen === confirmGen) {
+                                // Close the modal only while it still shows
+                                // this account; a different account's dialog
+                                // must survive.
+                                if (ownsDialog) {
                                     closeConfirm();
-                                    deletePending = false;
                                 }
                                 // The delete succeeded server-side: always
                                 // refresh the deleted provider's container,
@@ -2351,12 +2352,13 @@
                             .catch(function () {
                                 // Only a real network failure reaches here
                                 // (JSON parse failures are converted to null
-                                // above). Surface it only while this
-                                // confirmation still owns the modal, and
-                                // re-enable retry.
-                                if (gen === confirmGen) {
+                                // above).
+                                delete inFlightDeletes[key];
+                                if (
+                                    pend.prov === deletedProvider &&
+                                    pend.name === deletedName
+                                ) {
                                     ctext.textContent = "删除失败：网络错误";
-                                    deletePending = false;
                                 }
                             });
                     });
