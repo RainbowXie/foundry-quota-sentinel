@@ -25,8 +25,15 @@ import (
 // fetch-failure error path, and the shared account delete flow.
 func TestKimiRefreshAndDeleteWiringIntact(t *testing.T) {
 	html := readSidebarHTML(t)
-	if !regexp.MustCompile(`fk\(\);\s*\n?\s*setInterval\(fk,`).MatchString(html) {
-		t.Fatal("Kimi cards must keep their periodic refresh (fk(); setInterval(fk, ...))")
+	// Kimi cards must keep their periodic refresh: the shared per-provider
+	// scheduler routes fk() through the single-flight boundary (immediate
+	// first load + 30s post-settlement rearm), instead of a raw
+	// setInterval loop that can overlap.
+	if !regexp.MustCompile(`function fk\(\)\{?[\s\S]*?scheduleProviderRefresh\(\s*"kimi"`).MatchString(html) {
+		t.Fatal("Kimi cards must keep their periodic refresh (fk() through the shared per-provider scheduler)")
+	}
+	if strings.Contains(html, "setInterval(fk,") {
+		t.Fatal("Kimi refresh must use the shared post-settlement scheduler, not a fixed setInterval loop")
 	}
 	if !regexp.MustCompile(`if \(!r\.success\) throw`).MatchString(html) {
 		t.Fatal("Kimi fetch failures must surface as card errors, not fabricated metrics")
@@ -156,7 +163,7 @@ const els = {};
 function getEl(id) { return (els[id] = els[id] || makeEl(id)); }
 const docListeners = {};
 const fetchCalls = [];
-const timers = [];
+let timers = [];
 const pendingDeletes = []; // resolvers for deferred /api/delete responses
 
 const document = {
@@ -191,7 +198,7 @@ const sandbox = {
 		return Promise.resolve({ json: () => Promise.resolve({ success: true }) });
 	},
 	alert: () => {},
-	setTimeout: (fn) => { timers.push(fn); return timers.length; },
+	setTimeout: (fn, delay) => { timers.push({ fn, delay: delay || 0 }); return timers.length; },
 	setInterval: () => 0,
 	clearTimeout: () => {},
 	clearInterval: () => {},
@@ -203,6 +210,16 @@ sandbox.window = sandbox;
 sandbox.addEventListener = () => {};
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
+
+// fireShortTimers runs only sub-second timers (the delete-flow 300ms
+// refresh window); the scheduler's 30s per-provider rearm timers stay
+// pending so a delete test observes the deleted provider's immediate
+// refresh without unrelated providers firing.
+function fireShortTimers() {
+	const run = timers.filter((t) => t.delay < 5000);
+	timers = timers.filter((t) => t.delay >= 5000);
+	run.forEach((t) => t.fn());
+}
 try {
 	vm.runInContext(blocks[0], sandbox);
 } catch (e) {
@@ -265,7 +282,7 @@ setImmediate(() => {
 		// provider's confirm, overwriting internal pending state.
 		openConfirm("ollama", "Ollama B");
 		const pre = fetchCalls.length;
-		timers.forEach((fn) => fn());
+		fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (!after.includes("/api/kimi")) {
 			fail("post-delete refresh must call /api/kimi (snapshotted deleted provider); after=" + JSON.stringify(after), 12);
@@ -294,7 +311,7 @@ setImmediate(() => {
 			}
 		}
 		const pre = fetchCalls.length;
-		timers.forEach((fn) => fn());
+		fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (after.length !== 0) {
 			fail("non-success must NOT refresh any provider; after=" + JSON.stringify(after), 17);
@@ -310,7 +327,7 @@ setImmediate(() => {
 			fail("double-confirm must end in success, not 删除失败; text=" + getEl("confirmText").textContent, 28);
 		}
 		const pre = fetchCalls.length;
-		timers.forEach((fn) => fn());
+		fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (!after.includes("/api/kimi")) {
 			fail("double-confirm success must refresh /api/kimi; after=" + JSON.stringify(after), 29);
@@ -342,7 +359,7 @@ setImmediate(() => {
 				fail("original success must close the reopened same-account dialog", 32);
 			}
 			const pre = fetchCalls.length;
-			timers.forEach((fn) => fn());
+			fireShortTimers();
 			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 			if (!after.includes("/api/kimi")) {
 				fail("reopen success must refresh /api/kimi; after=" + JSON.stringify(after), 33);
@@ -370,7 +387,7 @@ setImmediate(() => {
 		// Now run the refresh timer: /api/kimi refreshes and the guard
 		// releases after the refresh settles.
 		const pre = fetchCalls.length;
-		timers.forEach((fn) => fn());
+		fireShortTimers();
 		setImmediate(() => {
 			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 			if (!after.includes("/api/kimi")) {
@@ -401,7 +418,7 @@ setImmediate(() => {
 		// (old card gone, stale dialog invalidated, guard released).
 		setImmediate(() => {
 			const pre = fetchCalls.length;
-			timers.forEach((fn) => fn());
+			fireShortTimers();
 			setImmediate(() => {
 				const refreshed = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 				if (!refreshed.includes("/api/kimi")) {
@@ -446,7 +463,7 @@ setImmediate(() => {
 				fail("stale response must not rewrite the newer B confirm text; got: " + getEl("confirmText").textContent, 22);
 			}
 			const pre = fetchCalls.length;
-			timers.forEach((fn) => fn());
+			fireShortTimers();
 			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 			if (scenario === "stale-success") {
 				// The deleted provider refresh is NOT generation-gated: A was

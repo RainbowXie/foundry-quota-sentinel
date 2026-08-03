@@ -1536,11 +1536,78 @@
             /* ===== Legacy Renderers (removed; all cards use the shared
                    quota-card foundation via provider adapters) ===== */
 
+            /* ===== Shared per-provider refresh scheduler =====
+
+               Every provider's automatic AND explicit refresh goes through
+               this single-flight boundary. Per provider the scheduler keeps
+               one in-flight promise and one next-run timer:
+               - the first load runs immediately;
+               - the next automatic attempt starts 30s after the preceding
+                 attempt SETTLES (recursive setTimeout, never a fixed
+                 interval, so a slow request cannot overlap);
+               - an explicit trigger while busy joins the pending promise
+                 instead of starting a duplicate request;
+               - an explicit trigger while idle runs immediately and resets
+                 that provider's next-run deadline from its settlement;
+               - success AND failure both clear in-flight state and rearm
+                 the next automatic attempt. */
+            var REFRESH_DELAY_MS = 30000;
+            var refreshState = {}; // provider -> { busy, promise, timer, fn }
+
+            function rearmProviderRefresh(provider) {
+                var st = refreshState[provider];
+                if (!st) return;
+                st.busy = false;
+                st.promise = null;
+                st.timer = setTimeout(function () {
+                    scheduleProviderRefresh(provider, st.fn);
+                }, REFRESH_DELAY_MS);
+            }
+
+            function scheduleProviderRefresh(provider, fn) {
+                var st = refreshState[provider];
+                if (!st) {
+                    st = refreshState[provider] = {
+                        busy: false,
+                        promise: null,
+                        timer: 0,
+                        fn: fn
+                    };
+                }
+                if (st.busy) {
+                    // Single-flight: join the in-flight refresh.
+                    return st.promise;
+                }
+                // Idle: cancel this provider's previous next-run timer.
+                if (st.timer) {
+                    clearTimeout(st.timer);
+                    st.timer = 0;
+                }
+                st.busy = true;
+                // fn runs synchronously so an explicit trigger's effect is
+                // immediate; the returned promise is adopted for single-flight.
+                var p;
+                try {
+                    p = Promise.resolve(fn());
+                } catch (e) {
+                    p = Promise.reject(e);
+                }
+                st.promise = p.then(
+                    function () {
+                        rearmProviderRefresh(provider);
+                    },
+                    function () {
+                        rearmProviderRefresh(provider);
+                    },
+                );
+                return st.promise;
+            }
+
             function acard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.3)
                 return renderQuotaCard(opencodeAdapter(a));
             }
-            async function fq() {
+            async function fetchOpenCodeCards() {
                 try {
                     var r = await (await fetch("/api/accounts")).json();
                     if (!r.success) throw new Error(r.error || "failed");
@@ -1554,12 +1621,15 @@
                         "<div class=qerr>" + qesc(e.message) + "</div>";
                 }
             }
+            function fq() {
+                return scheduleProviderRefresh("opencode", fetchOpenCodeCards);
+            }
             /* Ollama cards */
             function olcard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.4)
                 return renderQuotaCard(ollamaAdapter(a));
             }
-            async function fo() {
+            async function fetchOllamaCards() {
                 try {
                     var r = await (await fetch("/api/ollama")).json();
                     if (!r.success) throw new Error(r.error || "failed");
@@ -1574,12 +1644,15 @@
                         "<div class=qerr>" + qesc(e.message) + "</div>";
                 }
             }
+            function fo() {
+                return scheduleProviderRefresh("ollama", fetchOllamaCards);
+            }
             /* kimi cards */
             function kcard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.5)
                 return renderQuotaCard(kimiAdapter(a));
             }
-            async function fk() {
+            async function fetchKimiCards() {
                 try {
                     var r = await (await fetch("/api/kimi")).json();
                     if (!r.success) throw new Error(r.error || "failed");
@@ -1593,6 +1666,9 @@
                     document.getElementById("kimiCards").innerHTML =
                         "<div class=qerr>" + qesc(e.message) + "</div>";
                 }
+            }
+            function fk() {
+                return scheduleProviderRefresh("kimi", fetchKimiCards);
             }
             function kimiDoLogin(name) {
                 fetch(
@@ -1795,7 +1871,7 @@
                     });
                 });
             }
-            async function fd() {
+            async function fetchDeepSeekCards() {
                 try {
                     var r = await (await fetch("/api/deepseek")).json();
                     var box = document.getElementById("dsCards");
@@ -1871,6 +1947,9 @@
                     document.getElementById("dsCards").innerHTML =
                         "<div class=er>" + qesc(e.message) + "</div>";
                 }
+            }
+            function fd() {
+                return scheduleProviderRefresh("deepseek", fetchDeepSeekCards);
             }
             function dsDoLogin(name) {
                 // Capture the target account's pre-login GENERATION from
@@ -2405,29 +2484,25 @@
                     if (e.key === "Escape") hide();
                 });
             })();
-            /* main loop */
-            async function fa() {
-                var ok = true;
-                try {
-                    await fq();
-                } catch (e) {
-                    ok = false;
-                }
-                var sd = document.getElementById("sd"),
-                    ht = document.getElementById("ht");
-                sd.className = ok ? "sd" : "sd er";
+            /* clock — fetch-free, renders immediately and every 1s. The
+               visible time must never depend on provider network I/O; a
+               slow or failed quota request cannot delay, skip, or reorder
+               clock updates. Provider health/errors stay on the cards. */
+            function updateClock() {
+                var ht = document.getElementById("ht");
                 ht.textContent = new Date().toLocaleTimeString();
-                ht.className = ok ? "ht" : "ht er";
-                if (!ok) ht.textContent += " ✕";
+                ht.className = "ht";
             }
-            fa();
-            setInterval(fa, 2000);
+            updateClock();
+            setInterval(updateClock, 1000);
+            /* Provider automatic polling: each provider loads immediately
+               once; the shared scheduler then rearms the next automatic
+               attempt 30s after each settlement (no overlapping requests,
+               per-provider single-flight, independent timers). */
+            fq();
             fd();
-            setInterval(fd, 30000);
             fo();
-            setInterval(fo, 30000);
             fk();
-            setInterval(fk, 30000);
             var winTimer;
             window.addEventListener("resize", function () {
                 for (var k in dsCharts) {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"foundry-quota-sentinel/internal/formatter"
@@ -17,11 +17,22 @@ import (
 const (
 	openCodeGoBaseURL   = "https://opencode.ai"
 	openCodeGoServiceID = "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd"
+	// openCodeGoMaxResponseSize bounds the quota response body. The reader
+	// reads maxSize+1 bytes so a response that exactly fits is accepted and
+	// one that exceeds the bound is rejected as oversized (never silently
+	// truncated into a partial quota result).
+	openCodeGoMaxResponseSize = 1 << 20
+	openCodeGoRequestTimeout  = 15 * time.Second
 )
 
 type OpenCodeGoQuerier struct {
 	Cookie      string
 	WorkspaceID string
+	// Client is injectable for tests; nil constructs a default client with
+	// openCodeGoRequestTimeout. The request URL is ALWAYS the fixed
+	// openCodeGoBaseURL host — there is no BaseURL override seam, so the
+	// cookie can never be sent to an unvalidated host.
+	Client *http.Client
 }
 
 func NewOpenCodeGoQuerier() *OpenCodeGoQuerier {
@@ -29,29 +40,55 @@ func NewOpenCodeGoQuerier() *OpenCodeGoQuerier {
 }
 
 func (q *OpenCodeGoQuerier) FetchQuota() (*QuotaData, error) {
-	if err := q.validate(); err != nil { return nil, err }
+	if err := q.validate(); err != nil {
+		return nil, err
+	}
 	args := buildRPCArgs(q.WorkspaceID)
 	reqURL := fmt.Sprintf("%s/_server?id=%s&args=%s", openCodeGoBaseURL, openCodeGoServiceID, url.QueryEscape(args))
-	req, _ := http.NewRequest("GET", reqURL, nil)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
 	req.Header.Set("accept", "*/*")
 	req.Header.Set("cookie", q.Cookie)
 	req.Header.Set("x-server-id", openCodeGoServiceID)
 	req.Header.Set("x-server-instance", "server-fn:3")
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := q.Client
+	if client == nil {
+		client = &http.Client{Timeout: openCodeGoRequestTimeout}
+	}
 	resp, err := client.Do(req)
-	if err != nil { return nil, fmt.Errorf("http request: %w", err) }
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("API returned %d: %s", resp.StatusCode, string(body))
+		// Diagnostics carry ONLY the status code — never the upstream
+		// response body, which may contain private/account material.
+		return nil, fmt.Errorf("opencode API returned HTTP %d", resp.StatusCode)
 	}
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// Read maxSize+1 bytes and propagate any transport/read error: a
+	// connection that breaks mid-body (e.g. after rolling/weekly but before
+	// an optional monthly) must NOT be mistaken for a complete response with
+	// monthly absent. A body exceeding the bound is rejected as oversized
+	// rather than silently truncated.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, openCodeGoMaxResponseSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if len(body) > openCodeGoMaxResponseSize {
+		return nil, fmt.Errorf("opencode quota response exceeds %d bytes", openCodeGoMaxResponseSize)
+	}
 	return parseQuotaResponse(string(body))
 }
 
 func (q *OpenCodeGoQuerier) validate() error {
-	if q.Cookie == "" { return fmt.Errorf("OPENCODE_GO_AUTH_COOKIE not set") }
-	if q.WorkspaceID == "" { return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID not set") }
+	if q.Cookie == "" {
+		return fmt.Errorf("OPENCODE_GO_AUTH_COOKIE not set")
+	}
+	if q.WorkspaceID == "" {
+		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID not set")
+	}
 	return nil
 }
 
@@ -64,28 +101,401 @@ func buildRPCArgs(workspaceID string) string {
 }
 
 func parseQuotaResponse(text string) (*QuotaData, error) {
-	// 注意：$R[N] 是 seroval 引用编号，会随响应里前面的字段增减而漂移（如新增的 region 字段
-	// 把 rolling 从 $R[1] 挤到 $R[2]）。故编号不写死，用 (?:\$R\[\d+\]=)? 兼容任意编号/无引用。
-	rollingRe := regexp.MustCompile(`rollingUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
-	weeklyRe := regexp.MustCompile(`weeklyUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
-	monthlyRe := regexp.MustCompile(`monthlyUsage:(?:\$R\[\d+\]=)?\{status:"([^"]+)",resetInSec:(\d+),usagePercent:(\d+)\}`)
-	rollingMatch := rollingRe.FindStringSubmatch(text)
-	weeklyMatch := weeklyRe.FindStringSubmatch(text)
-	monthlyMatch := monthlyRe.FindStringSubmatch(text)
-	if rollingMatch == nil { return nil, fmt.Errorf("failed to parse rollingUsage") }
-	if weeklyMatch == nil { return nil, fmt.Errorf("failed to parse weeklyUsage") }
-	rolling := parseUsage(rollingMatch)
-	weekly := parseUsage(weeklyMatch)
-	var monthly *QuotaUsage
-	if monthlyMatch != nil {
-		m := parseUsage(monthlyMatch)
-		if m.Status != "unlimited" { monthly = &m }
+	// 结构化解析（非整对象正则）：先按字段边界定位每个 usage 对象的
+	// 起始位置，跳过可选的 seroval 引用赋值 $R[n]=，再以引号/花括号
+	// 感知的方式取出完整对象；随后在对象内部独立解析每个必需字段，
+	// 因此引用编号漂移、字段重排、空白和附加属性都不会破坏解析。
+	rolling, err := extractUsageWindow(text, "rollingUsage", true)
+	if err != nil {
+		return nil, err
 	}
-	return &QuotaData{Rolling: rolling, Weekly: weekly, Monthly: monthly, FetchedAt: time.Now()}, nil
+	weekly, err := extractUsageWindow(text, "weeklyUsage", true)
+	if err != nil {
+		return nil, err
+	}
+	monthlyRaw, err := extractUsageWindow(text, "monthlyUsage", false)
+	if err != nil {
+		return nil, err
+	}
+	var monthly *QuotaUsage
+	if monthlyRaw != nil && monthlyRaw.Status != "unlimited" {
+		monthly = monthlyRaw
+	}
+	return &QuotaData{Rolling: *rolling, Weekly: *weekly, Monthly: monthly, FetchedAt: time.Now()}, nil
 }
 
-func parseUsage(m []string) QuotaUsage {
-	reset, _ := strconv.Atoi(m[2])
-	percent, _ := strconv.Atoi(m[3])
-	return QuotaUsage{Status: m[1], UsagePercent: percent, ResetInSec: reset, ResetDisplay: formatter.FormatDurationCompact(reset)}
+// extractUsageWindow locates every boundary-anchored occurrence of the given
+// usage field name, extracts the bounded object after it, and validates the
+// object. It distinguishes three states:
+//   - absent:           no boundary-anchored occurrence (required windows
+//     error; optional monthly returns nil)
+//   - present-valid:    exactly one extractable, parseable object
+//   - present-malformed:an occurrence whose value cannot be extracted or
+//     parsed (truncated object, malformed reference
+//     assignment, non-object value, or more than one
+//     occurrence) — ALWAYS a window-specific error, even
+//     for the optional monthly window
+//
+// required=true rejects absence; a present-but-malformed window always
+// errors so a truncated response never yields a partial quota result.
+// Duplicate detection happens inside the single-pass scan
+// (findAllUsageObjects): the second real occurrence is reported
+// immediately, so this function only ever sees 0 or 1 object.
+func extractUsageWindow(text, windowName string, required bool) (*QuotaUsage, error) {
+	objects, err := findAllUsageObjects(text, windowName)
+	if err != nil {
+		return nil, err
+	}
+	if len(objects) == 0 {
+		if required {
+			return nil, fmt.Errorf("failed to parse %s", windowName)
+		}
+		return nil, nil
+	}
+	usage, err := parseUsageObject(objects[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", windowName, err)
+	}
+	return &usage, nil
+}
+
+// findAllUsageObjects returns the raw bounded object text for every
+// boundary-anchored occurrence of windowName, skipping an optional seroval
+// reference assignment ($R[n]=) between the field name and the object.
+//
+// It is a SINGLE-PASS lexer scan (persistent inString/escaped cursor, no
+// per-occurrence rescan), so pathological inputs with many window-name
+// occurrences stay O(n) instead of degrading to O(n²). The second real
+// occurrence is reported as a duplicate error immediately; a
+// present-but-malformed occurrence (truncated input, a malformed reference
+// assignment, or a non-object value) returns a window-specific error, so an
+// optional window is never mistaken for absent when it is actually present
+// but broken.
+func findAllUsageObjects(text, windowName string) ([]string, error) {
+	var out []string
+	inString := false
+	escaped := false
+	for i := 0; i < len(text); {
+		c := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+		if c == '"' {
+			inString = true
+			i++
+			continue
+		}
+		// Only a boundary-anchored name OUTSIDE a string can be a quota
+		// field: start of text, '{', ',', or whitespace before it, so names
+		// embedded inside other identifiers or string values are skipped.
+		prev := byte(0)
+		if i > 0 {
+			prev = text[i-1]
+		}
+		atBoundary := i == 0 || prev == '{' || prev == ',' || prev == ' ' || prev == '\t' || prev == '\n' || prev == '\r'
+		if !atBoundary || !strings.HasPrefix(text[i:], windowName) {
+			i++
+			continue
+		}
+		j := skipSpace(text, i+len(windowName))
+		if j >= len(text) || text[j] != ':' {
+			// A boundary-anchored name NOT followed by ':' is a different
+			// field whose name merely starts with windowName (e.g.
+			// monthlyUsageExtra) — not an occurrence of the quota window.
+			i += len(windowName)
+			continue
+		}
+		if len(out) > 0 {
+			// Second real occurrence: duplicate. Reported immediately so
+			// the scan never has to keep collecting.
+			return nil, fmt.Errorf("failed to parse %s: duplicate %s object", windowName, windowName)
+		}
+		j = skipSpace(text, j+1)
+		next, matched := matchRefAssignment(text, j)
+		if matched {
+			j = skipSpace(text, next)
+		} else if j < len(text) && text[j] == '$' {
+			// A reference token that is not a well-formed $R[n]= assignment
+			// is a malformed value, not a missing window.
+			return nil, fmt.Errorf("failed to parse %s: malformed reference assignment", windowName)
+		}
+		if j >= len(text) || text[j] != '{' {
+			return nil, fmt.Errorf("failed to parse %s: expected object value", windowName)
+		}
+		raw, ok := extractBoundedObject(text, j)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse %s: truncated object", windowName)
+		}
+		out = append(out, raw)
+		i = j + len(raw)
+	}
+	return out, nil
+}
+
+// matchRefAssignment matches an optional seroval reference assignment
+// $R[n]= (with optional whitespace around '=') starting at i. It returns
+// the index just past the '=' and matched=true on success, or (i, false)
+// when there is no assignment (including a malformed '$'-prefixed token
+// the caller must then reject).
+func matchRefAssignment(text string, i int) (int, bool) {
+	j := i
+	if j+1 >= len(text) || text[j] != '$' || text[j+1] != 'R' {
+		return i, false
+	}
+	j += 2
+	if j >= len(text) || text[j] != '[' {
+		return i, false
+	}
+	j++
+	digits := 0
+	for j < len(text) && text[j] >= '0' && text[j] <= '9' {
+		digits++
+		j++
+	}
+	if digits == 0 || j >= len(text) || text[j] != ']' {
+		return i, false
+	}
+	j = skipSpace(text, j+1)
+	if j >= len(text) || text[j] != '=' {
+		return i, false
+	}
+	return skipSpace(text, j+1), true
+}
+
+// extractBoundedObject returns the text of the object starting at the '{'
+// at index open, respecting quoted strings and nested braces so a '}' or
+// '{' inside a string value or a nested object cannot truncate it.
+func extractBoundedObject(text string, open int) (string, bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := open; i < len(text); i++ {
+		c := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return text[open : i+1], true
+			}
+		}
+	}
+	return "", false
+}
+
+// supportedQuotaStatus is the confirmed upstream allowlist for the
+// seroval status field. OpenCode Go reports "ok" for a normal quota window
+// and "unlimited" for the monthly unlimited form; any other value is
+// unsupported and must fail closed (never rendered as a fabricated normal
+// window).
+var supportedQuotaStatus = map[string]bool{
+	"ok":        true,
+	"unlimited": true,
+}
+
+// parseUsageObject parses one raw seroval object body. Every present
+// object must contain exactly one supported status, resetInSec, and
+// usagePercent; fields are parsed independently of order and whitespace,
+// unknown properties are ignored, and missing/duplicate/negative/
+// non-numeric/unsupported values fail closed.
+func parseUsageObject(raw string) (QuotaUsage, error) {
+	body := strings.TrimSpace(raw)
+	if len(body) < 2 || body[0] != '{' || body[len(body)-1] != '}' {
+		return QuotaUsage{}, fmt.Errorf("malformed object")
+	}
+	var (
+		status      string
+		hasStatus   bool
+		resetInSec  int
+		hasReset    bool
+		usagePct    int
+		hasUsagePct bool
+	)
+	for _, field := range splitTopLevelFields(body[1 : len(body)-1]) {
+		name, value := splitTopLevelKV(field)
+		switch name {
+		case "status":
+			if hasStatus {
+				return QuotaUsage{}, fmt.Errorf("duplicate status")
+			}
+			s, ok := parseSerovalString(value)
+			if !ok || !supportedQuotaStatus[s] {
+				return QuotaUsage{}, fmt.Errorf("unsupported status value")
+			}
+			status, hasStatus = s, true
+		case "resetInSec":
+			if hasReset {
+				return QuotaUsage{}, fmt.Errorf("duplicate resetInSec")
+			}
+			n, ok := parseNonNegInt(value)
+			if !ok {
+				return QuotaUsage{}, fmt.Errorf("invalid resetInSec")
+			}
+			resetInSec, hasReset = n, true
+		case "usagePercent":
+			if hasUsagePct {
+				return QuotaUsage{}, fmt.Errorf("duplicate usagePercent")
+			}
+			n, ok := parseNonNegInt(value)
+			if !ok {
+				return QuotaUsage{}, fmt.Errorf("invalid usagePercent")
+			}
+			usagePct, hasUsagePct = n, true
+		default:
+			// Unrelated property: ignore.
+		}
+	}
+	if !hasStatus {
+		return QuotaUsage{}, fmt.Errorf("missing status")
+	}
+	if !hasReset {
+		return QuotaUsage{}, fmt.Errorf("missing resetInSec")
+	}
+	if !hasUsagePct {
+		return QuotaUsage{}, fmt.Errorf("missing usagePercent")
+	}
+	return QuotaUsage{
+		Status:       status,
+		UsagePercent: usagePct,
+		ResetInSec:   resetInSec,
+		ResetDisplay: formatter.FormatDurationCompact(resetInSec),
+	}, nil
+}
+
+// splitTopLevelFields splits an object body on top-level commas, keeping
+// commas inside quoted strings and nested braces together.
+func splitTopLevelFields(s string) []string {
+	var fields []string
+	depth := 0
+	inString := false
+	escaped := false
+	start := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+		case ',':
+			if depth == 0 {
+				fields = append(fields, s[start:i])
+				start = i + 1
+			}
+		}
+	}
+	fields = append(fields, s[start:])
+	return fields
+}
+
+// splitTopLevelKV splits one field on its first top-level ':' into the
+// trimmed key and the raw value (which may itself be an object/array).
+func splitTopLevelKV(field string) (string, string) {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := 0; i < len(field); i++ {
+		c := field[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+		case ':':
+			if depth == 0 {
+				return strings.TrimSpace(field[:i]), strings.TrimSpace(field[i+1:])
+			}
+		}
+	}
+	return strings.TrimSpace(field), ""
+}
+
+// parseSerovalString decodes a quoted seroval string value. It requires
+// surrounding double quotes and unescapes backslash-escaped characters.
+func parseSerovalString(v string) (string, bool) {
+	if len(v) < 2 || v[0] != '"' || v[len(v)-1] != '"' {
+		return "", false
+	}
+	var sb strings.Builder
+	for i := 1; i < len(v)-1; i++ {
+		c := v[i]
+		if c == '\\' && i+1 < len(v)-1 {
+			i++
+			sb.WriteByte(v[i])
+			continue
+		}
+		sb.WriteByte(c)
+	}
+	return sb.String(), true
+}
+
+// parseNonNegInt requires a plain non-negative integer (digits only);
+// negative, fractional, quoted, or otherwise unsupported values are
+// rejected rather than coerced.
+func parseNonNegInt(v string) (int, bool) {
+	if v == "" {
+		return 0, false
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] < '0' || v[i] > '9' {
+			return 0, false
+		}
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+func skipSpace(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
 }

@@ -19,11 +19,18 @@ import (
 
 // buildTestBinary builds the current main package into a temp binary and
 // returns its path. Cross-process lock tests fork this binary as `_locktest`
-// subprocesses.
+// subprocesses. The build inherits the parent test binary's tags
+// (locktestBinaryTags), so `go test -tags nogui` forks a nogui binary and
+// never fails on machines without webkit2gtk.
 func buildTestBinary(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "fqs-locktest")
-	cmd := exec.Command("go", "build", "-o", bin, ".")
+	args := []string{"build"}
+	if locktestBinaryTags != "" {
+		args = append(args, strings.Fields(locktestBinaryTags)...)
+	}
+	args = append(args, "-o", bin, ".")
+	cmd := exec.Command("go", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build test binary: %v\n%s", err, out)
 	}
