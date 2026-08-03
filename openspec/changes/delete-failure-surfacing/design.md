@@ -49,7 +49,7 @@ The error text is the server-provided `error` string (already user-facing),
 rendered as text (no HTML injection). Because the modal stays open, the
 Cancel/✕ affordances still close it, and the user can retry the delete.
 
-### Parse the response and branch before closing, with generation ownership
+### Parse the response and branch before closing, with per-account modal ownership
 
 The handler SHALL track in-flight deletes PER ACCOUNT (provider + name),
 parse the response, and only act on the modal while it still shows that
@@ -174,7 +174,10 @@ outcome:
    would wrongly overwrite the success outcome with
    `删除失败：account not found`. The guard is keyed by provider+name, so
    different accounts remain independently deletable while the same
-   account is blocked until its response arrives (then retry is allowed).
+   account is blocked until the outcome's release point: a FAILURE releases
+   the guard immediately (retry allowed), a SUCCESS holds it until the
+   refresh settles and the stale dialog is invalidated (then a recreated
+   same-named account may be deleted again via a fresh confirm).
    A dialog-level boolean is deliberately NOT used: resetting it on every
    dialog open is exactly how the close-and-reopen bypass worked.
 
