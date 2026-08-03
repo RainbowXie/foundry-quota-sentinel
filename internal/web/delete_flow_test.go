@@ -9,7 +9,7 @@ package web
 // {success:false} / malformed body / network failure keep the modal open
 // with the right error text, and refresh nothing; a stale in-flight
 // response must not operate on a modal that now belongs to another
-// confirmation (generation ownership).
+// account (per-account modal ownership + in-flight guard).
 
 import (
 	"os"
