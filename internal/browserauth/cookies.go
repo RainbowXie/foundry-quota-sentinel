@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // Cookie is the shared representation used by both capture and injection.
@@ -138,9 +139,11 @@ func (c *Client) SetCookies(ctx context.Context, cookies []Cookie) error {
 	for _, cookie := range cookies {
 		envelope = append(envelope, cookieParam(cookie))
 	}
+	start := time.Now()
 	if _, err := c.Call(ctx, "Storage.setCookies", map[string]any{"cookies": envelope}); err != nil {
-		return fmt.Errorf("注入 cookie 失败: %w", err)
+		return fmt.Errorf("注入 cookie 失败（耗时 %s）: %w", time.Since(start).Round(time.Millisecond), err)
 	}
+	log.Printf("browserauth: Storage.setCookies 批量注入成功（%d 个，耗时 %s）", len(envelope), time.Since(start).Round(time.Millisecond))
 	return nil
 }
 
@@ -168,13 +171,15 @@ func (c *Client) SetCookiesBestEffort(ctx context.Context, cookies []Cookie) Coo
 			result.Failed = append(result.Failed, cookie.Name)
 			continue
 		}
+		start := time.Now()
 		if _, err := c.Call(ctx, "Storage.setCookies", map[string]any{
 			"cookies": []map[string]any{cookieParam(cookie)},
 		}); err != nil {
-			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d，耗时 %s）: %v", cookie.Name, len(cookie.Value), time.Since(start).Round(time.Millisecond), err)
 			result.Failed = append(result.Failed, cookie.Name)
 			continue
 		}
+		log.Printf("browserauth: 注入 cookie %q 成功（耗时 %s）", cookie.Name, time.Since(start).Round(time.Millisecond))
 		result.Injected++
 	}
 	return result

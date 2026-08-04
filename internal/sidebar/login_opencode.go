@@ -3,6 +3,7 @@ package sidebar
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"regexp"
 	"strings"
@@ -96,11 +97,15 @@ type sharedOpenCodeBrowser struct {
 }
 
 func (b *sharedOpenCodeBrowser) CDP(ctx context.Context) (openCodeCDP, error) {
+	start := time.Now()
+	attempts := 0
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		attempts++
 		conn, err := browserauth.Connect(ctx, b.DebugAddress())
 		if err == nil {
+			log.Printf("opencode: CDP 连接成功（耗时 %s，%d 次尝试）", time.Since(start).Round(time.Millisecond), attempts)
 			return &sharedOpenCodeClient{Connection: conn}, nil
 		}
 		if b.Exited() {
@@ -108,6 +113,7 @@ func (b *sharedOpenCodeBrowser) CDP(ctx context.Context) (openCodeCDP, error) {
 		}
 		select {
 		case <-ctx.Done():
+			log.Printf("opencode: CDP 连接放弃（耗时 %s，%d 次尝试，末次错误: %v）", time.Since(start).Round(time.Millisecond), attempts, err)
 			return nil, fmt.Errorf("等待登录浏览器就绪超时: %w", ctx.Err())
 		case <-ticker.C:
 		}
@@ -234,10 +240,12 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL 
 		if err := cdp.SetCookies(ctx, cookies); err != nil {
 			return fmt.Errorf("注入 OpenCode 登录状态失败: %w", err)
 		}
+		log.Printf("opencode: 账户页 cookie 注入完成（%d 个）", len(cookies))
 	}
 	if err := cdp.Navigate(ctx, pageURL); err != nil {
 		return fmt.Errorf("打开 OpenCode 账户页失败: %w", err)
 	}
+	log.Printf("opencode: 账户页导航已发送")
 	signalOpenPageReady()
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("OpenCode 账户页浏览器异常退出: %w", err)

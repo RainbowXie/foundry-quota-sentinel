@@ -157,11 +157,15 @@ type sharedDeepSeekBrowser struct {
 }
 
 func (b *sharedDeepSeekBrowser) CDP(ctx context.Context) (deepSeekCDP, error) {
+	start := time.Now()
+	attempts := 0
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		attempts++
 		conn, err := browserauth.Connect(ctx, b.DebugAddress())
 		if err == nil {
+			log.Printf("deepseek: CDP 连接成功（耗时 %s，%d 次尝试）", time.Since(start).Round(time.Millisecond), attempts)
 			return &sharedDeepSeekClient{Connection: conn}, nil
 		}
 		if b.Exited() {
@@ -169,6 +173,7 @@ func (b *sharedDeepSeekBrowser) CDP(ctx context.Context) (deepSeekCDP, error) {
 		}
 		select {
 		case <-ctx.Done():
+			log.Printf("deepseek: CDP 连接放弃（耗时 %s，%d 次尝试，末次错误: %v）", time.Since(start).Round(time.Millisecond), attempts, err)
 			return nil, fmt.Errorf("等待登录浏览器就绪超时: %w", ctx.Err())
 		case <-ticker.C:
 		}
@@ -484,6 +489,7 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	if err != nil {
 		return failAndWait(fmt.Errorf("打开 DeepSeek 账户页失败: %w", err))
 	}
+	log.Printf("deepseek: 首次导航已发送（loader %s）", loader1)
 	// Nav1: wait for the SPA auth-decision signal (protected API response
 	// with matching loaderId + business code==0). On nav1 the SPA typically
 	// overwrites userToken and redirects to /sign_in — no protected API
@@ -512,6 +518,7 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		if err != nil {
 			return failAndWait(fmt.Errorf("重新打开 DeepSeek 账户页失败: %w", err))
 		}
+		log.Printf("deepseek: 重新导航已发送（loader %s）", loader2)
 		// Wait for the SPA auth-decision signal on the RELOAD navigation.
 		// A late response from nav1 has a different loaderId and is rejected.
 		if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {

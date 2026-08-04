@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -807,6 +808,7 @@ func cmdOpenPage() {
 		os.Exit(1)
 	}
 	provider, name := os.Args[2], strings.TrimSpace(os.Args[3])
+	log.Printf("open-page: 开始 provider=%s name=%s", provider, name)
 	// When launched by /api/open, FQS_OPEN_SESSION names a handshake file.
 	// We write "ready" once the page is opened + auth-state-checked, or
 	// "error" if the page flow fails before that. This lets /api/open

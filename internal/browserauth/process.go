@@ -199,6 +199,13 @@ func browserArgs(profileDir, pageURL string, debugPort int) []string {
 		"--remote-debugging-port=" + strconv.Itoa(debugPort),
 		"--no-first-run",
 		"--no-default-browser-check",
+		// 临时 profile 用不到任何扩展；企业策略强装的扩展会在每次启动时
+		// 重新加载并阻塞首个浏览器级 CDP 命令（实测 8~19s），直接禁用。
+		"--disable-extensions",
+		// Linux 无桌面密钥环（WSL/容器/裸 X）时，Chromium 首次写 cookie 前
+		// 会等 D-Bus 密钥环超时（实测 9~19s）才回落明文存储；临时 profile
+		// 随用随删，直接用 basic 明文存储跳过该等待。
+		"--password-store=basic",
 		"--new-window",
 		pageURL,
 	}
@@ -218,6 +225,31 @@ type Browser struct {
 	waitErr, cleanErr, closeErr    error
 }
 
+// profileParentDir returns the parent directory for the temporary browser
+// profile. On Linux it prefers a tmpfs ($XDG_RUNTIME_DIR, then /dev/shm):
+// a fresh profile's first run issues hundreds of tiny SQLite commits, and
+// on slow/virtualised disks (WSL vhdx) each fdatasync costs ~0.3s — the
+// resulting sync storm used to stall the first cookie write for 9~19s.
+// tmpfs makes those syncs free. Falls back to the OS default ("") when no
+// tmpfs candidate is usable. A var so tests can inject.
+var profileParentDir = func() string {
+	if runtime.GOOS != "linux" {
+		return ""
+	}
+	for _, dir := range []string{os.Getenv("XDG_RUNTIME_DIR"), "/dev/shm"} {
+		if dir == "" {
+			continue
+		}
+		probe, err := os.MkdirTemp(dir, ".fqs-probe-*")
+		if err != nil {
+			continue
+		}
+		_ = os.RemoveAll(probe)
+		return dir
+	}
+	return ""
+}
+
 // Launch starts a fresh visible system browser with a private temporary
 // profile and DevTools bound to a reserved loopback port. The browser is the
 // only process the application may terminate.
@@ -226,7 +258,7 @@ func Launch(ctx context.Context, options LaunchOptions) (*Browser, error) {
 	if err != nil {
 		return nil, err
 	}
-	profileDir, err := os.MkdirTemp("", "fqs-browserauth-*")
+	profileDir, err := os.MkdirTemp(profileParentDir(), "fqs-browserauth-*")
 	if err != nil {
 		return nil, fmt.Errorf("创建临时浏览器配置失败: %w", err)
 	}

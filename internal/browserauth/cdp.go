@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -197,11 +198,13 @@ func fetchBrowserEndpoint(ctx context.Context, debugAddress string) (string, err
 		return "", fmt.Errorf("读取浏览器 DevTools 版本失败: %w", err)
 	}
 	var version struct {
+		Browser              string `json:"Browser"`
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 	}
 	if err := json.Unmarshal(data, &version); err != nil {
 		return "", fmt.Errorf("解析浏览器 DevTools 版本失败: %w", err)
 	}
+	log.Printf("browserauth: DevTools 版本信息 browser=%s", version.Browser)
 	if !isLoopbackWebSocketURL(version.WebSocketDebuggerURL) {
 		return "", fmt.Errorf("浏览器调试端点无效")
 	}
@@ -227,15 +230,20 @@ func fetchFirstPageEndpoint(ctx context.Context, debugAddress string) (string, e
 	}
 	var targets []struct {
 		Type                 string `json:"type"`
+		URL                  string `json:"url"`
 		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
 	}
 	if err := json.Unmarshal(data, &targets); err != nil {
 		return "", fmt.Errorf("解析浏览器 DevTools 目标失败: %w", err)
 	}
+	for i, target := range targets {
+		log.Printf("browserauth: DevTools 目标[%d] type=%s url=%s", i, target.Type, target.URL)
+	}
 	for _, target := range targets {
 		if target.Type != "page" || !isLoopbackWebSocketURL(target.WebSocketDebuggerURL) {
 			continue
 		}
+		log.Printf("browserauth: 选中页面目标 url=%s", target.URL)
 		return target.WebSocketDebuggerURL, nil
 	}
 	return "", fmt.Errorf("浏览器尚未创建可用的登录页面")

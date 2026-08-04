@@ -125,11 +125,15 @@ type sharedKimiBrowser struct {
 }
 
 func (b *sharedKimiBrowser) CDP(ctx context.Context) (kimiCDP, error) {
+	start := time.Now()
+	attempts := 0
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		attempts++
 		conn, err := browserauth.Connect(ctx, b.DebugAddress())
 		if err == nil {
+			log.Printf("kimi: CDP 连接成功（耗时 %s，%d 次尝试）", time.Since(start).Round(time.Millisecond), attempts)
 			return &sharedKimiClient{Connection: conn}, nil
 		}
 		if b.Exited() {
@@ -137,6 +141,7 @@ func (b *sharedKimiBrowser) CDP(ctx context.Context) (kimiCDP, error) {
 		}
 		select {
 		case <-ctx.Done():
+			log.Printf("kimi: CDP 连接放弃（耗时 %s，%d 次尝试，末次错误: %v）", time.Since(start).Round(time.Millisecond), attempts, err)
 			return nil, fmt.Errorf("等待登录浏览器就绪超时: %w", ctx.Err())
 		case <-ticker.C:
 		}
@@ -493,6 +498,7 @@ func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, 
 	if err != nil {
 		return failAndWait(fmt.Errorf("打开 Kimi 账户页失败: %w", err))
 	}
+	log.Printf("kimi: 导航已发送（loader %s）", loader)
 	if err := kimiWaitForAuthDecision(ctx, cdp, events, loader, kimiSettleTimeout); err != nil {
 		if !isKimiExpectedTimeout(err) {
 			return failAndWait(fmt.Errorf("等待 Kimi 账户页鉴权决定失败: %w", err))
