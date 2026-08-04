@@ -3,7 +3,7 @@
 <head>
 <meta charset=UTF-8>
 <meta name=viewport content="width=device-width,initial-scale=1.0">
-<title>ocgt-monitor &mdash; 使用手册</title>
+<title>foundry-quota-sentinel &mdash; 使用手册</title>
 <link rel=preconnect href=https://fonts.googleapis.com>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel=stylesheet>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel=stylesheet>
@@ -32,6 +32,7 @@ h1{font-size:32px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px;line-he
 h1 .en{display:block;font-size:12px;font-weight:400;letter-spacing:0;margin-top:2px;-webkit-text-fill-color:var(--text-ter);background:none;color:var(--text-ter)}
 .sub{color:var(--text-sec);font-size:14px;margin-bottom:32px;line-height:1.7}
 .sub .en{color:var(--text-ter);font-size:12px}
+.shot{display:block;margin:0 auto 28px;width:320px;max-width:100%;border-radius:var(--radius);border:1px solid var(--border);box-shadow:0 8px 32px rgba(68,102,255,0.12)}
 /* ── section headings ── */
 h2{font-size:22px;font-weight:700;margin:48px 0 16px;padding-bottom:12px;border-bottom:2px solid var(--border);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;color:var(--text)}
 h2 .en{font-size:11px;font-weight:400;color:var(--text-ter);letter-spacing:0}
@@ -104,6 +105,7 @@ details table{margin:8px 0}
 .badge.bl{background:rgba(68,102,255,0.08);color:var(--accent3);border:1px solid rgba(68,102,255,0.15)}
 .badge.gn{background:rgba(0,212,126,0.08);color:var(--accent);border:1px solid rgba(0,212,126,0.15)}
 .badge.am{background:rgba(255,184,0,0.08);color:var(--accent4);border:1px solid rgba(255,184,0,0.15)}
+.badge.pk{background:rgba(255,45,120,0.08);color:var(--accent2);border:1px solid rgba(255,45,120,0.15)}
 /* ── footer ── */
 .footer{text-align:center;margin-top:56px;padding-top:24px;border-top:1px solid var(--border);color:var(--text-ter);font-size:12px;line-height:1.8}
 .footer .en{font-size:11px;color:var(--text-ter)}
@@ -111,13 +113,8 @@ details table{margin:8px 0}
 #btt{position:fixed;bottom:32px;right:32px;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text-sec);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.06);transition:all .3s;opacity:0;pointer-events:none;z-index:100;font-family:var(--font-sans);line-height:1}
 #btt.vis{opacity:1;pointer-events:auto}
 #btt:hover{background:linear-gradient(135deg,var(--accent),var(--accent3));color:#fff;border-color:transparent;box-shadow:0 2px 12px rgba(0,212,126,0.3)}
-/* ── tabs ── */
-.htabs{display:flex;gap:0;margin:16px 0;border-bottom:1px solid var(--border)}
-.htab{padding:8px 18px;font-size:12px;font-weight:600;color:var(--text-ter);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;user-select:none}
-.htab:hover{color:var(--text-sec)}.htab.act{color:var(--accent3);border-bottom-color:var(--accent3)}
-.htab-c{display:none}.htab-c.act{display:block}
 /* ── responsive ── */
-@media(max-width:600px){.content{padding:32px 16px 60px}h1{font-size:28px}pre{font-size:12px;padding:12px 14px}td,th{padding:8px 10px;font-size:12px}}
+@media(max-width:600px){.content{padding:32px 16px 60px}h1{font-size:26px}pre{font-size:12px;padding:12px 14px}td,th{padding:8px 10px;font-size:12px}}
 </style>
 </head>
 <body>
@@ -128,41 +125,44 @@ details table{margin:8px 0}
 <a href=#quickstart>快速开始</a>
 <a href=#commands>命令参考</a>
 <a href=#sidebar>桌面侧边栏</a>
-<a class=sub href=#sidebar-features>交互行为</a>
-<a class=sub href=#sidebar-data>数据面板</a>
-<a class=sub href=#sidebar-tabs>分页切换</a>
+<a class=sub href=#sidebar-cards>账户卡片</a>
+<a class=sub href=#sidebar-interact>交互行为</a>
+<a href=#login>浏览器登录</a>
 <a href=#config>配置管理</a>
-<a href=#web>网页面板</a>
-<a href=#arch>架构说明</a>
+<a href=#platform>平台与构建</a>
 <a href=#faq>常见问题</a>
 </div></nav>
 
 <div class=content id=top>
 
 <!-- ══════════ HEADER ══════════ -->
-<h1>ocgt-monitor<span class=en>OpenCode Go Token &amp; Quota Monitor &mdash; User Manual</span></h1>
-<p class=sub>OpenCode Go 套餐额度监控工具，支持命令行、网页面板、桌面侧边栏三种模式。<br><span class=en>Monitor your OpenCode Go plan quota, DeepSeek balance, and token usage across CLI, web dashboard, and desktop sidebar.</span></p>
+<h1>foundry-quota-sentinel<span class=en>Multi-provider LLM Quota &amp; Usage Monitor &mdash; User Manual</span></h1>
+<p class=sub>多服务商 LLM 额度与用量监控：一个桌面侧边栏统一监视 OpenCode Go、DeepSeek、Ollama Cloud 与 Kimi Code 用量 &mdash; 多账户、浏览器登录。<br><span class=en>One desktop sidebar to watch OpenCode Go, DeepSeek, Ollama Cloud, and Kimi Code usage — multi-account, browser login.</span></p>
 
 <div style=display:flex;gap:6px;margin:0 0 24px;flex-wrap:wrap>
-<span class="badge bl">v0.4.0</span>
-<span class="badge gn">CLI</span>
-<span class="badge gn">Web</span>
+<span class="badge bl">v0.10.1</span>
 <span class="badge gn">Sidebar</span>
+<span class="badge gn">Web</span>
+<span class="badge gn">CLI</span>
 <span class="badge am">Windows</span>
+<span class="badge am">macOS</span>
+<span class="badge am">Linux</span>
 </div>
+
+<img class=shot src=screenshots/sidebar.png alt="foundry-quota-sentinel 侧边栏截图">
 
 <!-- ══════════ OVERVIEW ══════════ -->
 <h2 id=overview><span class=nr>01</span>工具简介 <span class=en>Overview</span></h2>
-<p>ocgt-monitor 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+<p>foundry-quota-sentinel 是一个独立的多服务商 LLM 额度监控工具（前身 ocgt-monitor）。它通过各服务商的网页接口查询用量：OpenCode Go RPC、DeepSeek 余额与用量接口、Ollama Cloud 会话接口、Kimi Code 额度接口，凭证由内置的浏览器登录流程自动抓取。<span class=en>Most features work independently; only the history/trend feature reads local JSONL log files.</span></p>
 
 <div class=card style="font-size:13px;color:var(--text-sec);line-height:2.2">
 <strong style=color:var(--text)>核心特性 <span class=en style="font-weight:400;font-size:12px;color:var(--text-ter)">Key Features</span></strong><br>
-&bull; 三种使用模式：CLI 终端 &middot; 网页面板 &middot; 桌面侧边栏<br>
-&bull; 多账户管理，配置文件独立存储<br>
+&bull; 四家服务商：OpenCode Go &middot; DeepSeek &middot; Ollama Cloud &middot; Kimi Code<br>
+&bull; 多账户并行展示，单账户失效只影响该卡片<br>
+&bull; 浏览器一键登录，自动抓取 Cookie / Token，免手动 F12<br>
+&bull; 右键卡片直达对应账户的官方管理页面<br>
 &bull; 双主题：亮色「灵动卡片」与暗色「深色专业」<br>
-&bull; 侧边栏可拖拽定位、固定、自动隐藏<br>
-&bull; 2 秒自动刷新，数据实时更新<br>
-&bull; 开箱即用，仅依赖 WebView2 Runtime（Win11 自带）
+&bull; 跨平台：Windows 贴边自动隐藏侧边栏，macOS / Linux 独立窗口
 </div>
 
 <!-- ══════════ QUICK START ══════════ -->
@@ -171,24 +171,17 @@ details table{margin:8px 0}
 <div class=step>
 <div class=step-n>1</div>
 <div class=step-b>
-<h3>下载程序 <span class=en>Download the program</span></h3>
-<p>从发布页下载 <code>ocgt-monitor.exe</code>，放到任意文件夹。<span class=en>Download the latest release from GitHub.</span></p>
+<h3>下载程序 <span class=en>Download</span></h3>
+<p>从 Releases 下载对应平台的二进制。<span class=en>Download the binary for your platform from GitHub Releases.</span></p>
 </div>
 </div>
 
 <div class=step>
 <div class=step-n>2</div>
 <div class=step-b>
-<h3>配置凭证 <span class=en>Set up credentials</span></h3>
-<p>打开终端（CMD），运行配置向导：<span class=en>Open a terminal and run the setup wizard.</span></p>
-<pre>ocgt-monitor config init</pre>
-<p>按提示输入以下信息。DeepSeek Key 可不填（余额功能不可用）。<span class=en>Follow the prompts. DeepSeek key is optional.</span></p>
-<table>
-<tr><th>项目</th><th>获取方式</th></tr>
-<tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
-<tr><td>Workspace ID</td><td><code>wrk_xxx</code> 格式，从浏览器 URL 中获取</td></tr>
-<tr><td>DeepSeek API Key</td><td>（可选）platform.deepseek.com API Keys 页面</td></tr>
-</table>
+<h3>添加账户 <span class=en>Add an account</span></h3>
+<p>双击启动后，点面板底部「添加账户」卡 &rarr; 选择 OpenCode、DeepSeek、Ollama 或 Kimi &rarr; 在弹出的浏览器窗口中登录，凭证自动保存。<span class=en>Click the "Add account" card, pick a provider, sign in — credentials are saved automatically.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可使用对应的命令行：<code>login-opencode</code> / <code>login-deepseek</code> / <code>login-ollama</code> / <code>login-kimi</code>。</p>
 </div>
 </div>
 
@@ -196,184 +189,192 @@ details table{margin:8px 0}
 <div class=step-n>3</div>
 <div class=step-b>
 <h3>双击运行 <span class=en>Double-click to launch</span></h3>
-<p>直接双击 <code>ocgt-monitor.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
-<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>ocgt-monitor serve --sidebar</code> 或 <code>ocgt-monitor quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>
-</div>
-</div>
-
-<div class=step>
-<div class=step-n>4</div>
-<div class=step-b>
-<h3>检查额度 <span class=en>Check your quota</span></h3>
-<p>也可直接在终端查看套餐额度：<span class=en>Alternatively, check quota directly in terminal.</span></p>
-<pre>ocgt-monitor quota</pre>
+<p>直接双击二进制，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the binary — the sidebar appears on your screen.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>foundry-quota-sentinel serve --sidebar</code> 或 <code>foundry-quota-sentinel quota</code> 等命令。</p>
 </div>
 </div>
 
 <div class="cl warn">
-<span class=ic>!</span><div><strong>PowerShell 用户注意：</strong> 命令前需要加 <code>.\</code> 前缀，例如 <code>.\ocgt-monitor config init</code>。<span class=en>PowerShell requires .\ prefix for local executables.</span></div>
+<span class=ic>!</span><div><strong>PowerShell 用户注意：</strong> 命令前需要加 <code>.\</code> 前缀，例如 <code>.\foundry-quota-sentinel login-deepseek 我的号</code>。<span class=en>PowerShell requires .\ prefix for local executables.</span></div>
 </div>
+
+<details>
+<summary>Linux 选哪个产物？ <span class=en>Which Linux artifact?</span></summary>
+<div class=dw>
+<p>GUI 依赖系统 webkit2gtk，按发行版选 deb，<code>apt</code> 会自动装好依赖：</p>
+<table>
+<tr><th>发行版</th><th>产物</th></tr>
+<tr><td>新发行版（Ubuntu 24.04 / Mint 22）</td><td class=cmd>*-webkit41.deb</td></tr>
+<tr><td>老发行版（Ubuntu 22.04 / Mint 21）</td><td class=cmd>*-webkit40.deb</td></tr>
+<tr><td>无 webkit / 非 Debian 系 / 不确定</td><td class=cmd>*-linux-portable</td></tr>
+</table>
+<pre><span class=cmd>sudo</span> apt install ./foundry-quota-sentinel_*_amd64-webkit4X.deb</pre>
+<p>portable 版本是纯 Go 静态编译、零依赖，运行后用浏览器打开 <code>http://127.0.0.1:8788/sidebar.html</code>。</p>
+</div>
+</details>
 
 <!-- ══════════ COMMANDS ══════════ -->
 <h2 id=commands><span class=nr>03</span>命令参考 <span class=en>Commands</span></h2>
 
 <table>
-<tr><th style=width:30%>命令</th><th style=width:45%>用途</th><th style=width:10%>ocgt</th></tr>
-<tr><td class=cmd>（双击运行）</td><td>直接启动桌面侧边栏，无需终端</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>quota</td><td>套餐额度 Rolling / Weekly / Monthly</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>balance</td><td>DeepSeek 账户余额</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>history</td><td>7 日 Token 消耗历史</td><td class="tag y">日志</td></tr>
-<tr><td class=cmd>serve</td><td>启动网页面板（浏览器访问）</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>serve --sidebar</td><td>从终端启动桌面侧边栏</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>config</td><td>查看当前配置</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>config init</td><td>配置向导</td><td class="tag n">—</td></tr>
-<tr><td class=cmd>config list</td><td>列出所有 Profile</td><td class="tag n">—</td></tr>
+<tr><th style=width:34%>命令</th><th>用途</th></tr>
+<tr><td class=cmd>（双击运行）</td><td>直接启动桌面侧边栏，无需终端</td></tr>
+<tr><td class=cmd>quota</td><td>OpenCode Go 套餐额度（Rolling / Weekly / Monthly，活动账户）</td></tr>
+<tr><td class=cmd>balance</td><td>DeepSeek 账户余额（官方 API Key）</td></tr>
+<tr><td class=cmd>history</td><td>本地 7 日 Token 消耗历史（读 JSONL 日志）</td></tr>
+<tr><td class=cmd>watch</td><td>持续监控</td></tr>
+<tr><td class=cmd>serve</td><td>启动网页面板 <code>http://127.0.0.1:8788</code></td></tr>
+<tr><td class=cmd>serve --sidebar</td><td>从终端启动桌面侧边栏</td></tr>
+<tr><td class=cmd>login-opencode &lt;名称&gt;</td><td>弹窗登录 OpenCode Go 并保存 Cookie</td></tr>
+<tr><td class=cmd>login-deepseek &lt;名称&gt;</td><td>弹窗登录 DeepSeek 并保存网页 Token</td></tr>
+<tr><td class=cmd>login-ollama &lt;名称&gt;</td><td>一次性 Chrome / Chromium / Edge 登录，保存 Ollama Cookie</td></tr>
+<tr><td class=cmd>login-kimi &lt;名称&gt;</td><td>一次性浏览器登录，保存 Kimi Code Token（含 durable refresh）</td></tr>
+<tr><td class=cmd>quota-kimi [名称]</td><td>查询 Kimi Code 总用量（Kimi / Code）及 5 小时 / 7 天 Code 用量与绝对重置时间；不填名称则查所有 Kimi 账户</td></tr>
+<tr><td class=cmd>open-page kimi &lt;名称&gt;</td><td>注入登录态打开 Kimi 会员额度页（不自动购买）</td></tr>
+<tr><td class=cmd>config</td><td>查看当前配置</td></tr>
+<tr><td class=cmd>config init / add &lt;名称&gt;</td><td>交互式配置向导 / 添加账户</td></tr>
+<tr><td class=cmd>config list / use / delete</td><td>列出 / 切换 / 删除账户</td></tr>
+<tr><td class=cmd>version</td><td>显示版本号</td></tr>
 </table>
-
-<details>
-<summary>配置管理命令详情 <span class=en>Profile Management Details</span></summary>
-<div class=dw>
-<table>
-<tr><th>命令</th><th>说明</th></tr>
-<tr><td class=cmd>config add &lt;name&gt;</td><td>添加新 Profile</td></tr>
-<tr><td class=cmd>config use &lt;name&gt;</td><td>切换到指定 Profile</td></tr>
-<tr><td class=cmd>config delete &lt;name&gt;</td><td>删除指定 Profile</td></tr>
-</table>
-<p>配置文件位置：<code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每个 Windows 用户独立存储。</p>
-</div>
-</details>
 
 <details>
 <summary>环境变量 <span class=en>Environment Variables</span></summary>
 <div class=dw>
-<p>环境变量优先级高于配置文件。</p>
-<pre><span class=c>:: 临时设置（当前终端）</span>
-<span class=cmd>set</span> <span class=str>OPENCODE_GO_AUTH_COOKIE</span>=session=xxx;.....
-<span class=cmd>set</span> <span class=str>OPENCODE_GO_WORKSPACE_ID</span>=wrk_xxxxxxxxxxxx
-<span class=cmd>set</span> <span class=str>DEEPSEEK_API_KEY</span>=sk-xxxxxxxxxxxxxxxx
-<span class=cmd>set</span> <span class=str>OCGT_PORT</span>=8788</pre>
+<p>环境变量优先级高于配置文件（仅影响 CLI 的活动账户查询）。</p>
+<pre><span class=c># Linux / macOS</span>
+<span class=cmd>export</span> <span class=str>OPENCODE_GO_AUTH_COOKIE</span>=<span class=str>'session=xxx; ...'</span>
+<span class=cmd>export</span> <span class=str>OPENCODE_GO_WORKSPACE_ID</span>=wrk_xxxxxxxxxxxx
+<span class=cmd>export</span> <span class=str>DEEPSEEK_API_KEY</span>=sk-xxxxxxxxxxxxxxxx</pre>
 </div>
 </details>
 
 <!-- ══════════ SIDEBAR ══════════ -->
 <h2 id=sidebar><span class=nr>04</span>桌面侧边栏 <span class=en>Desktop Sidebar</span></h2>
-<p>桌面侧边栏是 ocgt-monitor 的推荐使用方式。360&times;370px 半透明面板，固定在屏幕右侧边缘，鼠标移上时滑出，移开后自动隐藏。<span class=en>A frameless glass panel on the right edge of your screen. Auto-hides to a thin strip, slides out on hover.</span></p>
+<p>桌面侧边栏是推荐使用方式：半透明面板呈现一列账户卡片。Windows 上是贴屏幕右缘、自动隐藏的停靠侧边栏；macOS / Linux 上为普通独立窗口。<span class=en>A translucent panel of account cards. Edge-docked auto-hiding on Windows; a standalone window on macOS / Linux.</span></p>
 
-<p><strong>启动方式：</strong>双击 <code>ocgt-monitor.exe</code>，或在终端运行 <code>ocgt-monitor serve --sidebar</code>。</p>
+<p><strong>启动方式：</strong>双击二进制，或在终端运行 <code>foundry-quota-sentinel serve --sidebar</code>。</p>
 
-<h3 id=sidebar-features>交互行为 <span class=en>Interactions</span></h3>
-
-<table>
-<tr><th style=width:25%>操作</th><th>反应</th></tr>
-<tr><td>鼠标移到屏幕右侧 15px</td><td>面板从右侧滑出（96ms 动画）</td></tr>
-<tr><td>鼠标在面板区域内</td><td>保持显示</td></tr>
-<tr><td>鼠标离开面板</td><td>600ms 后自动收回</td></tr>
-<tr><td>拖拽标题区域</td><td>上下移动面板位置</td></tr>
-<tr><td>点击 &#x1F4CC; 固定按钮</td><td>面板保持显示，不自动隐藏。再次点击取消</td></tr>
-<tr><td>点击 &#x2715; 关闭按钮</td><td>退出程序</td></tr>
-<tr><td>点击 🌙/☀️ 主题按钮</td><td>切换亮色/暗色主题，自动保存</td></tr>
-</table>
-
-<h3 id=sidebar-data>数据面板说明 <span class=en>Data Panels</span></h3>
+<h3 id=sidebar-cards>账户卡片 <span class=en>Account Cards</span></h3>
+<p>卡片自上而下排列：OpenCode Go 账户在上、Ollama 与 Kimi 账户居中、DeepSeek 账户在下、底部为「添加账户」卡。</p>
 
 <div class=card-grid>
 
 <div class=card>
-<strong style=font-size:13px>套餐额度</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">三条水平进度条：Rolling（滚动窗口）、Weekly（本周）、Monthly（本月，部分套餐无限制）。进度超过 80% 变橙色，超过 95% 变红色。</p>
+<strong style=font-size:13px>OpenCode Go</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Rolling / Weekly / Monthly 三条额度进度条，80% 变橙、95% 变红预警。多账户同时展示，单账户失效只影响该卡片。</p>
 </div>
 
 <div class=card>
-<strong style=font-size:13px>今日消耗</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">四张卡片：输入 Tokens、输出 Tokens、总计、请求次数。数字变化时有平滑滚动动画。</p>
+<strong style=font-size:13px>DeepSeek</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">账户余额 + 当月「按模型」每日 token 用量图（echarts 堆叠柱：命中缓存 / 未命中 / 输出）。</p>
 </div>
 
 <div class=card>
-<strong style=font-size:13px>账户余额</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">显示可用余额、赠送金额、充值金额。未配置 DeepSeek Key 时隐藏。</p>
+<strong style=font-size:13px>Ollama Cloud</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Session / Weekly 使用率与重置时间，凭证由一次性浏览器登录自动获取。</p>
 </div>
 
 <div class=card>
-<strong style=font-size:13px>模型消耗</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">按使用量排序，每行显示模型全称和 Token 总数。可切换 1日/7日/30日或自定义日期范围。</p>
+<strong style=font-size:13px>Kimi Code</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">总用量条内黑色段标 Kimi、蓝色段标 Code；另列 5 小时与 7 天 Code 用量及绝对重置时间。「购买加油包」直达官方页面（不自动购买）。</p>
 </div>
 
 </div>
 
-<h3 id=sidebar-tabs>分页切换 <span class=en>Tabs</span></h3>
-<p>面板底部有两个 Tab，点击切换：</p>
+<h3 id=sidebar-interact>交互行为 <span class=en>Interactions</span></h3>
 
 <table>
-<tr><th style=width:15%>Tab</th><th style=width:35%>概览</th><th>趋势</th></tr>
-<tr><td><strong>内容</strong></td><td>套餐额度 + 今日消耗 + 余额 + 模型列表</td><td>每日柱状图（7 日堆叠）+ 模型分布环形图（30 日 Top5）</td></tr>
-<tr><td><strong>刷新</strong></td><td colspan=2>全局 2 秒自动刷新，全部数据实时更新</td></tr>
+<tr><th style=width:28%>操作</th><th>反应</th></tr>
+<tr><td>鼠标移到屏幕右缘（Windows）</td><td>停靠面板滑出；离开后自动收回</td></tr>
+<tr><td>拖拽标题区域</td><td>移动面板位置，重启后自动恢复</td></tr>
+<tr><td>点击 &#x1F4CC; 固定按钮</td><td>面板保持显示，不自动隐藏；再次点击取消</td></tr>
+<tr><td>点击 🌙/☀️ 主题按钮</td><td>切换亮色 / 暗色主题，自动保存</td></tr>
+<tr><td><strong>右键任意卡片</strong></td><td>注入该账户登录态，直达 OpenCode workspace、DeepSeek 用量页、Ollama Settings 或 Kimi 会员额度页</td></tr>
+<tr><td>点击「添加账户」卡</td><td>选择服务商并弹出浏览器登录</td></tr>
 </table>
 
 <div class="cl info">
-<span class=ic>i</span><div><strong>构建要求：</strong> 侧边栏模式需要 CGO 支持（<code>CGO_ENABLED=1</code>），使用 <code>build.bat</code> 构建。运行时需要 <strong>WebView2 Runtime</strong>（Windows 11 自带，Win10 需安装）。</div>
+<span class=ic>i</span><div><strong>自动刷新：</strong> 账户额度 2 秒轮询，DeepSeek 用量定时刷新。构建侧边栏模式需要 CGO（<code>CGO_ENABLED=1</code>）；Windows 运行时需要 WebView2 Runtime（Win11 自带）。</div>
+</div>
+
+<!-- ══════════ BROWSER LOGIN ══════════ -->
+<h2 id=login><span class=nr>05</span>浏览器登录 <span class=en>Browser Login</span></h2>
+<p>四家服务商的登录统一走内置的 <code>internal/browserauth</code> 流程：启动本机已安装的 Chrome / Chromium / Edge 的一个<strong>一次性临时配置窗口</strong>，通过回环地址上的 Chrome DevTools Protocol 抓取凭证，成功后立即关闭浏览器并删除临时 profile，<strong>不读取日常浏览器数据</strong>。<span class=en>A one-shot temporary profile captures credentials via CDP; your everyday browser profile is never touched.</span></p>
+
+<div class=card-grid>
+
+<div class=card>
+<strong style=font-size:13px>OpenCode Go / DeepSeek</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">登录后自动保存 Cookie / 网页 Token，无需手动 F12 复制。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>Ollama Cloud</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">需要 Chrome / Chromium / Edge 在 PATH（Linux 已验证 Edge）。抓取会话 Cookie 后即删临时 profile。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>Kimi Code</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">抓取 accessToken + durable refresh token，回放受保护接口确认鉴权后才保存。accessToken 约 15 分钟过期，之后用 refresh token 自动续期，无需频繁重登。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>隐私</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Kimi 凭证以版本化的最小 auth envelope 保存，仅含回放必需字段；所有凭证只存在本机用户目录。</p>
+</div>
+
 </div>
 
 <!-- ══════════ CONFIG ══════════ -->
-<h2 id=config><span class=nr>05</span>配置管理 <span class=en>Configuration</span></h2>
-<p>ocgt-monitor 使用多 Profile 配置文件，每个 Profile 包含一套完整的凭证信息。</p>
+<h2 id=config><span class=nr>06</span>配置管理 <span class=en>Configuration</span></h2>
+<p>配置存储在 <code>~/.foundry-quota-sentinel/config.json</code>（Windows 为 <code>%USERPROFILE%\.foundry-quota-sentinel\config.json</code>），每个用户独立。四家服务商的账户分别存于 <code>profiles</code>、<code>deepseek_accounts</code>、<code>ollama_accounts</code>、<code>kimi_accounts</code>。</p>
 
 <details open>
-<summary>分享给他人</summary>
+<summary>从 ocgt-monitor 升级</summary>
 <div class=dw>
-<div class="cl info">
-<span class=ic>i</span><div>exe 本身不含任何配置，直接发送即可。配置存储在用户目录 <code>C:\Users\&lt;用户名&gt;\.ocgt-monitor\config.json</code>，每台机器独立。
-接收方运行 <code>config init</code> 配置自己的凭证即可使用。</div>
+<div class="cl ok">
+<span class=ic>✓</span><div>旧的 <code>~/.ocgt-monitor</code> 配置目录在首次运行时<strong>自动迁移</strong>，无需手动搬移。</div>
 </div>
 </div>
 </details>
 
-<!-- ══════════ WEB DASHBOARD ══════════ -->
-<h2 id=web><span class=nr>06</span>网页面板 <span class=en>Web Dashboard</span></h2>
-<p>运行 <code>serve</code> 命令启动 HTTP 服务器，浏览器访问 <code>http://127.0.0.1:8788</code> 即可打开面板。</p>
-
-<pre>ocgt-monitor serve</pre>
-
-<p>也可通过 <code>OCGT_PORT</code> 环境变量自定义端口：</p>
-<pre><span class=cmd>set</span> <span class=str>OCGT_PORT</span>=<span class=num>9090</span>
-ocgt-monitor serve</pre>
-
-<p>网页面板与侧边栏共享同一套 API 后端，数据一致。</p>
-
-<!-- ══════════ ARCHITECTURE ══════════ -->
-<h2 id=arch><span class=nr>07</span>架构说明 <span class=en>Architecture</span></h2>
-
-<div class=card>
-<pre style="border:none;padding:0;margin:0;background:transparent;font-size:13px;line-height:2.2;color:var(--text-sec)">
-<span class=c style=color:var(--text-ter)>数据来源</span>
-OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
-DeepSeek API (/user/balance)   &rarr;  balance  // 账户余额
-ocgt JSONL 日志文件             &rarr;  history  // Token 消耗历史
-
-<span class=c style=color:var(--text-ter)>使用模式</span>
-CLI   &rarr;  <code style=font-size:12px>ocgt-monitor quota|balance|history</code>
-Web   &rarr;  <code style=font-size:12px>ocgt-monitor serve</code>        &rarr;  http://127.0.0.1:8788
-Panel &rarr;  <code style=font-size:12px>双击 exe</code> 或 <code style=font-size:12px>serve --sidebar</code>  &rarr;  WebView2</pre>
+<details>
+<summary>分享给他人</summary>
+<div class=dw>
+<div class="cl info">
+<span class=ic>i</span><div>二进制本身不含任何配置，直接发送即可。接收方启动后点「添加账户」登录自己的账号即可使用。</div>
 </div>
+</div>
+</details>
+
+<!-- ══════════ PLATFORM & BUILD ══════════ -->
+<h2 id=platform><span class=nr>07</span>平台与构建 <span class=en>Platforms &amp; Build</span></h2>
+
+<table>
+<tr><th>平台</th><th>GUI 形态</th><th>Ollama / Kimi 浏览器登录</th></tr>
+<tr><td><strong>Windows</strong></td><td>贴边自动隐藏的停靠侧边栏</td><td>需 Chrome / Chromium / Edge 在 PATH</td></tr>
+<tr><td><strong>macOS</strong></td><td>普通独立窗口</td><td>需 Chrome / Chromium / Edge 在 PATH</td></tr>
+<tr><td><strong>Linux</strong></td><td>普通独立窗口</td><td>✅（已验证 Edge）</td></tr>
+</table>
+
+<p>OpenCode 与 DeepSeek 的浏览器登录三平台均可用。贴边自动隐藏是 Windows 原生能力。</p>
 
 <details>
-<summary>项目结构</summary>
+<summary>从源码构建 <span class=en>Build from Source</span></summary>
 <div class=dw>
-<pre style="font-size:12px;line-height:2">
-ocgt-monitor/
-  <strong>main.go</strong>                    CLI 入口（11 个命令）
-  <strong>build.bat</strong>                  构建脚本（CGO_ENABLED=1）
-  <strong>internal/</strong>
-    <strong>sidebar/sidebar.go</strong>       桌面侧边栏 WebView2 + 自动隐藏
-    <strong>web/</strong>
-      <strong>server.go</strong>              HTTP 服务（8 个 API 端点）
-      <strong>static/</strong>
-        <strong>sidebar.html</strong>          侧边栏 UI（双主题）
-        <strong>help.html</strong>             本使用手册
-    <strong>quota/</strong>                   OpenCode Go + DeepSeek 查询器
-    <strong>config/config.go</strong>        多 Profile 配置管理
-    <strong>state/state.go</strong>           全局状态（面板位置、固定状态）
-    <strong>formatter/format.go</strong>     格式化工具（进度条、数字缩写）
-    <strong>storage/reader.go</strong>        JSONL 日志读取 + 按天/模型统计</pre>
+<p>构建依赖（CGO）：Windows = MinGW64（gcc）；macOS = Xcode Command Line Tools；Linux = <code>libgtk-3-dev libwebkit2gtk-4.0-dev</code>。</p>
+<pre><span class=c># macOS / Linux 原生 GUI</span>
+<span class=cmd>go build</span> -ldflags=<span class=str>"-s -w"</span> -o foundry-quota-sentinel .
+
+<span class=c># Windows GUI（见 build.bat）</span>
+<span class=cmd>build.bat</span>
+
+<span class=c># 用 Docker 编 Linux GUI 二进制</span>
+<span class=cmd>./scripts/build-linux.sh</span>
+
+<span class=c># 无 GUI、无 CGO（仍含 CLI 与 serve 网页面板）</span>
+<span class=cmd>CGO_ENABLED</span>=<span class=num>0</span> go build -tags nogui -o foundry-quota-sentinel .</pre>
+<p>发行版二进制由 GitHub Actions 三平台原生构建，推送 <code>v*</code> tag 时自动发布到 Releases。</p>
 </div>
 </details>
 
@@ -383,51 +384,51 @@ ocgt-monitor/
 <div class=card-grid>
 
 <div class=card>
-<strong style=font-size:13px>没配置凭证？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">运行 <code>config init</code> 配置。</p>
+<strong style=font-size:13px>凭证过期 / 查询报错？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Cookie / Token 可能过期。重新运行对应的 <code>login-*</code> 命令登录一次即可。</p>
 </div>
 
 <div class=card>
-<strong style=font-size:13px>查 quota 报错？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Cookie 可能过期。重新登录 opencode.ai 复制 Cookie，运行 <code>config init</code> 更新。</p>
+<strong style=font-size:13px>Ollama / Kimi 登录找不到浏览器？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">需要系统已安装 Chrome、Chromium 或 Edge 且可在 PATH 中找到（Linux 已验证 Edge）。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>Kimi 要每 15 分钟重登吗？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">不用。accessToken 过期后会用 durable refresh token 自动续期额度查询与账户页会话。</p>
 </div>
 
 <div class=card>
 <strong style=font-size:13px>history 无数据？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">历史数据来自 ocgt 的 JSONL 日志文件，需要 ocgt 运行中才会产生日志。</p>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">历史数据来自本地 JSONL 日志文件，需要有日志产生后才能展示。</p>
 </div>
 
 <div class=card>
-<strong style=font-size:13px>侧边栏没反应？</strong>
+<strong style=font-size:13px>Win10 侧边栏没反应？</strong>
 <p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">需要 WebView2 Runtime。Windows 11 自带；Win10 请从微软官网安装。</p>
 </div>
 
 <div class=card>
+<strong style=font-size:13px>Linux 没有 webkit？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">用 <code>*-linux-portable</code> 纯 Go 静态版，运行后浏览器打开 <code>http://127.0.0.1:8788/sidebar.html</code>。</p>
+</div>
+
+<div class=card>
+<strong style=font-size:13px>从 ocgt-monitor 升级？</strong>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">直接换二进制即可，旧的 <code>~/.ocgt-monitor</code> 配置首次运行自动迁移。</p>
+</div>
+
+<div class=card>
 <strong style=font-size:13px>需要安装 Go？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">exe 可直接运行。只有需要重新编译时才需要 Go 1.22+。</p>
-</div>
-
-<div class=card>
-<strong style=font-size:13px>如何更新配置？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">重新运行 <code>config init</code>，旧值会自动作为默认值显示，直接回车保留。</p>
-</div>
-
-<div class=card>
-<strong style=font-size:13px>面板能调透明度？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">亮色/暗色主题已预设最佳透明度，可通过 CSS 变量自定义。</p>
-</div>
-
-<div class=card>
-<strong style=font-size:13px>侧边栏位置重置？</strong>
-<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">拖拽到最上方或最下方松手即可归位。重启程序后位置自动恢复。</p>
+<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">发行版二进制可直接运行。只有需要重新编译时才需要 Go 1.26+。</p>
 </div>
 
 </div>
 
 <!-- ══════════ FOOTER ══════════ -->
 <div class=footer>
-ocgt-monitor v0.4.0<br>
-<span class=en>Go &bull; WebView2 &bull; OpenCode Go &bull; DeepSeek &bull; 2026</span>
+foundry-quota-sentinel v0.10.1<br>
+<span class=en>Go &bull; system WebView &bull; Chrome DevTools Protocol &bull; echarts &bull; 2026</span>
 </div>
 
 </div>
