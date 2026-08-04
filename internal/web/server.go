@@ -619,14 +619,19 @@ func (s *Server) Handler() http.Handler {
 				}
 				cmd := exec.Command(exe, "open-page", p, n)
 				cmd.Env = append(os.Environ(), "FQS_OPEN_SESSION="+sess)
-				// 观测：子进程 stdout/stderr（含浏览器 stderr）落盘，
-				// 用于事后定位账户页流程卡在哪个阶段。句柄随包装后的
-				// wait 关闭；Start 失败时立即关闭。
-				logPath := openLogPath(sess)
-				logFile, logErr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-				if logErr == nil {
-					cmd.Stdout = logFile
-					cmd.Stderr = logFile
+				// 观测（仅 debuglog 构建；release 编译期剔除，不写文件）：
+				// 子进程 stdout/stderr（含浏览器 stderr）落盘，用于事后
+				// 定位账户页流程卡在哪个阶段。句柄随包装后的 wait 关闭；
+				// Start 失败时立即关闭。
+				var logFile *os.File
+				if openLogCapture {
+					logPath := openLogPath(sess)
+					if f, logErr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); logErr == nil {
+						logFile = f
+						cmd.Stdout = f
+						cmd.Stderr = f
+						log.Printf("open-page: 子进程日志写入 %s", logPath)
+					}
 				}
 				if err := cmd.Start(); err != nil {
 					if logFile != nil {
@@ -635,7 +640,6 @@ func (s *Server) Handler() http.Handler {
 					return nil, err
 				}
 				if logFile != nil {
-					log.Printf("open-page: 子进程日志写入 %s", logPath)
 					wait := cmd.Wait
 					return func() error {
 						defer logFile.Close()
@@ -842,9 +846,10 @@ func openHandshakePath(session string) string {
 	return filepath.Join(os.TempDir(), session+".json")
 }
 
-// openLogPath 返回会话对应的子进程日志文件。/api/open 默认 spawn 把
-// open-page 子进程（及其拉起浏览器的 stderr）输出写到该文件，账户页
-// 卡住或不跳转时可据此定位阶段。
+// openLogPath 返回会话对应的子进程日志文件。仅 debuglog 构建
+// （openLogCapture=true）的 /api/open 默认 spawn 使用：把 open-page
+// 子进程（及其拉起浏览器的 stderr）输出写到该文件，账户页卡住或
+// 不跳转时可据此定位阶段。
 func openLogPath(session string) string {
 	return filepath.Join(os.TempDir(), session+".log")
 }
