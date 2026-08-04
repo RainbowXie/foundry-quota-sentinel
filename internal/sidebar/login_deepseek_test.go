@@ -128,6 +128,15 @@ type fakeDeepSeekCDP struct {
 	// Map: nav → ordered list of URLs, consumed one per PageURL call.
 	// Falls back to pageURL/renavURL when exhausted or nil.
 	pollBasedURLs map[int][]string
+	// pageURLErr makes PageURL fail (models a transient CDP blip) so the
+	// /sign_in poll error-tolerance path can be tested: a poll error must
+	// be recorded as "no observation" and must not escalate to fatal.
+	pageURLErr error
+	// pageURLHook overrides the default PageURL behavior entirely. Used to
+	// model a renderer that stalls Runtime.evaluate (SPA mid-redirect):
+	// the hook blocks until its context expires, proving the time-boxed
+	// poll cannot stall the wait loop past the sentinel deadline.
+	pageURLHook func(ctx context.Context) (string, error)
 	// pollLenIdx/pollURLIdx track per-nav poll counters.
 	pollLenIdx map[int]int
 	pollURLIdx map[int]int
@@ -143,10 +152,20 @@ func (c *fakeDeepSeekCDP) EnablePage(context.Context) error    { return nil }
 func (c *fakeDeepSeekCDP) BrowserCookies(context.Context) ([]browserauth.Cookie, error) {
 	return append([]browserauth.Cookie(nil), c.browserCookies...), nil
 }
-func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
+func (c *fakeDeepSeekCDP) PageURL(ctx context.Context, _ ...string) (string, error) {
+	c.mu.Lock()
+	c.pageURLReads++
+	hook := c.pageURLHook
+	c.mu.Unlock()
+	if hook != nil {
+		// Run the hook outside the lock: it may block until ctx expiry.
+		return hook(ctx)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.pageURLReads++
+	if c.pageURLErr != nil {
+		return "", c.pageURLErr
+	}
 	url := c.pageURL
 	// If navSPAURLs is set for the current nav, return that URL
 	// (it's the SPA's post-routing URL = what PageURL should see).
@@ -158,6 +177,9 @@ func (c *fakeDeepSeekCDP) PageURL(context.Context, ...string) (string, error) {
 	// Poll-based URLs override if set.
 	if c.pollBasedURLs != nil {
 		if urls, ok := c.pollBasedURLs[c.navigateCount]; ok {
+			if c.pollURLIdx == nil {
+				c.pollURLIdx = map[int]int{}
+			}
 			idx := c.pollURLIdx[c.navigateCount]
 			if idx < len(urls) {
 				url = urls[idx]
@@ -192,6 +214,9 @@ func (c *fakeDeepSeekCDP) Evaluate(ctx context.Context, expression string) (json
 		// Poll-based lengths: consume one length per Evaluate(getItem) call.
 		if c.pollBasedLengths != nil {
 			if ls, ok := c.pollBasedLengths[nav]; ok {
+				if c.pollLenIdx == nil {
+					c.pollLenIdx = map[int]int{}
+				}
 				idx := c.pollLenIdx[nav]
 				if idx < len(ls) {
 					lens = []int{ls[idx]}
@@ -1563,5 +1588,206 @@ func TestDeepSeekDropsExtraInfoWithoutMatchingRequestID(t *testing.T) {
 	}
 	if called {
 		t.Fatal("validator should not be called for an orphan ExtraInfo")
+	}
+}
+
+// ── deepSeekWaitForAuthDecision: /sign_in early-detection unit tests ──
+//
+// These drive deepSeekWaitForAuthDecision directly with a fake CDP whose
+// PageURL sequence (pollBasedURLs) or fixed URL simulates the SPA's auth
+// decision. They cover the spec scenarios:
+//   - two consecutive /sign_in polls → typed rejection (early exit)
+//   - a single transient /sign_in → no misjudge, keep waiting
+//   - no signal → 5s sentinel timeout fallback (unchanged)
+//   - a poll error → counted as no observation, not fatal
+//   - allowSignInEarlyExit=false (nav2) → never polls /sign_in
+
+func setDeepSeekPollInterval(t *testing.T, d time.Duration) {
+	t.Helper()
+	orig := deepSeekSignInPollInterval
+	deepSeekSignInPollInterval = d
+	t.Cleanup(func() { deepSeekSignInPollInterval = orig })
+}
+
+// TestDeepSeekWaitForAuthDecisionRejectsAfterTwoSignInPolls proves the
+// SPA-rejection early exit: with early-exit armed and the page URL stuck
+// on /sign_in, two consecutive polls return the typed rejection LONG
+// before the 5s sentinel deadline.
+func TestDeepSeekWaitForAuthDecisionRejectsAfterTwoSignInPolls(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekLoginURL,
+		events:  make(chan browserauth.Event, 8),
+	}
+	start := time.Now()
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 5*time.Second)
+	if !isDeepSeekExpectedNavRejection(err) {
+		t.Fatalf("err=%v, want typed rejection (isDeepSeekExpectedNavRejection)", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("early rejection must beat the 5s sentinel (elapsed=%v)", elapsed)
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionTransientSignInNoMisjudge proves a single
+// /sign_in observation followed by the page leaving /sign_in resets the
+// streak: the wait continues and ends in the sentinel timeout, NOT a
+// rejection.
+func TestDeepSeekWaitForAuthDecisionTransientSignInNoMisjudge(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		events: make(chan browserauth.Event, 8),
+		// nav 0 (direct call): first poll sees /sign_in, second sees
+		// /usage (SPA boot passed through /sign_in then left), then the
+		// fake holds the last URL (/usage) for subsequent polls.
+		pollBasedURLs: map[int][]string{0: {deepSeekLoginURL, deepSeekUsageURL}},
+	}
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 300*time.Millisecond)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout (transient /sign_in must not reject)", err)
+	}
+	if isDeepSeekExpectedNavRejection(err) {
+		t.Fatal("a single transient /sign_in observation must NOT be a rejection")
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionSentinelFallbackWithEarlyExit proves the
+// no-signal fallback is unchanged when early exit is armed: with the page
+// never on /sign_in, the wait ends in the sentinel timeout exactly as
+// before this change.
+func TestDeepSeekWaitForAuthDecisionSentinelFallbackWithEarlyExit(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekUsageURL,
+		events:  make(chan browserauth.Event, 8),
+	}
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 200*time.Millisecond)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout", err)
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionPollErrorTolerated proves a transient
+// PageURL failure inside the poll is recorded as "no observation" and the
+// wait continues to the sentinel — it must NOT escalate to a fatal error.
+func TestDeepSeekWaitForAuthDecisionPollErrorTolerated(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		pageURL:    deepSeekLoginURL,
+		pageURLErr: fmt.Errorf("cdp transient blip"),
+		events:     make(chan browserauth.Event, 8),
+	}
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 200*time.Millisecond)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout (poll error must be tolerated, not fatal)", err)
+	}
+	if isDeepSeekExpectedNavRejection(err) {
+		t.Fatal("a poll error must NOT count as a /sign_in observation")
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionNav2NoEarlyExit proves allowSignInEarlyExit
+// disarms the poll entirely: with early-exit disabled (nav2), a /sign_in
+// URL does NOT trigger an early exit, no PageURL polling happens during the
+// wait, and the result is the plain sentinel timeout (nav2 semantics
+// unchanged — the caller treats it as fatal).
+func TestDeepSeekWaitForAuthDecisionNav2NoEarlyExit(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekLoginURL,
+		events:  make(chan browserauth.Event, 8),
+	}
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", false, 200*time.Millisecond)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout (nav2 must not early-exit on /sign_in)", err)
+	}
+	if cdp.pageURLReads != 0 {
+		t.Fatalf("nav2 must not poll PageURL for /sign_in (reads=%d)", cdp.pageURLReads)
+	}
+}
+
+// TestRunDeepSeekPageEarlyReloadOnSignInRejection is the end-to-end proof:
+// nav1's SPA rejects the restored login state (page redirects to /sign_in),
+// the wait detects it EARLY, runDeepSeekPage re-applies the restore script
+// and reloads, and nav2 authenticates (protected API code==0, page /usage).
+// This is the money scenario of the change: the successful path no longer
+// waits the full 5s sentinel.
+func TestRunDeepSeekPageEarlyReloadOnSignInRejection(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp, _, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	// dsPageTestSetup defaults: nav1 SPA → /sign_in (token overwritten),
+	// nav2 SPA → /usage (token accepted after re-apply).
+	dsProtectedSeq(t, cdp, 2, `{"code":0,"data":{}}`)
+
+	start := time.Now()
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err != nil {
+		t.Fatalf("early-reload must recover and open the page: %v", err)
+	}
+	if !cdp.reapplySeen {
+		t.Fatal("runDeepSeekPage must re-apply the restore script after the early rejection")
+	}
+	if cdp.navigateCount < 2 {
+		t.Fatalf("runDeepSeekPage must reload after rejection (navigateCount=%d)", cdp.navigateCount)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("nav1 wait should exit early via /sign_in detection, not blind-wait (elapsed=%v)", elapsed)
+	}
+}
+
+// TestRunDeepSeekPageRejectionThenNav2FailureIsFatal proves the early
+// rejection path keeps the fail semantics: when nav1 rejects (early) but
+// nav2 still fails to authenticate, runDeepSeekPage returns a fatal error
+// and the browser stays open for the user (no flash-close).
+func TestRunDeepSeekPageRejectionThenNav2FailureIsFatal(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp, browser, cleanup := dsPageTestSetup(t)
+	defer cleanup()
+	cdp.pageURL = deepSeekLoginURL
+	cdp.renavURL = deepSeekLoginURL
+	cdp.postNavLengths = map[int][]int{1: {30}, 2: {92}}
+	cdp.navSPAURLs = map[int]string{1: deepSeekLoginURL, 2: deepSeekLoginURL}
+
+	webStore := dsWebStore(92)
+	if err := RunDeepSeekPage(deepSeekUsageURL, webStore); err == nil {
+		t.Fatal("nav2 failure after early nav1 rejection must error")
+	}
+	if browser.closed {
+		t.Fatal("browser must NOT be closed on the rejection→nav2-failure path")
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionBlockingPollDoesNotStallDeadline proves
+// the real-machine regression fix: when the renderer stalls
+// Runtime.evaluate (observed live: the SPA redirecting to /sign_in left
+// the page busy enough that PageURL blocked for 20s+), the time-boxed
+// poll records "no observation" and the wait STILL reaches the sentinel
+// deadline. Without the poll timeout this test hangs (the blocked poll
+// starves the select's deadline case).
+func TestDeepSeekWaitForAuthDecisionBlockingPollDoesNotStallDeadline(t *testing.T) {
+	setDeepSeekPollInterval(t, 20*time.Millisecond)
+	origTimeout := deepSeekSignInPollTimeout
+	deepSeekSignInPollTimeout = 40 * time.Millisecond
+	t.Cleanup(func() { deepSeekSignInPollTimeout = origTimeout })
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekLoginURL,
+		events:  make(chan browserauth.Event, 8),
+		pageURLHook: func(ctx context.Context) (string, error) {
+			// Model a stuck renderer: block until the poll context
+			// expires, then report the cancellation.
+			<-ctx.Done()
+			return "", ctx.Err()
+		},
+	}
+	start := time.Now()
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 300*time.Millisecond)
+	elapsed := time.Since(start)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout despite blocked polls", err)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("blocked polls must not stall the sentinel deadline (elapsed=%v)", elapsed)
 	}
 }

@@ -432,6 +432,9 @@ settled:
 // first boot, redirecting to /sign_in. The fix (verified by diag2) is:
 //  1. Register the restore script as document-start (runs before SPA boot).
 //  2. Navigate #1 — SPA boots, overwrites userToken, redirects.
+//     (If the SPA explicitly rejects the login state it redirects to
+//     /sign_in; two consecutive URL polls detect that EARLY and skip
+//     the 5s blind wait — see deepSeekWaitForAuthDecision.)
 //  3. Poll userToken length until it stabilizes (SPA overwrite complete).
 //  4. Re-apply the restore script via Evaluate (post-load).
 //  5. Navigate #2 (reload) — document-start re-applies, SPA stays on /usage.
@@ -500,15 +503,28 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 	// timeout means "SPA didn't authenticate on nav1" → re-apply + reload.
 	// EVERY other error (CDP channel close, ctx cancellation, PageURL
 	// failure, body parse failure, business code != 0) is fatal.
-	nav1Err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, deepSeekSettleTimeout)
+	nav1Err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader1, true, deepSeekSettleTimeout)
 	if nav1Err != nil {
-		if !isDeepSeekExpectedNavTimeout(nav1Err) {
+		rejected := isDeepSeekExpectedNavRejection(nav1Err)
+		if !rejected && !isDeepSeekExpectedNavTimeout(nav1Err) {
 			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页首次鉴权决定失败: %w", nav1Err))
 		}
-		// Nav1 sentinel timeout (expected): SPA overwrote userToken.
-		// Re-apply the restore script post-load, then reload so the
-		// document-start script re-applies before the SPA auth check.
-		log.Printf("deepseek: 首次导航未观测到受保护接口响应（预期：SPA 覆盖了 userToken）")
+		// Nav1 expected outcome (typed): the SPA rejected the restored
+		// login state. Two flavors, both mean "nav1 did not
+		// authenticate" → re-apply the restore script post-load, then
+		// reload so the document-start script re-applies before the
+		// SPA auth check:
+		//   - rejection: observed the /sign_in redirect early (SPA
+		//     explicitly rejected the token) — saved ~4s vs the blind
+		//     5s wait.
+		//   - sentinel timeout: no protected API response AND no
+		//     /sign_in within the 5s settle window (e.g. SPA
+		//     overwrote userToken without a clean redirect).
+		if rejected {
+			log.Printf("deepseek: 观测到 /sign_in 跳转（SPA 拒绝登录态），提前 reload")
+		} else {
+			log.Printf("deepseek: 首次导航未观测到受保护接口响应（哨兵超时：SPA 覆盖了 userToken）")
+		}
 		if script != "" {
 			log.Printf("deepseek: post-load 重新应用登录态脚本")
 			if _, err := cdp.Evaluate(ctx, script); err != nil {
@@ -524,7 +540,9 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		log.Printf("deepseek: 重新导航已发送（loader %s）", loader2)
 		// Wait for the SPA auth-decision signal on the RELOAD navigation.
 		// A late response from nav1 has a different loaderId and is rejected.
-		if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, deepSeekSettleTimeout); err != nil {
+		// allowSignInEarlyExit=false: /sign_in must NOT trigger an early
+		// reload on nav2 (design D4) — nav2 semantics unchanged.
+		if err := deepSeekWaitForAuthDecision(ctx, cdp, events, loader2, false, deepSeekSettleTimeout); err != nil {
 			return failAndWait(fmt.Errorf("等待 DeepSeek 账户页重新加载鉴权决定失败: %w", err))
 		}
 	}
@@ -569,11 +587,47 @@ type deepSeekAuthTimeoutError struct{}
 func (e *deepSeekAuthTimeoutError) Error() string { return "等待鉴权决定超时" }
 
 // isDeepSeekExpectedNavTimeout reports whether err is exactly the sentinel
-// nav-timeout error. It is the ONLY timeout runDeepSeekPage tolerates.
+// nav-timeout error. It is one of the two expected nav1 outcomes
+// runDeepSeekPage tolerates.
 func isDeepSeekExpectedNavTimeout(err error) bool {
 	var target *deepSeekAuthTimeoutError
 	return errors.As(err, &target)
 }
+
+// deepSeekAuthRejectedError is the SECOND expected nav1 outcome, returned
+// by deepSeekWaitForAuthDecision when the SPA explicitly rejects the
+// restored login state (observed via consecutive /sign_in URL polls) before
+// the 5s sentinel deadline. runDeepSeekPage treats it exactly like the
+// timeout sentinel: proceed to post-load re-apply + reload. Using a typed
+// error (same shape as deepSeekAuthTimeoutError) keeps the outcome
+// classification type-based; no string matching.
+type deepSeekAuthRejectedError struct{}
+
+func (e *deepSeekAuthRejectedError) Error() string { return "SPA 拒绝登录态（/sign_in）" }
+
+// isDeepSeekExpectedNavRejection reports whether err is the typed
+// SPA-rejection signal. It is the other expected nav1 outcome.
+func isDeepSeekExpectedNavRejection(err error) bool {
+	var target *deepSeekAuthRejectedError
+	return errors.As(err, &target)
+}
+
+// deepSeekSignInPollInterval is the /sign_in early-detection poll period
+// inside deepSeekWaitForAuthDecision (nav1 only). Two consecutive
+// observations (~600ms window) are required before declaring the SPA
+// rejected the restored login state. Defined here as a single tunable
+// point (design Open Question: 300ms vs 250/500ms after real-machine
+// measurement).
+var deepSeekSignInPollInterval = 300 * time.Millisecond
+
+// deepSeekSignInPollTimeout bounds each single PageURL poll. The poll is
+// a best-effort observation — if the renderer is busy (SPA mid-redirect)
+// a Runtime.evaluate can stall, and an unbounded poll would block the
+// whole select loop and DELAY the sentinel deadline (observed in the
+// real-machine regression: a /sign_in redirect made the evaluate hang
+// for 20s+). With a short cap the poll is recorded as "no observation"
+// (design D5) and the loop keeps serving the deadline.
+var deepSeekSignInPollTimeout = 800 * time.Millisecond
 
 // deepSeekWaitForAuthDecision waits for the real SPA auth-decision
 // signal: a Network.responseReceived with status 2xx on a PROTECTED
@@ -601,17 +655,44 @@ func isDeepSeekExpectedNavTimeout(err error) bool {
 // so it cannot match at step 2 — real cross-navigation association
 // via loaderId on the response event itself.
 //
+// When allowSignInEarlyExit is true (nav1 only), the wait ALSO polls
+// the address-bar URL every deepSeekSignInPollInterval: two consecutive
+// /sign_in observations mean the SPA rejected the restored login state
+// and the wait returns the typed rejection EARLY — no need to wait the
+// full 5s sentinel (the SPA redirects to /sign_in immediately on
+// rejection). nav2 passes false: no /sign_in polling, its timeout-is-
+// fatal semantics are unchanged.
+//
 // Returns:
+//   - *deepSeekAuthRejectedError (typed rejection) when allowSignInEarlyExit
+//     is true and the SPA explicitly rejected the restored login state: two
+//     consecutive ~300ms polls observe a /sign_in URL. runDeepSeekPage treats
+//     this as the expected nav1 rejection → re-apply + reload.
 //   - *deepSeekAuthTimeoutError (sentinel) on deadline elapse with no
-//     fatal condition. runDeepSeekPage treats ONLY this as the expected
-//     nav1 timeout.
+//     fatal condition. runDeepSeekPage treats this as the expected nav1
+//     timeout → re-apply + reload.
 //   - a wrapped fatal error on CDP channel close, ctx cancellation,
 //     PageURL read failure, or body parse failure — these propagate.
-func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, _ string, timeout time.Duration) error {
+func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-chan browserauth.Event, _ string, allowSignInEarlyExit bool, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	var epochLoaderID string
 	var pendingRequestID string // requestId awaiting loadingFinished
 	phase := 0                  // 0=wait frameStartedNavigating, 1=wait protected response, 2=wait loadingFinished
+	// signInStreak counts CONSECUTIVE polls that observed /sign_in. The
+	// SPA rejects the restored login state by redirecting there; two
+	// consecutive observations (~600ms window) is the stable-decision
+	// bar (design D2) that prevents a transient SPA boot pass through
+	// /sign_in from being misjudged. Only armed on nav1
+	// (allowSignInEarlyExit).
+	signInStreak := 0
+	// signInTicker is nil (blocks forever in select) when early exit is
+	// disabled — nav2 never polls for /sign_in (design D4).
+	var signInTicker <-chan time.Time
+	if allowSignInEarlyExit {
+		t := time.NewTicker(deepSeekSignInPollInterval)
+		defer t.Stop()
+		signInTicker = t.C
+	}
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
@@ -673,6 +754,32 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 					return nil
 				}
 				continue
+			}
+		case <-signInTicker:
+			// SPA-rejection early check (nav1 only): poll the address bar
+			// URL. A transient CDP failure counts as NO observation and
+			// keeps waiting (design D5) — it must not escalate to fatal.
+			// isDeepSeekLoginPage (existing predicate) decides /sign_in.
+			// The poll is time-boxed: a busy renderer must not stall the
+			// wait loop past the sentinel deadline (real-machine finding:
+			// the SPA redirecting to /sign_in can block Runtime.evaluate).
+			pollCtx, cancel := context.WithTimeout(ctx, deepSeekSignInPollTimeout)
+			url, err := cdp.PageURL(pollCtx, deepSeekHost)
+			cancel()
+			if err != nil {
+				log.Printf("deepseek: /sign_in 轮询失败（记为无观测）: %v", err)
+				continue
+			}
+			if isDeepSeekLoginPage(url) {
+				signInStreak++
+				if signInStreak >= 2 {
+					log.Printf("deepseek: 连续 %d 次观测到 /sign_in（SPA 拒绝登录态）", signInStreak)
+					return &deepSeekAuthRejectedError{}
+				}
+			} else {
+				// Page left /sign_in: reset the streak (single transient
+				// observation must not trigger the early exit).
+				signInStreak = 0
 			}
 		case <-time.After(remaining):
 			return &deepSeekAuthTimeoutError{}
