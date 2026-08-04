@@ -128,8 +128,9 @@ type Server struct {
 	spawnOpenPage func(provider, name, session string) (wait func() error, err error)
 	// openHandshakeTimeout is how long /api/open waits for the ready/error
 	// handshake before returning an explicit timeout failure. Defaults to
-	// 20s in the handler; tests inject a short value to cover the real
-	// timeout branch quickly.
+	// 60s in the handler — comfortably above the 45s page-flow budgets so
+	// a slow-but-successful open never loses the race; tests inject a
+	// short value to cover the real timeout branch quickly.
 	openHandshakeTimeout time.Duration
 }
 
@@ -653,7 +654,7 @@ func (s *Server) Handler() http.Handler {
 		go func() { waitErr <- wait() }()
 		timeout := s.openHandshakeTimeout
 		if timeout <= 0 {
-			timeout = 20 * time.Second
+			timeout = 60 * time.Second
 		}
 		status, errMsg, ok := waitForOpenHandshake(session, waitErr, timeout)
 		_ = os.Remove(openHandshakePath(session))

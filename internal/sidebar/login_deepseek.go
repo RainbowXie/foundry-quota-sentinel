@@ -255,7 +255,10 @@ func RunDeepSeekPage(pageURL, webStore string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// 预算组成：CDP 连接 + cookie 回放（tmpfs 后亚秒级，慢盘/Defender
+	// 机器留余量）+ nav1 预期超时 5s + post-load 重放 + reload + nav2
+	// ≤5s + 两次 SPA 加载。15s 曾在慢盘上稳定烧穿，改为 45s。
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	return runDeepSeekPage(ctx, browser, pageURL, webStore)
 }
@@ -448,12 +451,6 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		return fmt.Errorf("DeepSeek 登录态恢复失败：缺少 userToken 认证键")
 	}
 
-	cdp, err := browser.CDP(ctx)
-	if err != nil {
-		return fmt.Errorf("连接 DeepSeek 账户页浏览器失败: %w", err)
-	}
-	defer cdp.Close()
-
 	// failAndWait signals the error, keeps the browser open for the user,
 	// and returns. ALL post-launch errors go through this path — no
 	// direct return that would flash-close the browser.
@@ -462,6 +459,12 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 		_ = browser.Wait()
 		return errMsg
 	}
+
+	cdp, err := browser.CDP(ctx)
+	if err != nil {
+		return failAndWait(fmt.Errorf("连接 DeepSeek 账户页浏览器失败: %w", err))
+	}
+	defer cdp.Close()
 
 	if len(cookies) > 0 {
 		result := cdp.SetCookiesBestEffort(ctx, cookies)

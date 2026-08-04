@@ -448,7 +448,10 @@ func RunKimiPage(pageURL, envelopeJSON string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	// 预算组成：CDP 连接 + cookie 回放 + SPA 加载 + ≤8s 鉴权 settle +
+	// 慢盘/慢网络余量。20s 与 /api/open 握手超时相等存在边缘竞态，
+	// 改为 45s（握手侧放宽到 60s）。
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	return runKimiPage(ctx, browser, pageURL, &env)
 }
@@ -457,17 +460,20 @@ func RunKimiPage(pageURL, envelopeJSON string) error {
 // failure after launch, signalOpenPageError fires BEFORE browser.Wait blocks
 // — no flash-close. On success, signalOpenPageReady then Wait.
 func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, env *config.KimiAuthEnvelope) error {
-	cdp, err := browser.CDP(ctx)
-	if err != nil {
-		return err
-	}
-	defer cdp.Close()
-
+	// failAndWait signals the error, keeps the browser open for the user,
+	// and returns. ALL post-launch errors go through this path — no
+	// direct return that would flash-close (or leak) the browser.
 	failAndWait := func(errMsg error) error {
 		signalOpenPageError(errMsg.Error())
 		_ = browser.Wait()
 		return errMsg
 	}
+
+	cdp, err := browser.CDP(ctx)
+	if err != nil {
+		return failAndWait(fmt.Errorf("连接 Kimi 账户页浏览器失败: %w", err))
+	}
+	defer cdp.Close()
 
 	// Replay cookies (best-effort) before the protected navigation.
 	cookies := kimiEnvelopeCookies(env)
