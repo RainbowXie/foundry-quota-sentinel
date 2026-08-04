@@ -24,3 +24,11 @@
   > - 当前线上 SPA 对非法 token 总是完成受保护请求，2×300ms /sign_in 早检窗口内即被业务 code!=0 fatal 抢先；
   >   早检路径（受保护信号缺失 + /sign_in 跳转）由确定性单测 + fake CDP 端到端流验证，未能在实机复现触发
   > - 回归中发现并修复：轮询 PageURL 同步阻塞可拖死哨兵 deadline（加 deepSeekSignInPollTimeout 时间盒，新增对应单测）
+
+  > 审查修复（commit ce53d02 之后的 follow-up）：
+  > - WARNING（phase 1→2 分类竞态）：受保护 2xx 观测后 signInTicker = nil，判定权归 phase 状态机；
+  >   新增 TestDeepSeekWaitForAuthDecisionPhase2DisarmsEarlyExit 回归测试
+  > - SUGGESTION 1（off-host 轮询噪音）：poll 决策窗口限定 phase 1（phase 0 导航前 about:blank 静默跳过），
+  >   噪音从源头消除，零字符串匹配、零 browserauth 新表面
+  > - SUGGESTION 2（phase 2 读取未加时间盒，既有问题）：审查建议后续硬化时一并加盒——记录为本 change 之外
+  >   的 follow-up 硬化项（deepSeekResponseCodeOK 与 phase 2 PageURL 加短 ctx 超时）

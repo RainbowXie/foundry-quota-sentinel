@@ -727,6 +727,13 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 					}
 					pendingRequestID = rr.RequestID
 					phase = 2
+					// Protected signal observed: the phase state machine owns the
+					// classification from here on. Disarm the /sign_in poll (a nil
+					// channel blocks forever in select) so a subsequent SPA
+					// redirect to /sign_in cannot RACE the phase-2 verdict — the
+					// same end state (2xx then /sign_in) must not flip between
+					// fatal and reload depending on network timing.
+					signInTicker = nil
 					log.Printf("deepseek: 受保护接口 2xx 已观测（loaderId 匹配），等待 loadingFinished")
 					continue
 				}
@@ -757,12 +764,24 @@ func deepSeekWaitForAuthDecision(ctx context.Context, cdp deepSeekCDP, events <-
 			}
 		case <-signInTicker:
 			// SPA-rejection early check (nav1 only): poll the address bar
-			// URL. A transient CDP failure counts as NO observation and
-			// keeps waiting (design D5) — it must not escalate to fatal.
-			// isDeepSeekLoginPage (existing predicate) decides /sign_in.
-			// The poll is time-boxed: a busy renderer must not stall the
-			// wait loop past the sentinel deadline (real-machine finding:
-			// the SPA redirecting to /sign_in can block Runtime.evaluate).
+			// URL. isDeepSeekLoginPage (existing predicate) decides /sign_in.
+			//
+			// Decision window is phase 1 ONLY:
+			//   - phase 0 (pre-epoch): the page is still pre-navigation
+			//     (about:blank); an off-host PageURL validation error here is
+			//     EXPECTED noise, not a signal — skip silently (no misleading
+			//     "轮询失败" lines per open).
+			//   - phase 2+: a protected 2xx was already observed; the phase
+			//     state machine owns the verdict and the poll was disarmed at
+			//     the phase 1→2 transition.
+			if phase != 1 {
+				continue
+			}
+			// The poll is time-boxed: a busy renderer must not stall the wait
+			// loop past the sentinel deadline (real-machine finding: the SPA
+			// redirecting to /sign_in can block Runtime.evaluate). A transient
+			// CDP failure counts as NO observation and keeps waiting (design
+			// D5) — it must not escalate to fatal.
 			pollCtx, cancel := context.WithTimeout(ctx, deepSeekSignInPollTimeout)
 			url, err := cdp.PageURL(pollCtx, deepSeekHost)
 			cancel()

@@ -1609,6 +1609,20 @@ func setDeepSeekPollInterval(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { deepSeekSignInPollInterval = orig })
 }
 
+// dsWaitEnterPhase1 queues the navigation-epoch event so a DIRECT wait
+// test drives the loop into phase 1 — the /sign_in poll's only decision
+// window (phase 0 is pre-navigation, the poll skips it; phase 2+ disarms
+// it). Without this, direct tests would stay in phase 0 and never poll.
+func dsWaitEnterPhase1(t *testing.T, cdp *fakeDeepSeekCDP) {
+	t.Helper()
+	fsnEvt := fmt.Sprintf(`{"frameId":"MAIN","loaderId":"L1","url":"%s","navigationType":"navigation"}`, deepSeekUsageURL)
+	select {
+	case cdp.events <- browserauth.Event{Method: "Page.frameStartedNavigating", Params: json.RawMessage(fsnEvt)}:
+	default:
+		t.Fatal("events channel full")
+	}
+}
+
 // TestDeepSeekWaitForAuthDecisionRejectsAfterTwoSignInPolls proves the
 // SPA-rejection early exit: with early-exit armed and the page URL stuck
 // on /sign_in, two consecutive polls return the typed rejection LONG
@@ -1619,6 +1633,7 @@ func TestDeepSeekWaitForAuthDecisionRejectsAfterTwoSignInPolls(t *testing.T) {
 		pageURL: deepSeekLoginURL,
 		events:  make(chan browserauth.Event, 8),
 	}
+	dsWaitEnterPhase1(t, cdp)
 	start := time.Now()
 	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 5*time.Second)
 	if !isDeepSeekExpectedNavRejection(err) {
@@ -1642,6 +1657,7 @@ func TestDeepSeekWaitForAuthDecisionTransientSignInNoMisjudge(t *testing.T) {
 		// fake holds the last URL (/usage) for subsequent polls.
 		pollBasedURLs: map[int][]string{0: {deepSeekLoginURL, deepSeekUsageURL}},
 	}
+	dsWaitEnterPhase1(t, cdp)
 	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 300*time.Millisecond)
 	if !isDeepSeekExpectedNavTimeout(err) {
 		t.Fatalf("err=%v, want sentinel timeout (transient /sign_in must not reject)", err)
@@ -1661,6 +1677,7 @@ func TestDeepSeekWaitForAuthDecisionSentinelFallbackWithEarlyExit(t *testing.T) 
 		pageURL: deepSeekUsageURL,
 		events:  make(chan browserauth.Event, 8),
 	}
+	dsWaitEnterPhase1(t, cdp)
 	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 200*time.Millisecond)
 	if !isDeepSeekExpectedNavTimeout(err) {
 		t.Fatalf("err=%v, want sentinel timeout", err)
@@ -1677,6 +1694,7 @@ func TestDeepSeekWaitForAuthDecisionPollErrorTolerated(t *testing.T) {
 		pageURLErr: fmt.Errorf("cdp transient blip"),
 		events:     make(chan browserauth.Event, 8),
 	}
+	dsWaitEnterPhase1(t, cdp)
 	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 200*time.Millisecond)
 	if !isDeepSeekExpectedNavTimeout(err) {
 		t.Fatalf("err=%v, want sentinel timeout (poll error must be tolerated, not fatal)", err)
@@ -1781,6 +1799,7 @@ func TestDeepSeekWaitForAuthDecisionBlockingPollDoesNotStallDeadline(t *testing.
 			return "", ctx.Err()
 		},
 	}
+	dsWaitEnterPhase1(t, cdp)
 	start := time.Now()
 	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 300*time.Millisecond)
 	elapsed := time.Since(start)
@@ -1789,5 +1808,39 @@ func TestDeepSeekWaitForAuthDecisionBlockingPollDoesNotStallDeadline(t *testing.
 	}
 	if elapsed > 2*time.Second {
 		t.Fatalf("blocked polls must not stall the sentinel deadline (elapsed=%v)", elapsed)
+	}
+}
+
+// TestDeepSeekWaitForAuthDecisionPhase2DisarmsEarlyExit is the regression
+// test for the classification race found in review: once a protected 2xx
+// is observed (phase 2), a subsequent SPA redirect to /sign_in must NOT
+// trigger the poll's early rejection — the phase state machine owns the
+// verdict (loadingFinished + body + URL). The poll is disarmed at the
+// phase 1→2 transition, so a slow-network outcome cannot flip between
+// fatal and reload. Here the URL stays on /sign_in (would reject if the
+// poll were armed) but no loadingFinished arrives: the wait must end in
+// the sentinel timeout, never a rejection.
+func TestDeepSeekWaitForAuthDecisionPhase2DisarmsEarlyExit(t *testing.T) {
+	setDeepSeekPollInterval(t, 10*time.Millisecond)
+	cdp := &fakeDeepSeekCDP{
+		pageURL: deepSeekLoginURL, // would reject in phase 1, must NOT reject in phase 2
+		events:  make(chan browserauth.Event, 8),
+	}
+	// Phase 0→1: navigation epoch.
+	dsWaitEnterPhase1(t, cdp)
+	// Phase 1→2: protected responseReceived with the SAME loaderId.
+	rrEvt := fmt.Sprintf(`{"requestId":"r1","loaderId":"L1","frameId":"MAIN","url":"https://platform.deepseek.com/api/v0/users/get_user_summary","response":{"url":"https://platform.deepseek.com/api/v0/users/get_user_summary","status":200,"mimeType":"application/json"}}`)
+	select {
+	case cdp.events <- browserauth.Event{Method: "Network.responseReceived", Params: json.RawMessage(rrEvt)}:
+	default:
+		t.Fatal("events channel full")
+	}
+	// No loadingFinished: wait continues in phase 2 until the deadline.
+	err := deepSeekWaitForAuthDecision(context.Background(), cdp, cdp.events, "", true, 300*time.Millisecond)
+	if !isDeepSeekExpectedNavTimeout(err) {
+		t.Fatalf("err=%v, want sentinel timeout — phase 2 must disarm the /sign_in early exit", err)
+	}
+	if isDeepSeekExpectedNavRejection(err) {
+		t.Fatal("after a protected 2xx was observed (phase 2), /sign_in polls must NOT trigger early reload")
 	}
 }
