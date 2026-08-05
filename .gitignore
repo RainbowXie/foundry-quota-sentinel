@@ -24,3 +24,7 @@ build/
 dist/
 .playwright-mcp/
 .worktrees/
+
+# Workflow artifacts (local-only, not part of the release)
+openspec/
+docs/superpowers/
