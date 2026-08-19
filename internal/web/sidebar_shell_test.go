@@ -275,3 +275,32 @@ func TestSidebarLoginPollStopsAfterBound(t *testing.T) {
 		t.Fatalf("expected at least initial + login-start shell fetches, got %d", len(sh))
 	}
 }
+
+// TestSidebarErrorStateClearedBeforeShell (deep-review follow-up, SUGGESTION
+// 2) proves a pure error-state container (qerr, no cards) is cleared before
+// appending shells — the error text must not coexist with loading shells.
+func TestSidebarErrorStateClearedBeforeShell(t *testing.T) {
+	obs := runSchedulerScenario(t, []schedulerStep{
+		{Op: "advance", Ms: 0},
+		{Op: "reject", URL: "api/accounts"}, // opencode fill fails → qerr
+		{Op: "advance", Ms: 0},
+		{Op: "setShellData", URL: "/api/opencode/accounts", Data: []map[string]any{
+			{"name": "A", "pending": true},
+			{"name": "B", "pending": true},
+		}},
+		{Op: "call", Fn: "fq"}, // shell fetch sees A+B on the qerr container
+		{Op: "advance", Ms: 0},
+	})
+	var last string
+	for _, w := range obs.ContainerWrites {
+		if w.ID == "accountCards" {
+			last = w.HTML
+		}
+	}
+	if strings.Contains(last, "qerr") {
+		t.Fatalf("error state must be cleared before shells, html = %q", last)
+	}
+	if !strings.Contains(last, "加载中") {
+		t.Fatalf("shells must render after clearing the error state, html = %q", last)
+	}
+}
