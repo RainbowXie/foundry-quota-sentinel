@@ -304,3 +304,31 @@ func TestSidebarErrorStateClearedBeforeShell(t *testing.T) {
 		t.Fatalf("shells must render after clearing the error state, html = %q", last)
 	}
 }
+
+// TestSidebarErrorStateKeptOnEmptyShellList (SUGGESTION follow-up) proves a
+// pure error-state container is KEPT when the shell list is empty — a
+// periodic refresh with an empty shell endpoint must not flash
+// error -> blank -> data. Only a genuinely empty container (no card, no
+// error) is cleared.
+func TestSidebarErrorStateKeptOnEmptyShellList(t *testing.T) {
+	obs := runSchedulerScenario(t, []schedulerStep{
+		{Op: "advance", Ms: 0},
+		{Op: "reject", URL: "api/accounts"}, // opencode fill fails → qerr
+		{Op: "advance", Ms: 0},
+		// Periodic refresh: shell endpoint returns [] (transient).
+		{Op: "call", Fn: "fq"},
+		{Op: "advance", Ms: 0},
+	})
+	var last string
+	for _, w := range obs.ContainerWrites {
+		if w.ID == "accountCards" {
+			last = w.HTML
+		}
+	}
+	if !strings.Contains(last, "qerr") {
+		t.Fatalf("error state must be kept when shell list is empty, html = %q", last)
+	}
+	if strings.Contains(last, "加载中") {
+		t.Fatalf("no shells expected (empty list), html = %q", last)
+	}
+}

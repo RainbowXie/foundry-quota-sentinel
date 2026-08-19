@@ -1646,25 +1646,32 @@
                 var box = document.getElementById(containerId);
                 if (!box) return;
                 var html = String(box.innerHTML || "");
-                // If the container holds ONLY an error state (qerr, no
-                // cards), drop it before appending shells — an error text
-                // must not coexist with loading shells. This is transient
-                // (the next fill replaces everything), but avoids the
-                // qerr + shell visual mess. Match both class="qerr" and
-                // class=qerr (the error renderer uses the unquoted form).
                 var hasCard = html.indexOf('class="acard"') >= 0;
-                if (!hasCard && (html.indexOf('class="qerr"') >= 0 || html.indexOf('class=qerr') >= 0)) {
-                    html = "";
-                }
+                // Pure error state = qerr with no cards (match both
+                // class="qerr" and class=qerr — the error renderer uses
+                // the unquoted form).
+                var hasErr = !hasCard &&
+                    (html.indexOf('class="qerr"') >= 0 || html.indexOf('class=qerr') >= 0);
+
                 if (!shells || !shells.length) {
-                    // Empty account list: only clear when the container has
-                    // no cards at all. A periodic refresh whose shell fetch
-                    // transiently returns [] must NOT wipe existing cards.
-                    if (html.indexOf('class="acard"') < 0) {
+                    // Empty account list: NEVER wipe existing cards, and
+                    // keep a pure error state until the fill replaces it
+                    // (the fill's overall replacement removes the qerr).
+                    // A periodic refresh with an empty shell list must not
+                    // flash error -> blank -> data. Only a genuinely empty
+                    // container (no card, no error) stays cleared.
+                    if (!hasCard && !hasErr) {
                         box.innerHTML = "";
                     }
                     return;
                 }
+
+                // Drop a pure error state ONLY when there ARE shells to
+                // show, so the qerr does not coexist with loading shells.
+                if (hasErr) {
+                    html = "";
+                }
+
                 var h = "";
                 for (var i = 0; i < shells.length; i++) {
                     var s = shells[i];
