@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -92,10 +93,22 @@ const flush = () => new Promise((r) => setImmediate(r));
 /* ---- deferred fetch ---- */
 const requests = [];
 let pending = [];
+// Shell endpoints (/api/<provider>/accounts — note /api/accounts alone is
+// the OpenCode FILL endpoint, NOT a shell) are LOCAL CONFIG READS in
+// production — never slow. The harness auto-resolves them immediately so
+// the scheduled fill (which follows the shell in the same chain) is what
+// the timing assertions observe. Quota-fill endpoints stay deferred so
+// tests can hold them pending / reject / settle explicitly.
+const shellEndpoint = (u) => /\/api\/[a-z]+\/accounts(\?|$)/.test(u);
 function deferredFetch(url) {
   const rec = { url: String(url), start: now, end: null };
   requests.push(rec);
   return new Promise((resolve, reject) => {
+    if (shellEndpoint(String(url))) {
+      rec.end = now;
+      resolve({ ok: true, json: () => Promise.resolve({ success: true, data: [] }) });
+      return;
+    }
     pending.push({ rec, resolve, reject });
   });
 }
@@ -324,24 +337,23 @@ func requestCounts(obs schedulerObservation) map[string]int {
 func startsOf(obs schedulerObservation, urlSub string) []int {
 	var out []int
 	for _, r := range obs.Requests {
-		if contains(r.URL, urlSub) {
+		if pathMatches(r.URL, urlSub) {
 			out = append(out, r.Start)
 		}
 	}
 	return out
 }
 
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 || indexOf(s, sub) >= 0)
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
+// pathMatches reports whether the request URL's PATH exactly equals urlSub
+// (or equals urlSub + "/..." only when urlSub already has a trailing path
+// segment boundary). A substring match would wrongly count a shell endpoint
+// (/api/ollama/accounts) as the fill endpoint (/api/ollama).
+func pathMatches(u, sub string) bool {
+	// Strip any query string.
+	if q := strings.Index(u, "?"); q >= 0 {
+		u = u[:q]
 	}
-	return -1
+	return u == sub
 }
 
 // countAt returns how many of the given start times equal t.
@@ -373,10 +385,16 @@ func TestSidebarClockTicksIndependentlyEverySecond(t *testing.T) {
 			t.Fatalf("clock writes = %v, want %v", obs.ClockWrites, want)
 		}
 	}
-	// The clock must not create provider requests.
+	// The clock must not create QUOTA-FILL requests. The immediate first
+	// load fires one /api/accounts (plus its config shell), but the clock
+	// itself never initiates any provider request, so after the initial
+	// burst no further fill requests may appear.
 	acc := startsOf(obs, "/api/accounts")
-	if len(acc) != 1 {
+	if len(acc) > 1 {
 		t.Fatalf("clock must not initiate /api/accounts fetches, saw %d requests at %v", len(acc), acc)
+	}
+	if len(acc) != 1 {
+		t.Fatalf("expected exactly the immediate first load of /api/accounts, got %d at %v", len(acc), acc)
 	}
 }
 

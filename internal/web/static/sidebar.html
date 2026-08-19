@@ -1603,9 +1603,62 @@
                 return st.promise;
             }
 
+            /* ===== Shared card-shell renderer (card-shell-first-async-load) =====
+
+               Renders loading card shells from a provider's /accounts shell
+               endpoint (no remote quota request). A shell reuses
+               renderQuotaCard with success:true + a single loading row, so
+               the account name + provider label appear immediately and the
+               later quota fill replaces the shell in place via the same
+               innerHTML container write. Shells never initiate a quota
+               request (task 2.5): they are local renders of config data. */
+            function shellView(provider, providerLabel, name) {
+                return {
+                    provider: provider,
+                    providerLabel: providerLabel,
+                    accountName: name,
+                    success: true,
+                    rows: [
+                        {
+                            label: "加载中",
+                            percent: null, // placeholder row: no valid percent
+                        },
+                    ],
+                };
+            }
+
+            // renderProviderShells renders one shell card per account into
+            // the given container element id, sorted by name (server already
+            // sorts; this is defensive). Empty account list clears the box.
+            function renderProviderShells(containerId, provider, providerLabel, shells) {
+                var box = document.getElementById(containerId);
+                if (!box) return;
+                if (!shells || !shells.length) {
+                    box.innerHTML = "";
+                    return;
+                }
+                var h = "";
+                for (var i = 0; i < shells.length; i++) {
+                    var s = shells[i];
+                    if (!s || !s.name) continue;
+                    h += renderQuotaCard(shellView(provider, providerLabel, s.name));
+                }
+                box.innerHTML = h;
+            }
+
             function acard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.3)
                 return renderQuotaCard(opencodeAdapter(a));
+            }
+            async function fetchOpenCodeShells() {
+                try {
+                    var r = await (await fetch("/api/opencode/accounts")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    renderProviderShells("accountCards", "opencode", "OpenCode Go", r.data);
+                } catch (e) {
+                    // Shell failure is non-fatal: the fill below renders its
+                    // own error/empty state; do not blank the container.
+                }
             }
             async function fetchOpenCodeCards() {
                 try {
@@ -1622,12 +1675,24 @@
                 }
             }
             function fq() {
-                return scheduleProviderRefresh("opencode", fetchOpenCodeCards);
+                return scheduleProviderRefresh("opencode", function () {
+                    // Shell first (local, no request), then single-flight fill.
+                    return fetchOpenCodeShells().then(fetchOpenCodeCards);
+                });
             }
             /* Ollama cards */
             function olcard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.4)
                 return renderQuotaCard(ollamaAdapter(a));
+            }
+            async function fetchOllamaShells() {
+                try {
+                    var r = await (await fetch("/api/ollama/accounts")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    renderProviderShells("ollamaCards", "ollama", "Ollama", r.data);
+                } catch (e) {
+                    // Non-fatal: the fill renders its own state.
+                }
             }
             async function fetchOllamaCards() {
                 try {
@@ -1645,12 +1710,23 @@
                 }
             }
             function fo() {
-                return scheduleProviderRefresh("ollama", fetchOllamaCards);
+                return scheduleProviderRefresh("ollama", function () {
+                    return fetchOllamaShells().then(fetchOllamaCards);
+                });
             }
             /* kimi cards */
             function kcard(a) {
                 // Use shared quota-card foundation via adapter (Task 2.5)
                 return renderQuotaCard(kimiAdapter(a));
+            }
+            async function fetchKimiShells() {
+                try {
+                    var r = await (await fetch("/api/kimi/accounts")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    renderProviderShells("kimiCards", "kimi", "Kimi Code", r.data);
+                } catch (e) {
+                    // Non-fatal: the fill renders its own state.
+                }
             }
             async function fetchKimiCards() {
                 try {
@@ -1668,7 +1744,9 @@
                 }
             }
             function fk() {
-                return scheduleProviderRefresh("kimi", fetchKimiCards);
+                return scheduleProviderRefresh("kimi", function () {
+                    return fetchKimiShells().then(fetchKimiCards);
+                });
             }
             function kimiDoLogin(name) {
                 fetch(
@@ -2099,18 +2177,80 @@
                 });
                 box.innerHTML = h;
             }
+            // loginShellPoll polls a provider's shell endpoint until the
+            // named account appears (name-presence; OpenCode/Ollama have no
+            // generation counter), then renders all shells immediately and
+            // triggers the single-flight fill. A cancelled/failed login
+            // never writes the account, so no ghost shell can appear. The
+            // shell fetch itself is a local config read (no quota request);
+            // only the fill fires once the account is confirmed present.
+            function loginShellPoll(shellFn, fillFn, name, interval, maxTries) {
+                var tries = 0;
+                function tick() {
+                    shellFn().then(function (present) {
+                        if (present) {
+                            return fillFn();
+                        }
+                        if (tries++ < maxTries) setTimeout(tick, interval);
+                    }).catch(function () {
+                        if (tries++ < maxTries) setTimeout(tick, interval);
+                    });
+                }
+                tick();
+            }
+            // shellFetchForPoll fetches the provider shell list, renders the
+            // shells, and resolves true when the named account is present.
+            function shellFetchForPoll(shellUrl, containerId, provider, providerLabel, name) {
+                return fetch(shellUrl)
+                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        if (!r || !r.success) return false;
+                        var arr = r.data || [];
+                        renderProviderShells(containerId, provider, providerLabel, arr);
+                        for (var i = 0; i < arr.length; i++) {
+                            if (arr[i] && arr[i].name === name) return true;
+                        }
+                        return false;
+                    })
+                    .catch(function () { return false; });
+            }
             function ocDoLogin(name) {
                 fetch(
                     "/api/opencode/login" +
                         (name ? "?name=" + encodeURIComponent(name) : ""),
-                );
+                )
+                    .then(function () {
+                        // card-shell-first-async-load: render the new
+                        // account's shell the moment it lands in config (no
+                        // quota request), then the fill replaces it. Poll
+                        // until the account appears so no ghost card shows
+                        // on a failed login.
+                        return loginShellPoll(
+                            function () {
+                                return shellFetchForPoll(
+                                    "/api/opencode/accounts",
+                                    "accountCards", "opencode", "OpenCode Go", name);
+                            },
+                            fetchOpenCodeCards, name, 1000, 200);
+                    })
+                    .catch(function () {});
             }
             function olDoLogin(name) {
                 fetch(
                     "/api/ollama/login" +
                         (name ? "?name=" + encodeURIComponent(name) : ""),
                 ).then(function () {
-                    setTimeout(fo, 1500);
+                    // Same shell-first + fill pattern as OpenCode. The
+                    // previous setTimeout(fo, 1500) guessed at completion;
+                    // the poll renders shells the moment the account lands
+                    // and fills through the single-flight boundary.
+                    return loginShellPoll(
+                        function () {
+                            return shellFetchForPoll(
+                                "/api/ollama/accounts",
+                                "ollamaCards", "ollama", "Ollama", name);
+                        },
+                        fetchOllamaCards, name, 1000, 200);
                 });
             }
             document

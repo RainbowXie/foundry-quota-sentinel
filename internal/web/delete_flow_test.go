@@ -214,8 +214,19 @@ vm.createContext(sandbox);
 // fireShortTimers runs only sub-second timers (the delete-flow 300ms
 // refresh window); the scheduler's 30s per-provider rearm timers stay
 // pending so a delete test observes the deleted provider's immediate
-// refresh without unrelated providers firing.
+// refresh without unrelated providers firing. It returns a promise that
+// resolves after one macrotask flush so the shell→fill microtask chain
+// (fetchKimiShells().then(fetchKimiCards)) has completed before callers
+// read the observed request list.
 function fireShortTimers() {
+	const run = timers.filter((t) => t.delay < 5000);
+	timers = timers.filter((t) => t.delay >= 5000);
+	run.forEach((t) => t.fn());
+	return new Promise((r) => setImmediate(r));
+}
+// fireShortTimersSync is the synchronous variant for scenarios whose
+// assertion does not depend on the shell→fill chain (kept for compat).
+function fireShortTimersSync() {
 	const run = timers.filter((t) => t.delay < 5000);
 	timers = timers.filter((t) => t.delay >= 5000);
 	run.forEach((t) => t.fn());
@@ -273,7 +284,7 @@ if (scenario === "double-confirm") {
 }
 
 // --- Step 2: scenario-specific continuation ---
-setImmediate(() => {
+setImmediate(async () => {
 	if (scenario === "success") {
 		// Response resolved; modal must already be closed (microtasks flushed).
 		if (!getEl("confirmModal").classList.contains("hide")) {
@@ -282,7 +293,7 @@ setImmediate(() => {
 		// provider's confirm, overwriting internal pending state.
 		openConfirm("ollama", "Ollama B");
 		const pre = fetchCalls.length;
-		fireShortTimers();
+		await fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (!after.includes("/api/kimi")) {
 			fail("post-delete refresh must call /api/kimi (snapshotted deleted provider); after=" + JSON.stringify(after), 12);
@@ -311,7 +322,7 @@ setImmediate(() => {
 			}
 		}
 		const pre = fetchCalls.length;
-		fireShortTimers();
+		await fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (after.length !== 0) {
 			fail("non-success must NOT refresh any provider; after=" + JSON.stringify(after), 17);
@@ -327,7 +338,7 @@ setImmediate(() => {
 			fail("double-confirm must end in success, not 删除失败; text=" + getEl("confirmText").textContent, 28);
 		}
 		const pre = fetchCalls.length;
-		fireShortTimers();
+		await fireShortTimers();
 		const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 		if (!after.includes("/api/kimi")) {
 			fail("double-confirm success must refresh /api/kimi; after=" + JSON.stringify(after), 29);
@@ -352,14 +363,14 @@ setImmediate(() => {
 		}
 		if (pendingDeletes.length !== 1) { fail("expected 1 deferred delete, got " + pendingDeletes.length, 20); }
 		pendingDeletes[0]({ json: () => Promise.resolve({ success: true }) });
-		setImmediate(() => {
+		setImmediate(async () => {
 			// The reopened dialog for the SAME account must be closed by the
 			// original success (no stale confirm box left behind).
 			if (!getEl("confirmModal").classList.contains("hide")) {
 				fail("original success must close the reopened same-account dialog", 32);
 			}
 			const pre = fetchCalls.length;
-			fireShortTimers();
+			await fireShortTimers();
 			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 			if (!after.includes("/api/kimi")) {
 				fail("reopen success must refresh /api/kimi; after=" + JSON.stringify(after), 33);
@@ -454,7 +465,7 @@ setImmediate(() => {
 		} else {
 			pendingDeletes[0]({ json: () => Promise.resolve({ success: false, error: "kimi delete failed" }) });
 		}
-		setImmediate(() => {
+		setImmediate(async () => {
 			// B's modal must survive A's response.
 			if (getEl("confirmModal").classList.contains("hide")) {
 				fail("stale response must not close the newer B modal", 21);
@@ -463,7 +474,7 @@ setImmediate(() => {
 				fail("stale response must not rewrite the newer B confirm text; got: " + getEl("confirmText").textContent, 22);
 			}
 			const pre = fetchCalls.length;
-			fireShortTimers();
+			await fireShortTimers();
 			const after = fetchCalls.slice(pre).map((u) => u.split("?")[0]);
 			if (scenario === "stale-success") {
 				// The deleted provider refresh is NOT generation-gated: A was

@@ -490,3 +490,139 @@ func TestOpenEndpointRealTimeoutBranchInjectable(t *testing.T) {
 		t.Fatalf("injectable timeout must make the test fast (<1s), got %v", elapsed)
 	}
 }
+
+// TestOpenCodeAccountsEndpointReturnsConfigImmediately (task 4.1) proves
+// /api/opencode/accounts returns config-saved OpenCode accounts as pending
+// shells with ZERO remote quota fetches — the same fast pattern as
+// /api/deepseek/accounts. A slow /api/accounts fill must never delay the
+// shell appearance.
+func TestOpenCodeAccountsEndpointReturnsConfigImmediately(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetAccountsProvider(func() []Account {
+		return []Account{{Name: "home", Cookie: "c", WorkspaceID: "w"}}
+	})
+	start := time.Now()
+	r := httptest.NewRequest(http.MethodGet, "/api/opencode/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("opencode accounts endpoint blocked for %v on remote fetch", elapsed)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 1 || got.Data[0].Name != "home" || !got.Data[0].Pending {
+		t.Fatalf("response = %#v", got)
+	}
+	// No credential fields may leak.
+	if strings.Contains(w.Body.String(), "c\"") || strings.Contains(w.Body.String(), "\"w\"") {
+		t.Fatalf("shell response must not leak credentials: %s", w.Body.String())
+	}
+}
+
+// TestOllamaAccountsEndpointReturnsConfigImmediately (task 4.1) proves
+// /api/ollama/accounts returns config-saved Ollama accounts as pending
+// shells with zero remote fetches.
+func TestOllamaAccountsEndpointReturnsConfigImmediately(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetOllamaProvider(func() []OllamaAccount {
+		return []OllamaAccount{{Name: "work", Cookie: "c", UserAgent: "ua"}}
+	})
+	start := time.Now()
+	r := httptest.NewRequest(http.MethodGet, "/api/ollama/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	elapsed := time.Since(start)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("ollama accounts endpoint blocked for %v on remote fetch", elapsed)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 1 || got.Data[0].Name != "work" || !got.Data[0].Pending {
+		t.Fatalf("response = %#v", got)
+	}
+	if strings.Contains(w.Body.String(), "\"ua\"") {
+		t.Fatalf("shell response must not leak user agent: %s", w.Body.String())
+	}
+}
+
+// TestOllamaAccountsEndpointEmptyWhenNoAccounts proves the shell endpoint
+// returns an empty list (not an error, not a ghost) with no accounts.
+func TestOllamaAccountsEndpointEmptyWhenNoAccounts(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetOllamaProvider(func() []OllamaAccount { return nil })
+	r := httptest.NewRequest(http.MethodGet, "/api/ollama/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 0 {
+		t.Fatalf("response = %#v", got)
+	}
+}
+
+// TestKimiAccountsEndpointReturnsGenerationShell (task 4.1) proves
+// /api/kimi/accounts carries the non-sensitive per-account generation
+// (login re-detection) alongside the pending shell, and never the access
+// token.
+func TestKimiAccountsEndpointReturnsGenerationShell(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetKimiProvider(func() []KimiAccount {
+		return []KimiAccount{{Name: "k1", AccessToken: "tok-secret", Generation: 7}}
+	})
+	r := httptest.NewRequest(http.MethodGet, "/api/kimi/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name       string `json:"name"`
+			Pending    bool   `json:"pending"`
+			Generation int    `json:"generation"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Success || len(got.Data) != 1 || got.Data[0].Name != "k1" || !got.Data[0].Pending || got.Data[0].Generation != 7 {
+		t.Fatalf("response = %#v", got)
+	}
+	if strings.Contains(w.Body.String(), "tok-secret") {
+		t.Fatalf("shell response must not leak access token: %s", w.Body.String())
+	}
+}

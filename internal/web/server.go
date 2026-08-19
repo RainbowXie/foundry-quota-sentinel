@@ -286,6 +286,26 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, 200, map[string]any{"success": true, "data": results})
 	})
 
+	// /api/opencode/accounts returns the config-saved OpenCode Go accounts
+	// as loading card shells without any remote fetch (aligned with
+	// /api/deepseek/accounts). OpenCode accounts have no login-generation
+	// counter, so the shell is a pure name + pending flag. The sidebar
+	// renders these shells immediately after a login or refresh, then
+	// /api/accounts (or /api/opencode) fills the cards asynchronously.
+	mux.HandleFunc("/api/opencode/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type shell struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		}
+		accs := s.curAccounts()
+		shells := make([]shell, 0, len(accs))
+		for _, a := range accs {
+			shells = append(shells, shell{Name: a.Name, Pending: true})
+		}
+		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
+	})
+
 	mux.HandleFunc("/api/ollama", func(w http.ResponseWriter, r *http.Request) {
 		type card struct {
 			Name    string           `json:"name"`
@@ -317,6 +337,24 @@ func (s *Server) Handler() http.Handler {
 		wg.Wait()
 		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": cards})
+	})
+
+	// /api/ollama/accounts returns the config-saved Ollama accounts as
+	// loading card shells without any remote fetch. Ollama accounts have no
+	// login-generation counter, so the shell is a pure name + pending flag
+	// (aligned with the DeepSeek/OpenCode shell endpoints).
+	mux.HandleFunc("/api/ollama/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type shell struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		}
+		accs := s.curOllama()
+		shells := make([]shell, 0, len(accs))
+		for _, a := range accs {
+			shells = append(shells, shell{Name: a.Name, Pending: true})
+		}
+		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
 	})
 
 	mux.HandleFunc("/api/balance", func(w http.ResponseWriter, r *http.Request) {
