@@ -304,21 +304,17 @@ func extractBoundedObject(text string, open int) (string, bool) {
 	return "", false
 }
 
-// supportedQuotaStatus is the confirmed upstream allowlist for the
-// seroval status field. OpenCode Go reports "ok" for a normal quota window
-// and "unlimited" for the monthly unlimited form; any other value is
-// unsupported and must fail closed (never rendered as a fabricated normal
-// window).
-var supportedQuotaStatus = map[string]bool{
-	"ok":        true,
-	"unlimited": true,
-}
+// status 枚举不参与解析决策（design D1）：上游除 ok/unlimited 外还有
+// 额度耗尽态，且未来可能继续演进。只要结构合法且非空，任意 status
+// 值都透传到 QuotaUsage.Status（前端只读 usage_percent/reset_in_sec，
+// 唯一消费 status 的 monthly-unlimited 是精确字符串判断，与枚举无关）。
 
 // parseUsageObject parses one raw seroval object body. Every present
-// object must contain exactly one supported status, resetInSec, and
+// object must contain exactly one non-empty status, resetInSec, and
 // usagePercent; fields are parsed independently of order and whitespace,
 // unknown properties are ignored, and missing/duplicate/negative/
-// non-numeric/unsupported values fail closed.
+// non-numeric/empty/truncated values fail closed. The status VALUE is
+// accepted regardless of its enumerated content.
 func parseUsageObject(raw string) (QuotaUsage, error) {
 	body := strings.TrimSpace(raw)
 	if len(body) < 2 || body[0] != '{' || body[len(body)-1] != '}' {
@@ -340,7 +336,9 @@ func parseUsageObject(raw string) (QuotaUsage, error) {
 				return QuotaUsage{}, fmt.Errorf("duplicate status")
 			}
 			s, ok := parseSerovalString(value)
-			if !ok || !supportedQuotaStatus[s] {
+			// 非空字符串约束：既拒绝非字符串形态，也防缺失语义被空值绕过
+			// （design D1）。具体枚举值一律放行。
+			if !ok || s == "" {
 				return QuotaUsage{}, fmt.Errorf("unsupported status value")
 			}
 			status, hasStatus = s, true

@@ -184,24 +184,73 @@ func TestParseQuotaResponseRejectsMalformed(t *testing.T) {
 	}
 }
 
-// TestParseQuotaResponseRejectsUnsupportedStatus (review follow-up, task
-// 2.2) proves status is validated against the confirmed upstream allowlist
-// (ok / unlimited): any other value fails closed for every window.
-func TestParseQuotaResponseRejectsUnsupportedStatus(t *testing.T) {
+// TestParseQuotaResponseAcceptsAnyNonEmptyStatus (change
+// opencode-exhausted-status, tasks 2.1) proves status VALUES are no longer
+// allowlisted: a quota-exhausted state or an unrecognized future value
+// parses through with full fields instead of failing the whole account.
+// The monthly unlimited omission (exact string compare) is unaffected.
+func TestParseQuotaResponseAcceptsAnyNonEmptyStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantStatus  string
+		wantWeekly  *string // nil = weekly status not asserted (rolling asserts wantStatus)
+		wantMonthly *string // nil = monthly absent/unlimited
+	}{
+		{name: "exhausted rolling status parses", body: `{rollingUsage:{status:"exhausted",resetInSec:300,usagePercent:100},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`, wantStatus: "exhausted"},
+		{name: "future status weekly parses", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"new-state-2026",resetInSec:604800,usagePercent:80}}`, wantStatus: "ok", wantWeekly: strPtr("new-state-2026")},
+		{name: "exhausted monthly present renders", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"exhausted",resetInSec:2592000,usagePercent:100}}`, wantStatus: "ok", wantMonthly: strPtr("exhausted")},
+		{name: "arbitrary garbage status parses", body: `{rollingUsage:{status:"garbage",resetInSec:300,usagePercent:42},weeklyUsage:{status:"bogus",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"weird",resetInSec:2592000,usagePercent:55}}`, wantStatus: "garbage", wantMonthly: strPtr("weird")},
+		{name: "monthly unlimited still omitted", body: monthlyUnlimitedBody, wantStatus: "ok", wantMonthly: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseQuotaResponse(tt.body)
+			if err != nil {
+				t.Fatalf("expected parse success for %q, got error: %v", tt.body, err)
+			}
+			if got.Rolling.Status != tt.wantStatus {
+				t.Fatalf("rolling status = %q, want %q", got.Rolling.Status, tt.wantStatus)
+			}
+			if tt.wantWeekly != nil && got.Weekly.Status != *tt.wantWeekly {
+				t.Fatalf("weekly status = %q, want %q", got.Weekly.Status, *tt.wantWeekly)
+			}
+			if tt.wantMonthly == nil {
+				if got.Monthly != nil {
+					t.Fatalf("monthly should be nil, got %+v", *got.Monthly)
+				}
+			} else {
+				if got.Monthly == nil {
+					t.Fatalf("monthly should be present with status %q", *tt.wantMonthly)
+				}
+				if got.Monthly.Status != *tt.wantMonthly {
+					t.Fatalf("monthly status = %q, want %q", got.Monthly.Status, *tt.wantMonthly)
+				}
+			}
+		})
+	}
+}
+
+// TestParseQuotaResponseRejectsNonStringOrEmptyStatus (change
+// opencode-exhausted-status, tasks 2.2) proves the STRUCTURAL constraint
+// survives the relaxation: a non-string status (unquoted) or an empty
+// string status is still rejected — the non-empty-string rule cannot be
+// bypassed.
+func TestParseQuotaResponseRejectsNonStringOrEmptyStatus(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
 	}{
-		{name: "rolling unsupported status", body: `{rollingUsage:{status:"garbage",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
-		{name: "weekly unsupported status", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"bogus",resetInSec:604800,usagePercent:80}}`},
-		{name: "monthly unsupported status", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"weird",resetInSec:2592000,usagePercent:55}}`},
 		{name: "unquoted status value", body: `{rollingUsage:{status:ok,resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+		{name: "empty string status rolling", body: `{rollingUsage:{status:"",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+		{name: "empty string status weekly", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"",resetInSec:604800,usagePercent:80}}`},
+		{name: "empty string status monthly", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"",resetInSec:2592000,usagePercent:55}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parseQuotaResponse(tt.body)
 			if err == nil {
-				t.Fatalf("expected error for unsupported status in %q, got %+v", tt.body, got)
+				t.Fatalf("expected error for non-string/empty status in %q, got %+v", tt.body, got)
 			}
 			if got != nil {
 				t.Fatalf("parser must return nil quota on error for %q, got %+v", tt.body, got)
@@ -209,6 +258,9 @@ func TestParseQuotaResponseRejectsUnsupportedStatus(t *testing.T) {
 		})
 	}
 }
+
+// strPtr returns a pointer to s (test helper).
+func strPtr(s string) *string { return &s }
 
 // ---- FetchQuota HTTP→parser boundary tests (review follow-up) ----
 //
