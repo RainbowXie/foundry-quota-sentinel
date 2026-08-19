@@ -93,6 +93,10 @@ const flush = () => new Promise((r) => setImmediate(r));
 /* ---- deferred fetch ---- */
 const requests = [];
 let pending = [];
+// shellData overrides the auto-resolved shell endpoint payloads per
+// endpoint (e.g. after a login poll the account list grows). Tests set
+// this between steps via the "setShellData" op. Default: empty list.
+const shellData = {};
 // Shell endpoints (/api/<provider>/accounts — note /api/accounts alone is
 // the OpenCode FILL endpoint, NOT a shell) are LOCAL CONFIG READS in
 // production — never slow. The harness auto-resolves them immediately so
@@ -106,7 +110,8 @@ function deferredFetch(url) {
   return new Promise((resolve, reject) => {
     if (shellEndpoint(String(url))) {
       rec.end = now;
-      resolve({ ok: true, json: () => Promise.resolve({ success: true, data: [] }) });
+      const data = shellData[String(url)] || [];
+      resolve({ ok: true, json: () => Promise.resolve({ success: true, data: data }) });
       return;
     }
     pending.push({ rec, resolve, reject });
@@ -129,7 +134,9 @@ function rejectOne(urlSub) {
   return true;
 }
 
-/* ---- minimal DOM stub (records #ht clock writes) ---- */
+/* ---- minimal DOM stub (records #ht clock writes + card container html) ---- */
+const containerIds = ["accountCards", "ollamaCards", "kimiCards", "dsCards"];
+const containerWrites = []; // { id, t, html }
 function makeEl(id) {
   const el = {
     textContent: "",
@@ -157,6 +164,16 @@ function makeEl(id) {
       set(v) {
         this.__tc = v;
         clockLog.push(now);
+      },
+      configurable: true,
+    });
+  }
+  if (containerIds.indexOf(id) >= 0) {
+    Object.defineProperty(el, "innerHTML", {
+      get() { return this.__ih; },
+      set(v) {
+        this.__ih = v;
+        containerWrites.push({ id: id, t: now, html: String(v) });
       },
       configurable: true,
     });
@@ -246,6 +263,13 @@ vm.runInContext(script, sandbox, { filename: "sidebar.html" });
         sandbox[prov.refresh]();
         break;
       }
+      case "setShellData": {
+        // Set the auto-resolved shell payload for one endpoint (e.g. after
+        // a login the account list grows). step.url = shell endpoint,
+        // step.data = array of {name,...} shells.
+        shellData[String(step.url)] = step.data || [];
+        break;
+      }
       default:
         console.error("unknown op " + step.op);
         process.exit(7);
@@ -256,6 +280,7 @@ vm.runInContext(script, sandbox, { filename: "sidebar.html" });
     now,
     requests: requests.map((r) => ({ url: r.url, start: r.start, end: r.end })),
     clockWrites: clockLog,
+    containerWrites: containerWrites,
   };
   process.stdout.write(JSON.stringify(out));
 })().catch((e) => {
@@ -269,6 +294,7 @@ type schedulerStep struct {
 	Op       string `json:"op"`                 // advance | resolve | reject | resolveAll | call | registryRefresh
 	Ms       int    `json:"ms"`                 // fake-clock milliseconds (0 serialized explicitly)
 	URL      string `json:"url,omitempty"`      // endpoint substring for resolve/reject
+	Data     any    `json:"data,omitempty"`     // response payload for resolve
 	Fn       string `json:"fn,omitempty"`       // sandbox function for call
 	Provider string `json:"provider,omitempty"` // provider type for registryRefresh
 }
@@ -282,6 +308,15 @@ type schedulerObservation struct {
 		End   *int   `json:"end"`
 	} `json:"requests"`
 	ClockWrites []int `json:"clockWrites"`
+	// ContainerWrites records every innerHTML write to the provider card
+	// containers with the fake-clock timestamp, for asserting that a
+	// periodic refresh does NOT re-render loading shells over existing
+	// cards (the shell guard).
+	ContainerWrites []struct {
+		ID   string `json:"id"`
+		T    int    `json:"t"`
+		HTML string `json:"html"`
+	} `json:"containerWrites"`
 }
 
 // runSchedulerScenario executes the real sidebar script under a fake clock

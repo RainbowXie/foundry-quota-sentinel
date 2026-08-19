@@ -1630,20 +1630,47 @@
             // renderProviderShells renders one shell card per account into
             // the given container element id, sorted by name (server already
             // sorts; this is defensive). Empty account list clears the box.
+            //
+            // SHELL GUARD (account-level): a shell is rendered ONLY for an
+            // account that does NOT already have a card in the container.
+            //   - Periodic refresh: every account has a card → no shell
+            //     rendered → existing data stays visible (no 30s flash).
+            //   - New account B into a non-empty container (A has a card):
+            //     A's card is kept, B gets a shell immediately — the
+            //     shell-first promise holds even when adding to an existing
+            //     provider.
+            // The guard needs a way to find an account's card; querySelector
+            // may be absent in test stubs, so fall back to scanning
+            // innerHTML for the data-name attribute.
             function renderProviderShells(containerId, provider, providerLabel, shells) {
                 var box = document.getElementById(containerId);
                 if (!box) return;
+                var html = String(box.innerHTML || "");
                 if (!shells || !shells.length) {
-                    box.innerHTML = "";
+                    // Empty account list: only clear when the container has
+                    // no cards at all. A periodic refresh whose shell fetch
+                    // transiently returns [] must NOT wipe existing cards.
+                    if (html.indexOf('class="acard"') < 0) {
+                        box.innerHTML = "";
+                    }
                     return;
                 }
                 var h = "";
                 for (var i = 0; i < shells.length; i++) {
                     var s = shells[i];
                     if (!s || !s.name) continue;
+                    // Account-level guard: skip accounts that already have a
+                    // card (data-name="..." present in the container).
+                    var nameAttr = 'data-name="' + qesc(s.name) + '"';
+                    if (html.indexOf(nameAttr) >= 0) {
+                        continue;
+                    }
                     h += renderQuotaCard(shellView(provider, providerLabel, s.name));
                 }
-                box.innerHTML = h;
+                if (h !== "") {
+                    // Append the new shells to whatever cards already exist.
+                    box.innerHTML = html + h;
+                }
             }
 
             function acard(a) {
@@ -2180,10 +2207,17 @@
             // loginShellPoll polls a provider's shell endpoint until the
             // named account appears (name-presence; OpenCode/Ollama have no
             // generation counter), then renders all shells immediately and
-            // triggers the single-flight fill. A cancelled/failed login
-            // never writes the account, so no ghost shell can appear. The
-            // shell fetch itself is a local config read (no quota request);
-            // only the fill fires once the account is confirmed present.
+            // triggers the single-flight fill (fillFn is the provider's
+            // fq/fo wrapper). A cancelled/failed login never writes the
+            // account, so no ghost shell can appear. The shell fetch itself
+            // is a local config read (no quota request); only the fill fires
+            // once the account is confirmed present. The poll is BOUNDED
+            // (maxTries × interval, ~5min at 1s, aligned with DeepSeek's
+            // dsLoginPoll): a login browser can stay open for minutes, but
+            // if the user abandons the login the recursive setTimeout must
+            // stop — otherwise it polls every second forever (resource
+            // leak). After the window expires, the periodic 30s refresh
+            // picks up the account if it eventually lands.
             function loginShellPoll(shellFn, fillFn, name, interval, maxTries) {
                 var tries = 0;
                 function tick() {
@@ -2193,6 +2227,8 @@
                         }
                         if (tries++ < maxTries) setTimeout(tick, interval);
                     }).catch(function () {
+                        // Transient shell fetch error: keep polling within
+                        // the bound.
                         if (tries++ < maxTries) setTimeout(tick, interval);
                     });
                 }
@@ -2224,14 +2260,18 @@
                         // account's shell the moment it lands in config (no
                         // quota request), then the fill replaces it. Poll
                         // until the account appears so no ghost card shows
-                        // on a failed login.
+                        // on a failed login. The fill is fq() — the
+                        // scheduleProviderRefresh wrapper — so it joins any
+                        // in-flight periodic refresh (single-flight) and
+                        // rearms the 30s deadline from its settlement.
+                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
                         return loginShellPoll(
                             function () {
                                 return shellFetchForPoll(
                                     "/api/opencode/accounts",
                                     "accountCards", "opencode", "OpenCode Go", name);
                             },
-                            fetchOpenCodeCards, name, 1000, 200);
+                            fq, name, 1000, 250);
                     })
                     .catch(function () {});
             }
@@ -2240,17 +2280,18 @@
                     "/api/ollama/login" +
                         (name ? "?name=" + encodeURIComponent(name) : ""),
                 ).then(function () {
-                    // Same shell-first + fill pattern as OpenCode. The
-                    // previous setTimeout(fo, 1500) guessed at completion;
-                    // the poll renders shells the moment the account lands
-                    // and fills through the single-flight boundary.
+                    // Same shell-first + fill pattern as OpenCode; fill is
+                    // fo() (single-flight wrapper), so the account-appear
+                    // fill joins a busy periodic refresh instead of
+                    // duplicating it. 250×1s ≈ 5min, aligned with
+                    // dsLoginPoll.
                     return loginShellPoll(
                         function () {
                             return shellFetchForPoll(
                                 "/api/ollama/accounts",
                                 "ollamaCards", "ollama", "Ollama", name);
                         },
-                        fetchOllamaCards, name, 1000, 200);
+                        fo, name, 1000, 250);
                 });
             }
             document
