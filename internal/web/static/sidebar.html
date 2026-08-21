@@ -1051,7 +1051,8 @@
             #accountCards,
             #ollamaCards,
             #dsCards,
-            #kimiCards {
+            #kimiCards,
+            #commandCodeCards {
                 display: grid;
                 grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
                 gap: 8px;
@@ -1060,7 +1061,8 @@
             #accountCards > *,
             #ollamaCards > *,
             #dsCards > *,
-            #kimiCards > * {
+            #kimiCards > *,
+            #commandCodeCards > * {
                 margin-bottom: 0;
             }
         </style>
@@ -1087,6 +1089,7 @@
                     </div>
                     <div id="ollamaCards"></div>
                     <div id="kimiCards"></div>
+                    <div id="commandCodeCards"></div>
                     <div id="dsCards"></div>
                     <div class="bc" id="addCard" style="cursor: pointer">
                         <div
@@ -1533,6 +1536,48 @@
                 return view;
             }
 
+            // commandcodeAdapter converts CommandCode DTO to shared view
+            // model. The commandcode quota mirrors the OpenCode shape
+            // (fiveHour→Rolling, weekly→Weekly, monthly→Monthly with integer
+            // precision), so the mapping is identical to opencodeAdapter.
+            function commandcodeAdapter(a) {
+                var view = {
+                    provider: "commandcode",
+                    providerLabel: "CommandCode",
+                    accountName: a.name,
+                    success: a.success,
+                    error: a.error,
+                    rows: []
+                };
+                if (!a.success) {
+                    view.errorAction = { label: "重新登录", class: "ccLogin" };
+                } else if (a.quota) {
+                    var d = a.quota;
+                    if (d.rolling) view.rows.push({
+                        label: "Rolling",
+                        percent: d.rolling.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.rolling.reset_in_sec,
+                        tone: "g1"
+                    });
+                    if (d.weekly) view.rows.push({
+                        label: "Weekly",
+                        percent: d.weekly.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.weekly.reset_in_sec,
+                        tone: "g2"
+                    });
+                    if (d.monthly) view.rows.push({
+                        label: "Monthly",
+                        percent: d.monthly.usage_percent,
+                        percentPrecision: 0,
+                        resetInSec: d.monthly.reset_in_sec,
+                        tone: "g3"
+                    });
+                }
+                return view;
+            }
+
             /* ===== Legacy Renderers (removed; all cards use the shared
                    quota-card foundation via provider adapters) ===== */
 
@@ -1553,6 +1598,25 @@
                  the next automatic attempt. */
             var REFRESH_DELAY_MS = 30000;
             var refreshState = {}; // provider -> { busy, promise, timer, fn }
+
+            // containerHasData tracks whether a provider card container
+            // currently holds REAL quota data (as opposed to loading
+            // shells / error / empty). It is set true only when a fill
+            // succeeds (fetchXxxCards renders real cards) and cleared when
+            // the container is reset to a non-data state (error-only, or
+            // a deliberately emptied container). stale-while-refresh:
+            // renderProviderShells renders loading shells ONLY when
+            // !containerHasData[provider], so a periodic or manual
+            // refresh never replaces visible data with a "加载中"
+            // placeholder — the old data stays until the fill replaces it.
+            var containerHasData = {}; // provider -> bool
+
+            // markContainerData(provider, hasData) is the single write
+            // point for the data-state flag, so every transition is
+            // auditable. fill success -> true; error-only -> false.
+            function markContainerData(provider, hasData) {
+                containerHasData[provider] = !!hasData;
+            }
 
             function rearmProviderRefresh(provider) {
                 var st = refreshState[provider];
@@ -1631,20 +1695,29 @@
             // the given container element id, sorted by name (server already
             // sorts; this is defensive). Empty account list clears the box.
             //
-            // SHELL GUARD (account-level): a shell is rendered ONLY for an
-            // account that does NOT already have a card in the container.
-            //   - Periodic refresh: every account has a card → no shell
-            //     rendered → existing data stays visible (no 30s flash).
-            //   - New account B into a non-empty container (A has a card):
-            //     A's card is kept, B gets a shell immediately — the
-            //     shell-first promise holds even when adding to an existing
-            //     provider.
-            // The guard needs a way to find an account's card; querySelector
-            // may be absent in test stubs, so fall back to scanning
-            // innerHTML for the data-name attribute.
+            // SHELL GUARD (data-state, stale-while-refresh): shells render
+            // ONLY when the container has no real data yet
+            // (!containerHasData[provider]).
+            //   - Periodic / manual refresh with data: containerHasData is
+            //     true (set by the last successful fill) -> NO shells render
+            //     -> the old data stays visible until the fill replaces it.
+            //     No "加载中" flash on refresh.
+            //   - First load / new account whose fill has not settled:
+            //     containerHasData is false -> shells render immediately
+            //     (the card-shell-first promise), then the fill replaces
+            //     them and sets containerHasData=true.
+            // The flag is maintained in memory (markContainerData), not
+            // derived from innerHTML, because both shells and real cards
+            // carry data-name — parsing the DOM cannot distinguish them.
             function renderProviderShells(containerId, provider, providerLabel, shells) {
                 var box = document.getElementById(containerId);
                 if (!box) return;
+                // stale-while-refresh: when the container already shows
+                // real data, never render loading shells over it. The
+                // fill (next in the refresh chain) replaces in place.
+                if (containerHasData[provider]) {
+                    return;
+                }
                 var html = String(box.innerHTML || "");
                 var hasCard = html.indexOf('class="acard"') >= 0;
                 // Pure error state = qerr with no cards (match both
@@ -1662,6 +1735,7 @@
                     // container (no card, no error) stays cleared.
                     if (!hasCard && !hasErr) {
                         box.innerHTML = "";
+                        markContainerData(provider, false);
                     }
                     return;
                 }
@@ -1676,16 +1750,9 @@
                 for (var i = 0; i < shells.length; i++) {
                     var s = shells[i];
                     if (!s || !s.name) continue;
-                    // Account-level guard: skip accounts that already have a
-                    // card (data-name="..." present in the container).
-                    var nameAttr = 'data-name="' + qesc(s.name) + '"';
-                    if (html.indexOf(nameAttr) >= 0) {
-                        continue;
-                    }
                     h += renderQuotaCard(shellView(provider, providerLabel, s.name));
                 }
                 if (h !== "") {
-                    // Append the new shells to whatever cards already exist.
                     box.innerHTML = html + h;
                 }
             }
@@ -1713,9 +1780,19 @@
                         h += acard(a);
                     });
                     document.getElementById("accountCards").innerHTML = h;
+                    // A successful fill means the container now holds real
+                    // data: future shells are suppressed (stale-while-refresh).
+                    // An EMPTY account list is not data — the container stays
+                    // shellable so a later login/new account can shell-first.
+                    markContainerData("opencode", (r.data || []).length > 0);
                 } catch (e) {
-                    document.getElementById("accountCards").innerHTML =
-                        "<div class=qerr>" + qesc(e.message) + "</div>";
+                    // stale-while-refresh: a failed refresh must NOT wipe
+                    // visible data. Only when the container had no data yet
+                    // (first load fill failed) does the error state render.
+                    if (!containerHasData["opencode"]) {
+                        document.getElementById("accountCards").innerHTML =
+                            "<div class=qerr>" + qesc(e.message) + "</div>";
+                    }
                 }
             }
             function fq() {
@@ -1748,9 +1825,12 @@
                         h += olcard(a);
                     });
                     document.getElementById("ollamaCards").innerHTML = h;
+                    markContainerData("ollama", (r.data || []).length > 0);
                 } catch (e) {
-                    document.getElementById("ollamaCards").innerHTML =
-                        "<div class=qerr>" + qesc(e.message) + "</div>";
+                    if (!containerHasData["ollama"]) {
+                        document.getElementById("ollamaCards").innerHTML =
+                            "<div class=qerr>" + qesc(e.message) + "</div>";
+                    }
                 }
             }
             function fo() {
@@ -1782,15 +1862,76 @@
                         h += kcard(a);
                     });
                     document.getElementById("kimiCards").innerHTML = h;
+                    markContainerData("kimi", (r.data || []).length > 0);
                 } catch (e) {
-                    document.getElementById("kimiCards").innerHTML =
-                        "<div class=qerr>" + qesc(e.message) + "</div>";
+                    if (!containerHasData["kimi"]) {
+                        document.getElementById("kimiCards").innerHTML =
+                            "<div class=qerr>" + qesc(e.message) + "</div>";
+                    }
                 }
             }
             function fk() {
                 return scheduleProviderRefresh("kimi", function () {
                     return fetchKimiShells().then(fetchKimiCards);
                 });
+            }
+            /* commandcode cards */
+            function ccard(a) {
+                // Use shared quota-card foundation via adapter.
+                return renderQuotaCard(commandcodeAdapter(a));
+            }
+            async function fetchCommandCodeShells() {
+                try {
+                    var r = await (await fetch("/api/commandcode/accounts")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    renderProviderShells("commandCodeCards", "commandcode", "CommandCode", r.data);
+                } catch (e) {
+                    // Non-fatal: the fill renders its own state.
+                }
+            }
+            async function fetchCommandCodeCards() {
+                try {
+                    var r = await (await fetch("/api/commandcode")).json();
+                    if (!r.success) throw new Error(r.error || "failed");
+                    var arr = r.data || [];
+                    var h = "";
+                    arr.forEach(function (a) {
+                        h += ccard(a);
+                    });
+                    document.getElementById("commandCodeCards").innerHTML = h;
+                    markContainerData("commandcode", (r.data || []).length > 0);
+                } catch (e) {
+                    if (!containerHasData["commandcode"]) {
+                        document.getElementById("commandCodeCards").innerHTML =
+                            "<div class=qerr>" + qesc(e.message) + "</div>";
+                    }
+                }
+            }
+            function fc() {
+                return scheduleProviderRefresh("commandcode", function () {
+                    return fetchCommandCodeShells().then(fetchCommandCodeCards);
+                });
+            }
+            function ccDoLogin(name) {
+                fetch(
+                    "/api/commandcode/login" +
+                        (name ? "?name=" + encodeURIComponent(name) : ""),
+                )
+                    .then(function () {
+                        // Same shell-first + fill pattern as OpenCode;
+                        // fill is fc() (single-flight wrapper) so the
+                        // account-appear fill joins a busy periodic
+                        // refresh instead of duplicating it.
+                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+                        return loginShellPoll(
+                            function () {
+                                return shellFetchForPoll(
+                                    "/api/commandcode/accounts",
+                                    "commandCodeCards", "commandcode", "CommandCode", name);
+                            },
+                            fc, name, 1000, 250);
+                    })
+                    .catch(function () {});
             }
             function kimiDoLogin(name) {
                 fetch(
@@ -2332,6 +2473,13 @@
                     if (t.classList.contains("kimiLogin"))
                         kimiDoLogin(t.getAttribute("data-name"));
                 });
+            document
+                .getElementById("commandCodeCards")
+                .addEventListener("click", function (e) {
+                    var t = e.target;
+                    if (t.classList.contains("ccLogin"))
+                        ccDoLogin(t.getAttribute("data-name"));
+                });
             /* Provider registry — single source of truth for the Add Account
                dialog AND account actions. A future provider is a one-line
                data entry here: step-one options, the step-two provider
@@ -2343,7 +2491,8 @@
                 { type: "opencode", label: "OpenCode Go", defaultName: "OpenCode", login: "ocDoLogin", refresh: "fq" },
                 { type: "deepseek", label: "DeepSeek", defaultName: "DeepSeek", login: "dsDoLogin", refresh: "fd" },
                 { type: "ollama", label: "Ollama", defaultName: "Ollama", login: "olDoLogin", refresh: "fo" },
-                { type: "kimi", label: "Kimi Code", defaultName: "Kimi", login: "kimiDoLogin", refresh: "fk" }
+                { type: "kimi", label: "Kimi Code", defaultName: "Kimi", login: "kimiDoLogin", refresh: "fk" },
+                { type: "commandcode", label: "CommandCode", defaultName: "CommandCode", login: "ccDoLogin", refresh: "fc" }
             ];
             function quotaProviderByType(type) {
                 for (var i = 0; i < quotaProviders.length; i++) {
@@ -2701,6 +2850,7 @@
             fd();
             fo();
             fk();
+            fc();
             var winTimer;
             window.addEventListener("resize", function () {
                 for (var k in dsCharts) {

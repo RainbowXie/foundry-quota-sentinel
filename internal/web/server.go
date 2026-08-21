@@ -65,6 +65,16 @@ type KimiAccount struct {
 	Generation int
 }
 
+// CommandCodeAccount is the web-layer view of a saved commandcode.ai
+// account. It carries the session cookie + GitHub login for the fetcher, but
+// the cards/accounts endpoints NEVER serialize them — only the name and quota
+// meters leave the API.
+type CommandCodeAccount struct {
+	Name     string
+	Cookie   string
+	UserName string
+}
+
 type Server struct {
 	addr           string
 	accounts       []Account
@@ -76,6 +86,13 @@ type Server struct {
 	ollamaFetch    func(OllamaAccount) (*quota.QuotaData, error)
 	kimiAccounts   []KimiAccount
 	kimiFn         func() []KimiAccount
+	// commandCodeAccounts is the config-saved commandcode account list.
+	commandCodeAccounts []CommandCodeAccount
+	commandCodeFn       func() []CommandCodeAccount
+	// commandCodeFetch retrieves one commandcode account's three-window
+	// quota. Injected by tests; the default builds a CommandCodeQuerier
+	// from the account's cookie.
+	commandCodeFetch func(CommandCodeAccount) (*quota.QuotaData, error)
 	// kimiFetch retrieves one Kimi account's two-meter quota. Injected by
 	// tests; the default builds a KimiQuerier from the account's token.
 	kimiFetch func(KimiAccount) (*quota.KimiQuotaData, error)
@@ -119,6 +136,10 @@ type Server struct {
 	// os.Executable + exec.Command; tests inject a failure to prove
 	// /api/kimi/login returns success=false.
 	spawnKimiLogin func(name string) error
+	// spawnCommandCodeLogin launches the login-commandcode subprocess. The
+	// default uses os.Executable + exec.Command; tests inject a failure to
+	// prove /api/commandcode/login returns success=false.
+	spawnCommandCodeLogin func(name string) error
 	// spawnOpenPage launches the "open-page <provider> <name>" subprocess
 	// with FQS_OPEN_SESSION=<session> in its environment, then returns a
 	// function that reports the subprocess exit. The handler does NOT
@@ -157,6 +178,10 @@ func (s *Server) SetOllamaProvider(fn func() []OllamaAccount) { s.ollamaFn = fn 
 // SetKimiProvider sets the dynamic Kimi account source, read on each request
 // so a newly saved account appears without a restart.
 func (s *Server) SetKimiProvider(fn func() []KimiAccount) { s.kimiFn = fn }
+
+// SetCommandCodeProvider sets the dynamic commandcode account source, read on
+// each request so config changes (login save, delete) appear without a restart.
+func (s *Server) SetCommandCodeProvider(fn func() []CommandCodeAccount) { s.commandCodeFn = fn }
 
 // SetKimiReloadAccount wires the per-account in-lock reloader that returns the
 // latest saved KimiAccount by name, so the refresh path observes a concurrent
@@ -210,6 +235,13 @@ func (s *Server) curKimi() []KimiAccount {
 		return s.kimiFn()
 	}
 	return s.kimiAccounts
+}
+
+func (s *Server) curCommandCode() []CommandCodeAccount {
+	if s.commandCodeFn != nil {
+		return s.commandCodeFn()
+	}
+	return s.commandCodeAccounts
 }
 
 // kimiRefreshLock returns the per-account mutex that serializes refresh +
@@ -635,6 +667,84 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	})
 
+	// /api/commandcode/accounts returns the config-saved commandcode accounts
+	// as loading card shells — no remote fetch, no cookie. The sidebar polls
+	// this after a login so a card appears the moment the account is saved.
+	mux.HandleFunc("/api/commandcode/accounts", func(w http.ResponseWriter, r *http.Request) {
+		type shell struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		}
+		accs := s.curCommandCode()
+		shells := make([]shell, 0, len(accs))
+		for _, a := range accs {
+			shells = append(shells, shell{Name: a.Name, Pending: true})
+		}
+		sort.Slice(shells, func(i, j int) bool { return shells[i].Name < shells[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": shells})
+	})
+
+	// /api/commandcode concurrently fetches per-account three-window quota
+	// (fiveHour→Rolling, weekly→Weekly, monthly→Monthly), sorted by name. One
+	// account failure produces an error only for that card and does NOT
+	// suppress successful cards. The response excludes the session cookie.
+	mux.HandleFunc("/api/commandcode", func(w http.ResponseWriter, r *http.Request) {
+		type card struct {
+			Name    string           `json:"name"`
+			Success bool             `json:"success"`
+			Quota   *quota.QuotaData `json:"quota,omitempty"`
+			Error   string           `json:"error,omitempty"`
+		}
+		accs := s.curCommandCode()
+		cards := make([]card, len(accs))
+		fetch := s.commandCodeFetch
+		if fetch == nil {
+			fetch = func(a CommandCodeAccount) (*quota.QuotaData, error) {
+				q := &quota.CommandCodeQuerier{Cookie: a.Cookie, UserName: a.UserName}
+				return q.FetchQuota()
+			}
+		}
+		var wg sync.WaitGroup
+		for i, a := range accs {
+			wg.Add(1)
+			go func(i int, a CommandCodeAccount) {
+				defer wg.Done()
+				d, err := fetch(a)
+				if err != nil {
+					cards[i] = card{Name: a.Name, Error: err.Error()}
+					return
+				}
+				cards[i] = card{Name: a.Name, Success: true, Quota: d}
+			}(i, a)
+		}
+		wg.Wait()
+		sort.Slice(cards, func(i, j int) bool { return cards[i].Name < cards[j].Name })
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "data": cards})
+	})
+
+	mux.HandleFunc("/api/commandcode/login", func(w http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("name")
+		spawn := s.spawnCommandCodeLogin
+		if spawn == nil {
+			spawn = func(n string) error {
+				exe, err := os.Executable()
+				if err != nil {
+					return err
+				}
+				args := []string{"login-commandcode"}
+				if n != "" {
+					args = append(args, n)
+				}
+				return exec.Command(exe, args...).Start()
+			}
+		}
+		if err := spawn(name); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"success": true})
+	})
+
 	// /api/open 拉起一个子进程，弹出 app 内窗口展示该账户对应服务商页面（注入登录态）。
 	// 旧实现 cmd.Start() 后立即返回 success：子进程在浏览器启动前失败（如 OpenCode cookie
 	// 被拒、DeepSeek 登录态恢复失败）时前端无任何反馈。现在用显式 ready/error 握手：子进程
@@ -643,7 +753,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" && provider != "commandcode" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}
@@ -723,7 +833,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/delete", func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		name := r.URL.Query().Get("name")
-		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" {
+		if provider != "opencode" && provider != "deepseek" && provider != "ollama" && provider != "kimi" && provider != "commandcode" {
 			writeJSON(w, 200, map[string]any{"success": false, "error": "bad provider"})
 			return
 		}

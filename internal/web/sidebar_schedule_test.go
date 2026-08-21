@@ -135,7 +135,7 @@ function rejectOne(urlSub) {
 }
 
 /* ---- minimal DOM stub (records #ht clock writes + card container html) ---- */
-const containerIds = ["accountCards", "ollamaCards", "kimiCards", "dsCards"];
+const containerIds = ["accountCards", "ollamaCards", "kimiCards", "dsCards", "commandCodeCards"];
 const containerWrites = []; // { id, t, html }
 function makeEl(id) {
   const el = {
@@ -270,6 +270,35 @@ vm.runInContext(script, sandbox, { filename: "sidebar.html" });
         shellData[String(step.url)] = step.data || [];
         break;
       }
+      case "checkContainer": {
+        // Assert the current innerHTML of a card container matches the
+        // expected account presence. Fields:
+        //   id        container id
+        //   wantName  an account that MUST be present (data-name)
+        //   wantName2 optional second account that MUST be present
+        //   notWantName an account that MUST be absent
+        //   noLoading  when true, "加载中" must be absent
+        const el = getElementById(String(step.id));
+        const html = String(el.innerHTML || "");
+        const has = (n) => html.indexOf('data-name="' + n + '"') >= 0;
+        if (step.wantName && !has(step.wantName)) {
+          console.error("checkContainer " + step.id + ": missing " + step.wantName + " in " + html);
+          process.exit(9);
+        }
+        if (step.wantName2 && !has(step.wantName2)) {
+          console.error("checkContainer " + step.id + ": missing " + step.wantName2 + " in " + html);
+          process.exit(10);
+        }
+        if (step.notWantName && has(step.notWantName)) {
+          console.error("checkContainer " + step.id + ": unexpected " + step.notWantName + " in " + html);
+          process.exit(11);
+        }
+        if (step.noLoading && html.indexOf("加载中") >= 0) {
+          console.error("checkContainer " + step.id + ": unexpected 加载中 in " + html);
+          process.exit(12);
+        }
+        break;
+      }
       default:
         console.error("unknown op " + step.op);
         process.exit(7);
@@ -291,12 +320,18 @@ vm.runInContext(script, sandbox, { filename: "sidebar.html" });
 
 // schedulerStep is one scenario step replayed against the sidebar script.
 type schedulerStep struct {
-	Op       string `json:"op"`                 // advance | resolve | reject | resolveAll | call | registryRefresh
+	Op       string `json:"op"`                 // advance | resolve | reject | resolveAll | call | registryRefresh | setShellData | checkContainer
 	Ms       int    `json:"ms"`                 // fake-clock milliseconds (0 serialized explicitly)
 	URL      string `json:"url,omitempty"`      // endpoint substring for resolve/reject
 	Data     any    `json:"data,omitempty"`     // response payload for resolve
 	Fn       string `json:"fn,omitempty"`       // sandbox function for call
 	Provider string `json:"provider,omitempty"` // provider type for registryRefresh
+	ID       string `json:"id,omitempty"`       // container id for checkContainer
+	// checkContainer assertions.
+	WantName    string `json:"wantName,omitempty"`
+	WantName2   string `json:"wantName2,omitempty"`
+	NotWantName string `json:"notWantName,omitempty"`
+	NoLoading   bool   `json:"noLoading,omitempty"`
 }
 
 // schedulerObservation is the JSON the node harness prints.

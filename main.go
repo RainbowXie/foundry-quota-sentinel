@@ -135,6 +135,20 @@ func ollamaFromConfig(conf *config.Config) []web.OllamaAccount {
 	return out
 }
 
+// commandcodeFromConfig converts saved commandcode accounts to the web-layer
+// view. An account without a cookie is skipped. The cookie stays server-side
+// — the cards/accounts endpoints never serialize it.
+func commandcodeFromConfig(conf *config.Config) []web.CommandCodeAccount {
+	out := make([]web.CommandCodeAccount, 0, len(conf.CommandCodeAccounts))
+	for _, a := range conf.CommandCodeAccounts {
+		if a.Cookie == "" || a.UserName == "" {
+			continue
+		}
+		out = append(out, web.CommandCodeAccount{Name: a.Name, Cookie: a.Cookie, UserName: a.UserName})
+	}
+	return out
+}
+
 // kimiFromConfig converts saved Kimi accounts to the web-layer view. The
 // access token is read from the versioned auth envelope; an account whose
 // envelope carries no token is skipped. The token stays server-side — the
@@ -328,6 +342,8 @@ func main() {
 		cmdLoginDeepSeek()
 	case "login-opencode":
 		cmdLoginOpenCode()
+	case "login-commandcode":
+		cmdLoginCommandCode()
 	case "login-ollama":
 		cmdLoginOllama()
 	case "login-kimi":
@@ -371,6 +387,8 @@ func deleteAccountFromConfig(provider, name string) error {
 			return c.DeleteOllamaAccount(name)
 		case "kimi":
 			return c.DeleteKimiAccount(name)
+		case "commandcode":
+			return c.DeleteCommandCodeAccount(name)
 		default:
 			return fmt.Errorf("未知 provider: %s", provider)
 		}
@@ -383,6 +401,7 @@ func startSidebar() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetCommandCodeProvider(func() []web.CommandCodeAccount { return commandcodeFromConfig(config.Load()) })
 	srv.SetKimiReloadAccount(kimiAccountFromConfig)
 	srv.SetKimiAccountLock(config.AcquireKimiAccountLock)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
@@ -559,6 +578,7 @@ func cmdServe() {
 	srv.SetDeepSeekProvider(func() []web.DeepSeekAccount { return deepseekFromConfig(config.Load()) })
 	srv.SetOllamaProvider(func() []web.OllamaAccount { return ollamaFromConfig(config.Load()) })
 	srv.SetKimiProvider(func() []web.KimiAccount { return kimiFromConfig(config.Load()) })
+	srv.SetCommandCodeProvider(func() []web.CommandCodeAccount { return commandcodeFromConfig(config.Load()) })
 	srv.SetKimiReloadAccount(kimiAccountFromConfig)
 	srv.SetKimiAccountLock(config.AcquireKimiAccountLock)
 	srv.SetKimiRefreshSave(func(name, accessToken, refreshToken string) error {
@@ -606,6 +626,36 @@ func cmdLoginOpenCode() {
 		os.Exit(1)
 	}
 	fmt.Printf("OK OpenCode Go 账户 %q 已保存 (workspace %s)\n", name, wsid)
+}
+
+// cmdLoginCommandCode opens the commandcode.ai sign-in browser, captures
+// the HttpOnly session cookie pair plus the GitHub login from the usage
+// page URL after the user authenticates, validates the pair through the
+// production quota path, then saves the named account.
+func cmdLoginCommandCode() {
+	name := "CommandCode"
+	if len(os.Args) > 2 && strings.TrimSpace(os.Args[2]) != "" {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	fmt.Println("正在打开 CommandCode 登录窗口，请登录后进入你的用量页…")
+	validate := func(cookie, userName string) bool {
+		q := &quota.CommandCodeQuerier{Cookie: cookie, UserName: userName}
+		_, err := q.FetchQuota()
+		return err == nil
+	}
+	cookie, userName, err := sidebar.RunCommandCodeLogin(validate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
+		os.Exit(1)
+	}
+	if err := config.Mutate(func(c *config.Config) error {
+		c.UpsertCommandCodeAccount(config.CommandCodeAccount{Name: name, Cookie: cookie, UserName: userName})
+		return nil
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "保存失败: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("OK CommandCode 账户 %q 已保存 (user %s)\n", name, userName)
 }
 
 func cmdLoginDeepSeek() {
@@ -902,8 +952,23 @@ func cmdOpenPage() {
 		if err := sidebar.RunKimiPage(url, envJSON); err != nil {
 			pageErr(fmt.Sprintf("Kimi 账户页浏览器不可用: %v", err))
 		}
+	case "commandcode":
+		var acc *config.CommandCodeAccount
+		for i := range cfg.CommandCodeAccounts {
+			if cfg.CommandCodeAccounts[i].Name == name {
+				acc = &cfg.CommandCodeAccounts[i]
+				break
+			}
+		}
+		if acc == nil || acc.Cookie == "" || acc.UserName == "" {
+			pageErr(fmt.Sprintf("CommandCode 账户 %q 不存在或缺少凭证", name))
+		}
+		url := "https://commandcode.ai/" + acc.UserName + "/settings/usage"
+		if err := sidebar.RunCommandCodePage(url, acc.Cookie); err != nil {
+			pageErr(fmt.Sprintf("CommandCode 账户页浏览器不可用: %v", err))
+		}
 	default:
-		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek、ollama 或 kimi）", provider))
+		pageErr(fmt.Sprintf("未知 provider: %s（应为 opencode、deepseek、ollama、kimi 或 commandcode）", provider))
 	}
 }
 
@@ -952,6 +1017,7 @@ func writeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  serve                 启动 API 服务 (--sidebar 桌面侧边栏模式)")
 	fmt.Fprintln(w, "  login-deepseek <名称> 弹窗登录 DeepSeek 并保存网页凭证")
 	fmt.Fprintln(w, "  login-opencode <名称> 弹窗登录 OpenCode Go 并保存 cookie 凭证")
+	fmt.Fprintln(w, "  login-commandcode <名称> 弹窗登录 CommandCode 并保存 cookie 凭证")
 	fmt.Fprintln(w, "  login-ollama <名称>   弹窗登录 Ollama 并保存 cookie 凭证")
 	fmt.Fprintln(w, "  login-kimi <名称>     弹窗登录 Kimi Code 并保存网页凭证")
 	fmt.Fprintln(w, "  quota-kimi [名称]     查询 Kimi Code 总使用量(Kimi/Code)及 5 小时/7 天 Code 用量")

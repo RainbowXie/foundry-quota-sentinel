@@ -183,15 +183,16 @@ func TestSidebarLoginPollAccountAppearThenFill(t *testing.T) {
 	}
 }
 
-// TestSidebarNewAccountShellInNonEmptyContainer (review follow-up, WARNING
-// 2) proves the ACCOUNT-LEVEL guard: when a new account B is added to a
-// provider that already has a card for A, B's shell appears immediately
-// (A's card kept) — the shell-first promise holds even when adding to an
-// existing provider.
-func TestSidebarNewAccountShellInNonEmptyContainer(t *testing.T) {
+// TestSidebarNewAccountAppearsWithFillInNonEmptyContainer (stale-while-refresh)
+// proves the DATA-STATE guard: when a new account B is added to a provider
+// that already shows data for A, a refresh does NOT render a shell over the
+// existing data (no 加载中 flash); B's card appears when the fill settles.
+// The shell-first promise still holds for a container with NO data yet — see
+// TestSidebarFirstLoadShellThenFill.
+func TestSidebarNewAccountAppearsWithFillInNonEmptyContainer(t *testing.T) {
 	obs := runSchedulerScenario(t, []schedulerStep{
 		{Op: "advance", Ms: 0},
-		// OpenCode fill returns a real card for A.
+		// OpenCode fill returns a real card for A (containerHasData=true).
 		{Op: "resolve", URL: "api/accounts", Data: map[string]any{
 			"success": true,
 			"data": []map[string]any{
@@ -207,24 +208,53 @@ func TestSidebarNewAccountShellInNonEmptyContainer(t *testing.T) {
 			{"name": "A", "pending": true},
 			{"name": "B", "pending": true},
 		}},
-		{Op: "call", Fn: "fq"}, // refresh: shell fetch sees A+B
+		// Manual refresh: shell fetch sees A+B, but containerHasData=true
+		// so NO shells render; the fill stays pending (old data visible).
+		{Op: "call", Fn: "fq"},
 		{Op: "advance", Ms: 0},
+		// Assert the container still holds ONLY A's real card (no shell
+		// for B, no 加载中) while the fill is in flight.
+		{Op: "checkContainer", ID: "accountCards", WantName: "A", NotWantName: "B", NoLoading: true},
+		// Fill settles with A + B; B appears, containerHasData stays true.
+		{Op: "resolve", URL: "api/accounts", Data: map[string]any{
+			"success": true,
+			"data": []map[string]any{
+				{"name": "A", "success": true, "quota": map[string]any{
+					"rolling": map[string]any{"status": "ok", "usage_percent": 42, "reset_in_sec": 300},
+				}},
+				{"name": "B", "success": true, "quota": map[string]any{
+					"rolling": map[string]any{"status": "ok", "usage_percent": 10, "reset_in_sec": 60},
+				}},
+			},
+		}},
+		{Op: "advance", Ms: 0},
+		{Op: "checkContainer", ID: "accountCards", WantName: "A", WantName2: "B", NoLoading: true},
 	})
-	// The container must contain BOTH A's card and B's shell.
-	var last string
+	// The pre-fill container must hold A's real card and NO B shell / loading.
+	var sawPreFill bool
 	for _, w := range obs.ContainerWrites {
-		if w.ID == "accountCards" {
-			last = w.HTML
+		if w.ID == "accountCards" && !sawPreFill {
+			// Skip the initial empty/cleared container write (the sidebar
+			// starts with a <div class=emp>加载中... and the harness clears
+			// it before the first fill). The FIRST non-empty write is the
+			// pre-fill state we assert.
+			if w.HTML == "" || w.HTML == "<div class=\"emp\">加载中...</div>" {
+				continue
+			}
+			sawPreFill = true
+			if !strings.Contains(w.HTML, "data-name=\"A\"") {
+				t.Fatalf("A's existing card must be kept during refresh, html = %q", w.HTML)
+			}
+			if strings.Contains(w.HTML, "data-name=\"B\"") {
+				t.Fatalf("B must NOT get a shell over existing data (stale-while-refresh), html = %q", w.HTML)
+			}
+			if strings.Contains(w.HTML, "加载中") {
+				t.Fatalf("no 加载中 placeholder may appear during refresh, html = %q", w.HTML)
+			}
 		}
 	}
-	if !strings.Contains(last, "data-name=\"A\"") {
-		t.Fatalf("A's existing card must be kept, html = %q", last)
-	}
-	if !strings.Contains(last, "data-name=\"B\"") {
-		t.Fatalf("B's shell must appear immediately, html = %q", last)
-	}
-	if !strings.Contains(last, "加载中") {
-		t.Fatalf("B's shell must show the loading placeholder, html = %q", last)
+	if !sawPreFill {
+		t.Fatal("no pre-fill container write observed")
 	}
 }
 

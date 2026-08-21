@@ -36,14 +36,27 @@ type OllamaAccount struct {
 	UserAgent string `json:"user_agent,omitempty"`
 }
 
+// CommandCodeAccount is one saved commandcode.ai account. Cookie is the
+// HttpOnly session pair (__Secure-commandcode_prod_.session_token +
+// session_data serialised as a Cookie header) captured from the login
+// browser; UserName is the GitHub login used in the usage-page URL path
+// (https://commandcode.ai/{login}/settings/usage) — captured from the
+// browser URL at login time, never free-typed.
+type CommandCodeAccount struct {
+	Name     string `json:"name"`
+	Cookie   string `json:"cookie"`
+	UserName string `json:"user_name"`
+}
+
 type Config struct {
-	ActiveProfile    string             `json:"active_profile"`
-	Profiles         map[string]Profile `json:"profiles"`
-	DeepSeekAccounts []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
-	OllamaAccounts   []OllamaAccount    `json:"ollama_accounts,omitempty"`
-	KimiAccounts     []KimiAccount      `json:"kimi_accounts,omitempty"`
-	WindowW          int                `json:"window_w,omitempty"`
-	WindowH          int                `json:"window_h,omitempty"`
+	ActiveProfile       string             `json:"active_profile"`
+	Profiles            map[string]Profile `json:"profiles"`
+	DeepSeekAccounts    []DeepSeekAccount  `json:"deepseek_accounts,omitempty"`
+	OllamaAccounts      []OllamaAccount    `json:"ollama_accounts,omitempty"`
+	KimiAccounts        []KimiAccount      `json:"kimi_accounts,omitempty"`
+	CommandCodeAccounts []CommandCodeAccount `json:"commandcode_accounts,omitempty"`
+	WindowW             int                `json:"window_w,omitempty"`
+	WindowH             int                `json:"window_h,omitempty"`
 }
 
 // SaveWindowSize 持久化窗口大小（重载 config 再写，避免覆盖其它字段）。
@@ -273,6 +286,38 @@ func (c *Config) DeleteOllamaAccount(name string) error {
 		}
 	}
 	return fmt.Errorf("Ollama 账户 %q 不存在", name)
+}
+
+// UpsertCommandCodeAccount 按 Name 覆盖或追加一个 commandcode 账户。
+func (c *Config) UpsertCommandCodeAccount(a CommandCodeAccount) {
+	for i := range c.CommandCodeAccounts {
+		if c.CommandCodeAccounts[i].Name == a.Name {
+			c.CommandCodeAccounts[i] = a
+			return
+		}
+	}
+	c.CommandCodeAccounts = append(c.CommandCodeAccounts, a)
+}
+
+// DeleteCommandCodeAccount 按 Name 删除，不存在返回错误。
+func (c *Config) DeleteCommandCodeAccount(name string) error {
+	for i := range c.CommandCodeAccounts {
+		if c.CommandCodeAccounts[i].Name == name {
+			c.CommandCodeAccounts = append(c.CommandCodeAccounts[:i], c.CommandCodeAccounts[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("CommandCode 账户 %q 不存在", name)
+}
+
+// CommandCodeAccountNames returns the saved commandcode account names in
+// insertion order for deterministic CLI/sidebar listing.
+func (c *Config) CommandCodeAccountNames() []string {
+	names := make([]string, 0, len(c.CommandCodeAccounts))
+	for _, a := range c.CommandCodeAccounts {
+		names = append(names, a.Name)
+	}
+	return names
 }
 
 func HasEnvVars() (cookie bool, ws bool, dk bool) {
