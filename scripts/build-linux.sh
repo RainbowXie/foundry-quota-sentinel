@@ -16,6 +16,7 @@
 #   WEBKIT      4.0 | 4.1，默认 4.0
 #   OUTPUT      输出路径（相对仓库根），默认 build/foundry-quota-sentinel-linux-amd64
 #   GO_VERSION  Go 版本，默认从 go.mod 读取（取不到则 1.26.4）
+#   GO_MIRROR   Go 下载镜像（默认官方 go.dev，国内可用 tuna）
 #   IMAGE       基础镜像，默认按 WEBKIT 选 22.04 / 24.04
 set -euo pipefail
 
@@ -30,6 +31,9 @@ case "$WEBKIT" in
   *) echo "WEBKIT 只能是 4.0 或 4.1（收到 '$WEBKIT'）" >&2; exit 2 ;;
 esac
 IMAGE="${IMAGE:-$DEFAULT_IMAGE}"
+# Go 下载镜像：默认官方 go.dev；国内构建可用 tuna 镜像加速
+# （https://mirrors.tuna.tsinghua.edu.cn/golang/，路径结构同官方）。
+GO_BASE="${GO_MIRROR:-https://go.dev/dl}"
 if [ -z "${GO_VERSION:-}" ]; then
   GO_VERSION="$(awk '/^go [0-9]/{print $2; exit}' go.mod 2>/dev/null)"
   GO_VERSION="${GO_VERSION:-1.26.4}"
@@ -67,7 +71,7 @@ echo '>>> apt: gtk3 + ${WK_DEV}'
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends ca-certificates curl build-essential pkg-config libgtk-3-dev ${WK_DEV} >/dev/null
 echo '>>> 下载 Go ${GO_VERSION}'
-curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xz
+curl -fsSL ${GO_BASE}/go${GO_VERSION}.linux-amd64.tar.gz | tar -C /usr/local -xz
 export PATH=/usr/local/go/bin:\$PATH
 ${GOMOD_ENV}
 export GOCACHE=/tmp/gocache CGO_ENABLED=1
