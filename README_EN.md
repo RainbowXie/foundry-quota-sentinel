@@ -24,7 +24,15 @@
 
 ## What is it
 
-A desktop sidebar that watches quota and usage across **OpenCode Go, CommandCode, DeepSeek, Ollama Cloud, Kimi Code** — multi-account, with browser-automated login to capture credentials. Also provides CLI quota queries and a local web panel.
+A desktop sidebar that watches quota and usage across the following providers — multi-account, with browser-automated login to capture credentials. Also provides CLI quota queries and a local web panel.
+
+Supported providers:
+
+- OpenCode Go
+- CommandCode
+- DeepSeek
+- Ollama Cloud
+- Kimi Code
 
 ## GUI
 

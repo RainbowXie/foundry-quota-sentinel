@@ -24,7 +24,15 @@
 
 ## 是什么
 
-一个桌面侧边栏，统一监视 **OpenCode Go、CommandCode、DeepSeek、Ollama Cloud、Kimi Code** 多个服务商的额度与用量，支持多账户、浏览器自动登录抓取凭证。也提供命令行查询与本地网页面板。
+一个桌面侧边栏，统一监视以下服务商的额度与用量，支持多账户、浏览器自动登录抓取凭证。也提供命令行查询与本地网页面板。
+
+支持的服务商：
+
+- OpenCode Go
+- CommandCode
+- DeepSeek
+- Ollama Cloud
+- Kimi Code
 
 ## GUI
 
