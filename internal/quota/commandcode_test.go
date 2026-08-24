@@ -108,13 +108,26 @@ func TestParseCommandCodeQuotaNegativeUsedFailsClosed(t *testing.T) {
 	}
 }
 
-func TestParseCommandCodeQuotaBadResetFailsClosed(t *testing.T) {
+func TestParseCommandCodeQuotaBadResetParsesAsNow(t *testing.T) {
+	// OBSERVED 2026-08-19: the real credits response carries fiveHour.
+	// resetAt=0 (an empty/normal window has no reset point). resetAt <= 0
+	// is a LEGAL shape rendered as reset "0m" — not a parse failure.
 	body := `{"credits":{"monthlyCredits":5},"windowLimits":{"limited":true,
 		"fiveHour":{"used":1.0,"cap":14,"exceeded":false,"resetAt":0},
 		"weekly":{"used":1.0,"cap":35,"exceeded":false,"resetAt":1787675714733}}}`
-	_, err := parseCommandCodeQuota(body, commandCodeSubscriptionsFixture, testCommandCodeNow)
-	if err == nil || !strings.Contains(err.Error(), "重置") {
-		t.Fatalf("expected reset error, got %v", err)
+	got, err := parseCommandCodeQuota(body, commandCodeSubscriptionsFixture, testCommandCodeNow)
+	if err != nil {
+		t.Fatalf("resetAt=0 must parse, got error: %v", err)
+	}
+	if got.Rolling.ResetInSec != 0 {
+		t.Fatalf("resetAt=0 must render reset 0m, got resetInSec=%d", got.Rolling.ResetInSec)
+	}
+	if got.Rolling.UsagePercent != 7 {
+		t.Fatalf("fiveHour percent = %d, want 7 (1/14)", got.Rolling.UsagePercent)
+	}
+	// weekly unchanged: normal future reset still parsed.
+	if got.Weekly.ResetInSec <= 0 {
+		t.Fatalf("weekly resetInSec = %d, want > 0", got.Weekly.ResetInSec)
 	}
 }
 
@@ -193,5 +206,36 @@ func TestCommandCodeQuerierMissingCookie(t *testing.T) {
 	_, err := q.FetchQuota()
 	if err == nil || !strings.Contains(err.Error(), "cookie not set") {
 		t.Fatalf("expected cookie error, got %v", err)
+	}
+}
+
+// TestParseCommandCodeQuotaExhaustedResetAtIsLegal (RED→GREEN, quota-exhausted
+// regression) proves a window whose resetAt is 0 or an exhausted window are
+// LEGAL states, not parse failures. Observed on the real account (2026-08-19):
+// fiveHour.resetAt is 0 in the normal/empty window, and weekly is exceeding
+// its cap with the flag exceeded:"weekly" at the envelope level. The card
+// must render (percent from used/cap, reset display from resetAt) instead of
+// failing with "重置时间戳非法".
+func TestParseCommandCodeQuotaExhaustedResetAtIsLegal(t *testing.T) {
+	// REAL exhausted response (sanitized): fiveHour.resetAt=0, weekly exceeded=true.
+	credits := `{"credits":{"belowThreshold":false,"creditThreshold":0,"monthlyCredits":34.996812375,"purchasedCredits":0,"premiumMonthlyCredits":0,"opensourceMonthlyCredits":34.996812375},"windowLimits":{"limited":true,"exceeded":"weekly","fiveHour":{"used":0,"cap":14,"exceeded":false,"resetAt":0},"weekly":{"used":35.003187625,"cap":35,"exceeded":true,"resetAt":1787675714733}}}`
+	subs := `{"success":true,"data":{"planId":"individual-goat","currentPeriodEnd":"2026-09-18T16:30:16.000Z"}}`
+	got, err := parseCommandCodeQuota(credits, subs, time.UnixMilli(1787600000000))
+	if err != nil {
+		t.Fatalf("real exhausted response must parse, got error: %v", err)
+	}
+	// fiveHour: resetAt=0, used 0/14 → 0% with reset 0s.
+	if got.Rolling.UsagePercent != 0 {
+		t.Fatalf("fiveHour percent = %d, want 0", got.Rolling.UsagePercent)
+	}
+	if got.Rolling.ResetInSec != 0 {
+		t.Fatalf("fiveHour resetInSec = %d, want 0 (resetAt=0)", got.Rolling.ResetInSec)
+	}
+	// weekly: exceeded=true, used/cap > 1 → percent clamped 100.
+	if got.Weekly.UsagePercent != 100 {
+		t.Fatalf("weekly percent = %d, want 100", got.Weekly.UsagePercent)
+	}
+	if got.Weekly.ResetInSec <= 0 {
+		t.Fatalf("weekly resetInSec = %d, want > 0 (real future resetAt)", got.Weekly.ResetInSec)
 	}
 }

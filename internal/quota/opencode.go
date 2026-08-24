@@ -105,13 +105,42 @@ func parseQuotaResponse(text string) (*QuotaData, error) {
 	// 起始位置，跳过可选的 seroval 引用赋值 $R[n]=，再以引号/花括号
 	// 感知的方式取出完整对象；随后在对象内部独立解析每个必需字段，
 	// 因此引用编号漂移、字段重排、空白和附加属性都不会破坏解析。
-	rolling, err := extractUsageWindow(text, "rollingUsage", true)
+	rolling, err := extractUsageWindow(text, "rollingUsage", false)
 	if err != nil {
 		return nil, err
 	}
-	weekly, err := extractUsageWindow(text, "weeklyUsage", true)
+	weekly, err := extractUsageWindow(text, "weeklyUsage", false)
 	if err != nil {
 		return nil, err
+	}
+	if rolling == nil && weekly == nil {
+		// 订阅失效/无配额（OBSERVED 2026-08-19：opencode 配额 RPC
+		// server-fn:3 对失效订阅返回 null——seroval 占位结构 +
+		// null 值，整个响应无任何 usage 对象）。这是合法状态：卡片
+		// 显式标记为失效，而非报错让整卡消失。空串/无内容的畸形
+		// 响应不在此列——它没有任何 seroval 占位结构，直接报错。
+		if strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("failed to parse rollingUsage")
+		}
+		// 单窗口缺失（一个在、一个不在）仍视为数据畸形，继续走
+		// 下面的 required 校验路径报错。
+		if !strings.Contains(text, "null") {
+			// 非 null 哨兵且无任何窗口：不是已知的失效形态（OBSERVED 的
+			// 失效响应是配额 RPC 返回 null），保守地按畸形处理而非猜测。
+			return nil, fmt.Errorf("failed to parse rollingUsage")
+		}
+		return &QuotaData{
+			Rolling: QuotaUsage{Status: "unavailable", ResetDisplay: formatter.FormatDurationCompact(0)},
+			Weekly:  QuotaUsage{Status: "unavailable", ResetDisplay: formatter.FormatDurationCompact(0)},
+			Lapsed:  true,
+			FetchedAt: time.Now(),
+		}, nil
+	}
+	if rolling == nil {
+		return nil, fmt.Errorf("failed to parse rollingUsage")
+	}
+	if weekly == nil {
+		return nil, fmt.Errorf("failed to parse weeklyUsage")
 	}
 	monthlyRaw, err := extractUsageWindow(text, "monthlyUsage", false)
 	if err != nil {
@@ -367,11 +396,17 @@ func parseUsageObject(raw string) (QuotaUsage, error) {
 	if !hasStatus {
 		return QuotaUsage{}, fmt.Errorf("missing status")
 	}
-	if !hasReset {
-		return QuotaUsage{}, fmt.Errorf("missing resetInSec")
-	}
 	if !hasUsagePct {
 		return QuotaUsage{}, fmt.Errorf("missing usagePercent")
+	}
+	if !hasReset {
+		// 非 ok/unlimited 状态（耗尽态）没有重置点：resetInSec 缺失合法，
+		// 渲染为 reset 0m（design D1 延长，OBSERVED：耗尽对象缺 resetInSec）。
+		// ok/unlimited 状态缺 resetInSec 仍视为畸形 fail-closed。
+		if status == "ok" || status == "unlimited" {
+			return QuotaUsage{}, fmt.Errorf("missing resetInSec")
+		}
+		resetInSec = 0
 	}
 	return QuotaUsage{
 		Status:       status,

@@ -13,6 +13,11 @@ type QuotaData struct {
 	Rolling   QuotaUsage  `json:"rolling"`
 	Weekly    QuotaUsage  `json:"weekly"`
 	Monthly   *QuotaUsage `json:"monthly,omitempty"`
+	// Lapsed marks a provider account whose subscription is inactive / has
+	// no quota windows at all (OBSERVED: the OpenCode quota RPC returns
+	// null for a lapsed subscription). The frontend renders an explicit
+	// "订阅已失效" state instead of a normal quota card.
+	Lapsed    bool        `json:"lapsed,omitempty"`
 	FetchedAt time.Time   `json:"fetched_at"`
 }
 

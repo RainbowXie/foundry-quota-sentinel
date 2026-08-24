@@ -262,6 +262,66 @@ func TestParseQuotaResponseRejectsNonStringOrEmptyStatus(t *testing.T) {
 // strPtr returns a pointer to s (test helper).
 func strPtr(s string) *string { return &s }
 
+// TestParseQuotaResponseExhaustedRollingParses (RED, quota-exhausted
+// regression) proves an exhausted rolling window whose resetInSec is absent
+// is a LEGAL state, not a "failed to parse rollingUsage" error. When a
+// rolling quota is exhausted / has no reset point, the response may omit
+// resetInSec; the parser must degrade gracefully (reset display "0m")
+// instead of failing the whole account. [Write first, currently FAILING:
+// extractUsageWindow(required=true) errors on the missing field.]
+func TestParseQuotaResponseExhaustedRollingParses(t *testing.T) {
+	// rollingUsage: exhausted status, usagePercent present, resetInSec ABSENT.
+	// (RED→GREEN, opencode-exhausted-status tail) — a window that is
+	// exhausted has NO reset point, so resetInSec being absent is legal:
+	// render 100% / 0m instead of failing the whole account. Contrast with
+	// status:"ok" + missing resetInSec, which stays fail-closed (malformed).
+	body := `{rollingUsage:{status:"exhausted",usagePercent:100},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`
+	got, err := parseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("exhausted rolling must parse, got error: %v", err)
+	}
+	if got.Rolling.UsagePercent != 100 {
+		t.Fatalf("exhausted rolling percent = %d, want 100", got.Rolling.UsagePercent)
+	}
+	if got.Rolling.ResetInSec != 0 {
+		t.Fatalf("exhausted rolling resetInSec = %d, want 0", got.Rolling.ResetInSec)
+	}
+}
+
+// TestParseQuotaResponseLapsedSubscriptionMarksUnavailable (RED→GREEN,
+// quota-exhausted regression, OBSERVED 2026-08-19) covers the REAL shape a
+// lapsed/inactive subscription returns: the fixed quota RPC
+// (openCodeGoServiceID / server-fn:3) returns `null` — no rollingUsage /
+// weeklyUsage / monthlyUsage objects at all. This must NOT fail the whole
+// account ("failed to parse rollingUsage"); per decision it renders as an
+// explicit "订阅已失效" state on the card: a QuotaData whose windows carry
+// Status "unavailable" and a Lapsed flag, so the frontend can surface the
+// failure distinctly from a normal exhausted quota.
+func TestParseQuotaResponseLapsedSubscriptionMarksUnavailable(t *testing.T) {
+	// REAL sanitized response (lapsed subscription, server-fn:3):
+	// ;0x0000002e;((self.$R=self.$R||{})["server-fn:3"]=[],null)
+	real := `;0x0000002e;((self.$R=self.$R||{})["server-fn:3"]=[],null)`
+	got, err := parseQuotaResponse(real)
+	if err != nil {
+		t.Fatalf("lapsed subscription must not fail the account, got error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("lapsed subscription must return quota data, got nil")
+	}
+	if !got.Lapsed {
+		t.Fatal("lapsed subscription must mark QuotaData.Lapsed")
+	}
+	if got.Rolling.Status != "unavailable" {
+		t.Fatalf("rolling status = %q, want unavailable", got.Rolling.Status)
+	}
+	if got.Weekly.Status != "unavailable" {
+		t.Fatalf("weekly status = %q, want unavailable", got.Weekly.Status)
+	}
+	if got.Monthly != nil {
+		t.Fatalf("lapsed subscription must omit monthly, got %+v", *got.Monthly)
+	}
+}
+
 // ---- FetchQuota HTTP→parser boundary tests (review follow-up) ----
 //
 // The parser itself is exercised directly above; these tests drive the

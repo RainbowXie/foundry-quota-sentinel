@@ -236,15 +236,20 @@ func parseCommandCodeWindow(w *commandCodeWindow, name string, now time.Time) (Q
 	if math.IsNaN(cap) || math.IsInf(cap, 0) || cap <= 0 {
 		return QuotaUsage{}, fmt.Errorf("commandcode %s 额度非法", name)
 	}
-	if *w.ResetAt <= 0 {
-		return QuotaUsage{}, fmt.Errorf("commandcode %s 重置时间戳非法", name)
+	// resetAt is a Unix-epoch-millisecond integer. A value <= 0 is LEGAL
+	// (OBSERVED 2026-08-19: the real credits response carries fiveHour.
+	// resetAt=0 for a normal/empty window) — it means the window has no
+	// reset point, rendered as reset "0m". Only the shape (presence of the
+	// field) is validated above; the value is not fail-closed.
+	resetInSec := 0
+	if *w.ResetAt > 0 {
+		resetAt := time.UnixMilli(*w.ResetAt)
+		resetInSec = int(resetAt.Sub(now).Seconds())
+		if resetInSec < 0 {
+			resetInSec = 0
+		}
 	}
-	resetAt := time.UnixMilli(*w.ResetAt)
 	pct := clampPercent(used / cap * 100)
-	resetInSec := int(resetAt.Sub(now).Seconds())
-	if resetInSec < 0 {
-		resetInSec = 0
-	}
 	return QuotaUsage{
 		Status:       "active",
 		UsagePercent: int(math.Round(pct)),

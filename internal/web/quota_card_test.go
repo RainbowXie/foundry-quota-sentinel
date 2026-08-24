@@ -318,6 +318,43 @@ func TestRefreshReplacementUpdatesCardData(t *testing.T) {
 
 // --- Task 1.2: Characterization Tests for Existing Renderers ---
 
+// TestOpenCodeGoLapsedSubscriptionRendersNotice (quota-exhausted regression,
+// OBSERVED 2026-08-19) proves a lapsed OpenCode subscription (quota RPC
+// returns null → backend marks quota.lapsed) renders an explicit 失效 notice
+// instead of a healthy empty meter card: no Rolling/Weekly rows, no percent
+// values, and the "订阅已失效" content in a .qlapse body extension.
+func TestOpenCodeGoLapsedSubscriptionRendersNotice(t *testing.T) {
+	dto := map[string]any{
+		"name":    "opencode-account",
+		"success": true,
+		"quota": map[string]any{
+			"lapsed": true,
+			"rolling": map[string]any{"usage_percent": 0, "status": "unavailable"},
+			"weekly":  map[string]any{"usage_percent": 0, "status": "unavailable"},
+		},
+	}
+
+	result := runQuotaCardTest(t, map[string]any{
+		"type":    "adapter",
+		"adapter": "opencode",
+		"dto":     dto,
+	})
+
+	if !strings.Contains(result, "订阅已失效") {
+		t.Error("lapsed card must render the 订阅已失效 notice")
+	}
+	if !strings.Contains(result, "qlapse") {
+		t.Error("lapsed notice must use the .qlapse marker class")
+	}
+	// No normal meter rows must be rendered for a lapsed subscription.
+	if strings.Contains(result, "Rolling") || strings.Contains(result, "Weekly") {
+		t.Error("lapsed card must not render normal Rolling/Weekly meter rows")
+	}
+	if strings.Contains(result, "%</span>") {
+		t.Error("lapsed card must not render percent values")
+	}
+}
+
 // TestOpenCodeGoCardStructure captures the current OpenCode Go card structure
 // as a RED test before migration to shared foundation.
 func TestOpenCodeGoCardStructure(t *testing.T) {

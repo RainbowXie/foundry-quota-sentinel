@@ -488,6 +488,16 @@
                 padding: 4px 0;
                 text-align: center;
             }
+            /* subscription lapsed notice (distinct from a hard error: the
+               account is reachable but the plan is inactive) */
+            .qlapse {
+                font-size: 11px;
+                color: var(--amber, #d9a021);
+                padding: 8px 0;
+                text-align: center;
+                border-top: 1px dashed var(--border, #333);
+                margin-top: 6px;
+            }
             /* balance */
             .bc {
                 background: var(--card);
@@ -1426,6 +1436,19 @@
                 };
                 if (a.success && a.quota) {
                     var d = a.quota;
+                    // Lapsed subscription (OBSERVED 2026-08-19): the quota
+                    // RPC returns null → backend marks QuotaData.lapsed.
+                    // Render an explicit 失效 notice instead of a normal
+                    // meter card (percent 0 would look like a healthy empty
+                    // account).
+                    if (d.lapsed) {
+                        view.bodyExtensions = [{
+                            class: "qlapse",
+                            content: "订阅已失效"
+                        }];
+                        view.rows = [];
+                        return view;
+                    }
                     if (d.rolling) view.rows.push({
                         label: "Rolling",
                         percent: d.rolling.usage_percent,
