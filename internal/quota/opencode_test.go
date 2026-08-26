@@ -259,6 +259,69 @@ func TestParseQuotaResponseRejectsNonStringOrEmptyStatus(t *testing.T) {
 	}
 }
 
+// TestParseQuotaResponseAcceptsFractionalUsagePercent (change
+// opencode go usagePercent protocol drift, 2026-08-25) proves the parser
+// tolerates the upstream switch of usagePercent from integer to decimal
+// values: the OBSERVED live payload on dogcatttt@ethanxie.top carries
+// usagePercent:19.3 / 18.5 / 71.3 with usage/limit byte totals. Decimals
+// survive parsing unrounded (Uses float64 so 19.3 stays 19.3 — same
+// decision KimiQuotaUsage documents for 2.19/10.42); integers keep
+// working. Any other malformed usagePercent shape still fails closed.
+func TestParseQuotaResponseAcceptsFractionalUsagePercent(t *testing.T) {
+	// decimalBody mirrors the real seroval payloads captured from the
+	// opencode.ai server-fn:3 endpoint on 2026-08-25 — fractional
+	// usagePercent plus usage/limit byte totals that must be ignored.
+	decimalBody := `{rollingUsage:{status:"ok",resetInSec:8296,usagePercent:19.3,usage:232111848,limit:1200000000},weeklyUsage:{status:"ok",resetInSec:483826,usagePercent:18.5,usage:553880414,limit:3000000000},monthlyUsage:{status:"ok",resetInSec:1478803,usagePercent:71.3,usage:4279820210,limit:6000000000}}`
+
+	got, err := parseQuotaResponse(decimalBody)
+	if err != nil {
+		t.Fatalf("fractional usagePercent must parse, got: %v", err)
+	}
+	if got.Rolling.UsagePercent != 19.3 {
+		t.Fatalf("rolling usagePercent = %v, want 19.3 (exact decimal preserved)", got.Rolling.UsagePercent)
+	}
+	if got.Weekly.UsagePercent != 18.5 {
+		t.Fatalf("weekly usagePercent = %v, want 18.5 (exact decimal preserved)", got.Weekly.UsagePercent)
+	}
+	if got.Monthly == nil {
+		t.Fatal("monthly must be present")
+	}
+	if got.Monthly.UsagePercent != 71.3 {
+		t.Fatalf("monthly usagePercent = %v, want 71.3 (exact decimal preserved)", got.Monthly.UsagePercent)
+	}
+	if got.Rolling.ResetInSec != 8296 {
+		t.Fatalf("rolling resetInSec = %d, want 8296", got.Rolling.ResetInSec)
+	}
+}
+
+// TestParseQuotaResponseRejectsMalformedUsagePercent (change
+// opencode go usagePercent protocol drift) keeps the fail-closed boundary:
+// once usagePercent becomes a numeric string/float, only non-negative
+// numeric forms are accepted — negative, null, NaN-shaped or missing
+// values must still error the account instead of fabricating a percent.
+func TestParseQuotaResponseRejectsMalformedUsagePercent(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "negative decimal usagePercent", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:-1.5},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+		{name: "non-numeric decimal usagePercent", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:high},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+		{name: "null usagePercent", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:null},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+		{name: "quoted string usagePercent", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:"19.3"},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseQuotaResponse(tt.body)
+			if err == nil {
+				t.Fatalf("expected error for malformed usagePercent in %q, got %+v", tt.body, got)
+			}
+			if got != nil {
+				t.Fatalf("parser must return nil quota on error for %q, got %+v", tt.body, got)
+			}
+		})
+	}
+}
+
 // strPtr returns a pointer to s (test helper).
 func strPtr(s string) *string { return &s }
 
@@ -281,7 +344,7 @@ func TestParseQuotaResponseExhaustedRollingParses(t *testing.T) {
 		t.Fatalf("exhausted rolling must parse, got error: %v", err)
 	}
 	if got.Rolling.UsagePercent != 100 {
-		t.Fatalf("exhausted rolling percent = %d, want 100", got.Rolling.UsagePercent)
+		t.Fatalf("exhausted rolling percent = %v, want 100", got.Rolling.UsagePercent)
 	}
 	if got.Rolling.ResetInSec != 0 {
 		t.Fatalf("exhausted rolling resetInSec = %d, want 0", got.Rolling.ResetInSec)

@@ -27,14 +27,18 @@ func FormatPercent(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-func ProgressBar(percent int, width int) string {
-	filled := (percent * width) / 100
+// UsagePercent is float64 (not int) so fractional percents from upstream
+// payloads survive rendering — same decision KimiQuotaUsage documents for
+// 2.19/10.42. The bar's filled slots round integer; the trailing label
+// keeps one decimal.
+func ProgressBar(percent float64, width int) string {
+	filled := int(percent*float64(width)) / 100
 	var sb strings.Builder
 	sb.Grow(width + 6)
 	sb.WriteByte('[')
 	for i := 0; i < width; i++ {
 		if i < filled { sb.WriteString("█") } else { sb.WriteString("░") }
 	}
-	sb.WriteString(fmt.Sprintf("] %d%%", percent))
+	sb.WriteString(fmt.Sprintf("] %.1f%%", percent))
 	return sb.String()
 }

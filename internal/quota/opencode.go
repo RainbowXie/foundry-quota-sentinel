@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -349,14 +350,14 @@ func parseUsageObject(raw string) (QuotaUsage, error) {
 	if len(body) < 2 || body[0] != '{' || body[len(body)-1] != '}' {
 		return QuotaUsage{}, fmt.Errorf("malformed object")
 	}
-	var (
-		status      string
-		hasStatus   bool
-		resetInSec  int
-		hasReset    bool
-		usagePct    int
-		hasUsagePct bool
-	)
+		var (
+			status      string
+			hasStatus   bool
+			resetInSec  int
+			hasReset    bool
+			usagePct    float64
+			hasUsagePct bool
+		)
 	for _, field := range splitTopLevelFields(body[1 : len(body)-1]) {
 		name, value := splitTopLevelKV(field)
 		switch name {
@@ -384,11 +385,15 @@ func parseUsageObject(raw string) (QuotaUsage, error) {
 			if hasUsagePct {
 				return QuotaUsage{}, fmt.Errorf("duplicate usagePercent")
 			}
-			n, ok := parseNonNegInt(value)
+			// usagePercent 上游从整数演进为小数（OBSERVED 2026-08-25：
+			// rollingUsage.usagePercent=19.3 等）。值原样保留精度（float64），
+			// 前端 formatPercent 按 percentPrecision 控制小数位；
+			// 非负数字形式（整数或小数）合法，负数/NaN/非数字/引号串 fail-closed。
+			pct, ok := parseNonNegPercent(value)
 			if !ok {
 				return QuotaUsage{}, fmt.Errorf("invalid usagePercent")
 			}
-			usagePct, hasUsagePct = n, true
+			usagePct, hasUsagePct = pct, true
 		default:
 			// Unrelated property: ignore.
 		}
@@ -524,6 +529,26 @@ func parseNonNegInt(v string) (int, bool) {
 		return 0, false
 	}
 	return n, true
+}
+
+// parseNonNegPercent parses a non-negative numeric percent value that may
+// be an integer (42) or a decimal (19.3) — the upstream opencode.ai payload
+// switched usagePercent to fractional values (OBSERVED 2026-08-25). Empty,
+// negative, NaN/Inf, quoted, or otherwise non-numeric forms are rejected
+// rather than coerced. Values are returned with full precision (callers
+// keep the float64); display precision is the frontend's concern.
+func parseNonNegPercent(v string) (float64, bool) {
+	if v == "" {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, false
+	}
+	if f < 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	return f, true
 }
 
 func skipSpace(s string, i int) int {

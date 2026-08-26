@@ -2,6 +2,7 @@ package quota
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,9 +24,9 @@ func TestParseCommandCodeQuotaHappyPath(t *testing.T) {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	// fiveHour: 1.8402861307/14 = 13.1% -> 13
-	if got.Rolling.UsagePercent != 13 {
-		t.Errorf("fiveHour percent = %d, want 13", got.Rolling.UsagePercent)
+	// fiveHour: 1.8402861307/14 = 13.145% (decimal preserved, not rounded)
+	if math.Abs(got.Rolling.UsagePercent-13.144901) > 0.0005 {
+		t.Errorf("fiveHour percent = %v, want ~13.144901", got.Rolling.UsagePercent)
 	}
 	if got.Rolling.Status != "active" {
 		t.Errorf("fiveHour status = %q, want active", got.Rolling.Status)
@@ -35,21 +36,21 @@ func TestParseCommandCodeQuotaHappyPath(t *testing.T) {
 		t.Errorf("fiveHour resetInSec = %d, want 10120", got.Rolling.ResetInSec)
 	}
 
-	// weekly: 10.4405010462/35 = 29.8% -> 30
-	if got.Weekly.UsagePercent != 30 {
-		t.Errorf("weekly percent = %d, want 30", got.Weekly.UsagePercent)
+	// weekly: 10.4405010462/35 = 29.830% (decimal preserved)
+	if math.Abs(got.Weekly.UsagePercent-29.830003) > 0.0005 {
+		t.Errorf("weekly percent = %v, want ~29.830003", got.Weekly.UsagePercent)
 	}
 	// weekly reset: 1787675714733 = 2026-08-25T16:35:14Z = 477314s
 	if got.Weekly.ResetInSec != 477314 {
 		t.Errorf("weekly resetInSec = %d, want 477314", got.Weekly.ResetInSec)
 	}
 
-	// monthly: GOAT cap 70 − monthlyCredits 59.5595 = 10.4405 used -> 14.9% -> 15
+	// monthly: GOAT cap 70 − monthlyCredits 59.5595 = 10.4405 used -> 14.915%
 	if got.Monthly == nil {
 		t.Fatal("monthly is nil, want a row")
 	}
-	if got.Monthly.UsagePercent != 15 {
-		t.Errorf("monthly percent = %d, want 15", got.Monthly.UsagePercent)
+	if math.Abs(got.Monthly.UsagePercent-14.915) > 0.0005 {
+		t.Errorf("monthly percent = %v, want ~14.915", got.Monthly.UsagePercent)
 	}
 	// period end 2026-09-18T16:30:16Z − now = 2550616s
 	if got.Monthly.ResetInSec != 2550616 {
@@ -72,8 +73,8 @@ func TestParseCommandCodeQuotaUnlimitedNoMonthly(t *testing.T) {
 	if got.Monthly != nil {
 		t.Errorf("monthly = %+v, want nil (unlimited plan)", got.Monthly)
 	}
-	if got.Rolling.UsagePercent != 4 {
-		t.Errorf("fiveHour percent = %d, want 4 (0.5/14=3.6%%->4)", got.Rolling.UsagePercent)
+	if math.Abs(got.Rolling.UsagePercent-3.571429) > 0.0005 {
+		t.Errorf("fiveHour percent = %v, want ~3.571429 (0.5/14, decimal preserved)", got.Rolling.UsagePercent)
 	}
 }
 
@@ -122,8 +123,8 @@ func TestParseCommandCodeQuotaBadResetParsesAsNow(t *testing.T) {
 	if got.Rolling.ResetInSec != 0 {
 		t.Fatalf("resetAt=0 must render reset 0m, got resetInSec=%d", got.Rolling.ResetInSec)
 	}
-	if got.Rolling.UsagePercent != 7 {
-		t.Fatalf("fiveHour percent = %d, want 7 (1/14)", got.Rolling.UsagePercent)
+	if math.Abs(got.Rolling.UsagePercent-7.142857) > 0.0005 {
+		t.Fatalf("fiveHour percent = %v, want ~7.142857 (1/14, decimal preserved)", got.Rolling.UsagePercent)
 	}
 	// weekly unchanged: normal future reset still parsed.
 	if got.Weekly.ResetInSec <= 0 {
@@ -167,8 +168,8 @@ func TestCommandCodeQuerierHTTPContract(t *testing.T) {
 	if !strings.Contains(gotCookie, "session_token=x") {
 		t.Errorf("cookie not sent: %q", gotCookie)
 	}
-	if got.Rolling.UsagePercent != 13 {
-		t.Errorf("rolling percent = %d, want 13", got.Rolling.UsagePercent)
+	if math.Abs(got.Rolling.UsagePercent-13.144901) > 0.0005 {
+		t.Errorf("rolling percent = %v, want ~13.144901", got.Rolling.UsagePercent)
 	}
 
 	// Non-200: error carries only the status code.
@@ -224,16 +225,16 @@ func TestParseCommandCodeQuotaExhaustedResetAtIsLegal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("real exhausted response must parse, got error: %v", err)
 	}
-	// fiveHour: resetAt=0, used 0/14 → 0% with reset 0s.
+	// fiveHour: resetAt=0, used 0/14 → 0%
 	if got.Rolling.UsagePercent != 0 {
-		t.Fatalf("fiveHour percent = %d, want 0", got.Rolling.UsagePercent)
+		t.Fatalf("fiveHour percent = %v, want 0", got.Rolling.UsagePercent)
 	}
 	if got.Rolling.ResetInSec != 0 {
 		t.Fatalf("fiveHour resetInSec = %d, want 0 (resetAt=0)", got.Rolling.ResetInSec)
 	}
 	// weekly: exceeded=true, used/cap > 1 → percent clamped 100.
 	if got.Weekly.UsagePercent != 100 {
-		t.Fatalf("weekly percent = %d, want 100", got.Weekly.UsagePercent)
+		t.Fatalf("weekly percent = %v, want 100", got.Weekly.UsagePercent)
 	}
 	if got.Weekly.ResetInSec <= 0 {
 		t.Fatalf("weekly resetInSec = %d, want > 0 (real future resetAt)", got.Weekly.ResetInSec)

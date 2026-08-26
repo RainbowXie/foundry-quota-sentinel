@@ -252,7 +252,7 @@ func parseCommandCodeWindow(w *commandCodeWindow, name string, now time.Time) (Q
 	pct := clampPercent(used / cap * 100)
 	return QuotaUsage{
 		Status:       "active",
-		UsagePercent: int(math.Round(pct)),
+		UsagePercent: pct,
 		ResetInSec:   resetInSec,
 		ResetDisplay: formatter.FormatDurationCompact(resetInSec),
 	}, nil
@@ -296,7 +296,7 @@ func parseCommandCodeMonthly(creditsBody, subsBody string, now time.Time) (*Quot
 	resetInSec := commandCodeResetSeconds(subs.Data.CurrentPeriodEnd, now)
 	return &QuotaUsage{
 		Status:       "active",
-		UsagePercent: int(math.Round(pct)),
+		UsagePercent: pct,
 		ResetInSec:   resetInSec,
 		ResetDisplay: formatter.FormatDurationCompact(resetInSec),
 	}, nil

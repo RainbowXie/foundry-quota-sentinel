@@ -3,10 +3,10 @@ package quota
 import "time"
 
 type QuotaUsage struct {
-	Status       string `json:"status"`
-	UsagePercent int    `json:"usage_percent"`
-	ResetInSec   int    `json:"reset_in_sec"`
-	ResetDisplay string `json:"reset_display"`
+	Status       string  `json:"status"`
+	UsagePercent float64 `json:"usage_percent"`
+	ResetInSec   int     `json:"reset_in_sec"`
+	ResetDisplay string  `json:"reset_display"`
 }
 
 type QuotaData struct {

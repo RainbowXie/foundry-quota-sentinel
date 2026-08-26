@@ -14,7 +14,7 @@ func TestParseOllamaQuota(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if q.Rolling.UsagePercent != 43 || q.Weekly.UsagePercent != 18 {
+	if q.Rolling.UsagePercent != 42.5 || q.Weekly.UsagePercent != 17.7 {
 		t.Fatalf("quota = %#v", q)
 	}
 }
@@ -43,7 +43,7 @@ func TestParseOllamaQuotaFindsResetBesideNestedUsageMeter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if q.Rolling.UsagePercent != 43 || q.Weekly.UsagePercent != 18 {
+	if q.Rolling.UsagePercent != 42.5 || q.Weekly.UsagePercent != 17.7 {
 		t.Fatalf("quota = %#v", q)
 	}
 }

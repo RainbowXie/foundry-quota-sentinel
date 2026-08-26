@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -216,7 +215,7 @@ func newOllamaUsage(percentText, resetText string) (QuotaUsage, error) {
 	seconds := int(time.Until(reset).Seconds())
 	return QuotaUsage{
 		Status:       "active",
-		UsagePercent: int(math.Round(percent)),
+		UsagePercent: percent,
 		ResetInSec:   seconds,
 		ResetDisplay: formatter.FormatDurationCompact(seconds),
 	}, nil
