@@ -26,6 +26,12 @@ const commandCodeLoginURL = "https://commandcode.ai/signin"
 // CDP and replayed as a Cookie header to api.commandcode.ai.
 const commandCodeHost = "commandcode.ai"
 
+// commandCodeApexHost is the apex-domain identifier passed to CDP SetCookies.
+// A leading dot (.commandcode.ai) ensures Chrome sets a Domain cookie rather
+// than a Host-Only cookie, allowing API requests to subdomains (such as
+// api.commandcode.ai) to share the session.
+const commandCodeApexHost = ".commandcode.ai"
+
 const commandCodeLoginPollInterval = 300 * time.Millisecond
 
 // commandCodeUserNameRe matches the GitHub-login segment in the usage
@@ -357,7 +363,7 @@ func commandCodeSavedCookies(cookieHeader string) ([]browserauth.Cookie, error) 
 		out = append(out, browserauth.Cookie{
 			Name:     name,
 			Value:    value,
-			Domain:   commandCodeHost,
+			Domain:   commandCodeApexHost,
 			Path:     "/",
 			Secure:   true,
 			HTTPOnly: true,

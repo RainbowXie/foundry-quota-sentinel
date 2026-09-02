@@ -185,8 +185,8 @@ func TestCommandCodeSavedCookies(t *testing.T) {
 	if len(cookies) != 2 {
 		t.Fatalf("got %d cookies, want 2", len(cookies))
 	}
-	if cookies[0].Name != "__Secure-commandcode_prod_.session_token" || cookies[0].Domain != commandCodeHost {
-		t.Errorf("cookie0 = %+v, want commandcode.ai domain", cookies[0])
+	if cookies[0].Name != "__Secure-commandcode_prod_.session_token" || cookies[0].Domain != commandCodeApexHost {
+		t.Errorf("cookie0 = %+v, want %s domain", cookies[0], commandCodeApexHost)
 	}
 
 	// Empty is invalid.
