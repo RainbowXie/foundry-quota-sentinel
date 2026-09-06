@@ -63,6 +63,12 @@ foundry-quota-sentinel serve --sidebar
 | `config init` / `config add <名称>` | 交互式配置 / 添加账户 |
 | `config list` / `config use <名称>` | 列出 / 切换账户 |
 
+## 架构与核心 SDK
+
+本项目采用分层解耦架构：
+- **`pkg/sdk/`（核心 SDK 库）**：纯 Go、零 Cgo 依赖，提供 OpenCode、DeepSeek、Kimi、CommandCode、Ollama 原生配额获取、CDP 浏览器凭据拦截（`pkg/sdk/auth`）与跨进程并发文件锁存储（`pkg/sdk/store`）。
+- **展示客户端**：基于 `pkg/sdk` 构建的 CLI 终端界面（`main.go`、`cmd_*.go`）、本地 Web 服务（`internal/web/`）与桌面 GUI 侧边栏（`internal/sidebar/`）。
+
 ## 构建
 
 ```bash

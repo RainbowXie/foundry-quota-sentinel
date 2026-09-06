@@ -18,7 +18,7 @@ import (
 	"os"
 	"time"
 
-	"foundry-quota-sentinel/internal/browserauth"
+	"foundry-quota-sentinel/pkg/sdk/auth/browserauth"
 )
 
 func main() {

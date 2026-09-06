@@ -1,9 +1,10 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"sync"
+
+	"foundry-quota-sentinel/pkg/sdk/store"
 )
 
 // Cross-process file locking. The in-process configWriteMu serializes writers
@@ -58,63 +59,14 @@ func sanitizeLockName(name string) string {
 	return string(out)
 }
 
-// fileLock is a held cross-process exclusive lock acquired via flock on Unix.
-// On Windows it falls back to a shared-os.Rename-style open-exclusive (a best
-// effort; the atomic-rename save is the primary guard there). Close releases
-// the lock and removes the lock file best-effort.
-type fileLock struct {
-	f    *os.File
-	path string
-}
+type fileLock = store.FileLock
 
-// acquireLock takes an exclusive cross-process lock on the given path. It
-// blocks until the lock is available. The lock file (and its parent dir) is
-// created if absent.
 func acquireLock(path string) (*fileLock, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return nil, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, err
-	}
-	if err := lockFileFD(f); err != nil {
-		_ = f.Close()
-		return nil, err
-	}
-	return &fileLock{f: f, path: path}, nil
+	return store.AcquireLock(path)
 }
 
-// tryLock attempts an exclusive cross-process lock without blocking; ok is
-// false if another process holds it.
 func tryLock(path string) (*fileLock, bool, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return nil, false, err
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, false, err
-	}
-	if err := tryLockFileFD(f); err != nil {
-		_ = f.Close()
-		return nil, false, nil // locked by another process
-	}
-	return &fileLock{f: f, path: path}, true, nil
-}
-
-func (l *fileLock) Close() error {
-	if l == nil || l.f == nil {
-		return nil
-	}
-	// Release the flock and close the fd. Do NOT remove the lock file: a waiter
-	// in another process may already be blocked in acquireLock on the SAME
-	// inode; removing the file here would unlink that inode, and the waiter's
-	// own OpenFile would create a NEW inode it then flocks — two separate locks,
-	// no mutual exclusion (the classic flock inode race). The lock file is a
-	// tiny persistent sentinel in the config dir; it is never large and is
-	// recreated on demand if manually deleted.
-	unlockFileFD(l.f)
-	return l.f.Close()
+	return store.TryLock(path)
 }
 
 // kimiAccountInProcLocks holds one in-process mutex per Kimi account name so

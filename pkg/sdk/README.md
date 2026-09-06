@@ -1,0 +1,37 @@
+# quota-sdk-go
+
+`quota-sdk-go` 是一个用于多 Provider 配额数据获取、浏览器 CDP 自动化登录凭据拦截及跨进程并发凭据存储的纯 Go SDK 核心库。
+
+## 特性
+
+- **零 Cgo 纯 Go 实现**：无需系统 WebKit、GTK 或任何 Cgo 依赖，具备完整的跨平台编译与运行能力。
+- **原生领域模型**：不强加损耗性的归一化单一大对象，忠实保留 OpenCode（三时间窗口）、DeepSeek（钱包与按天消耗）、Kimi（双重比例与长效轮换）、CommandCode、Ollama 各服务商的原生数据语义。
+- **CDP 浏览器凭据拦截**：纯 Go WebSocket 实现 Chrome DevTools Protocol（CDP）交互，支持跨平台发现本地浏览器并拦截 Cookie、Bearer Token 与 LocalStorage 认证状态。
+- **带并发锁的凭据持久化**：定义 `TokenStore` 接口并内建跨进程 OS 文件锁（Unix flock / Windows LockFileEx），支持多进程并发 Token 自动轮换与原子更新。
+
+## 包结构
+
+```text
+pkg/sdk/
+├── auth/
+│   ├── browserauth/      # 纯 Go CDP 协议客户端、浏览器发现与进程生命周期管理
+│   ├── opencode.go       # OpenCode 登录拦截与账户页
+│   ├── deepseek_*.go     # DeepSeek 登录拦截、凭据提取与 Storage 回放
+│   ├── kimi_*.go         # Kimi 登录拦截、凭据信封与页面内 Token 轮换监听
+│   ├── commandcode.go    # CommandCode 登录拦截与凭据回放
+│   └── ollama.go         # Ollama 登录拦截与凭据回放
+├── providers/
+│   ├── opencode/         # OpenCode 原生配额 RPC 获取与 Seroval 解析器
+│   ├── deepseek/         # DeepSeek API 余额与 Web 钱包/按天明细获取
+│   ├── kimi/             # Kimi 原生配额获取、自动双 Token 轮换与信封模型
+│   ├── commandcode/      # CommandCode 原生配额与月度计算
+│   └── ollama/           # Ollama HTML 页面配额解析器
+└── store/
+    ├── store.go          # TokenStore 存储与锁接口定义
+    ├── flock*.go         # Unix/Windows 跨进程排他文件锁
+    └── json_store.go     # 基于本地 JSON 的原子并发存储实现
+```
+
+## 导出为独立仓库
+
+运行 `export-manifest.json` 中定义的导出映射即可将 `pkg/sdk/` 独立同步为独立的 `quota-sdk-go` 仓库代码树。

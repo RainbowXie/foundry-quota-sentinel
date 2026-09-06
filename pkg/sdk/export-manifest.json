@@ -1,0 +1,22 @@
+{
+  "name": "quota-sdk-go",
+  "version": "0.1.0",
+  "description": "Pure Go multi-provider quota retrieval, CDP browser authentication, and concurrency-locked token storage",
+  "module": "github.com/ethan/quota-sdk-go",
+  "go_version": "1.23.0",
+  "packages": [
+    "auth",
+    "auth/browserauth",
+    "providers/opencode",
+    "providers/deepseek",
+    "providers/kimi",
+    "providers/commandcode",
+    "providers/ollama",
+    "store"
+  ],
+  "dependencies": {
+    "github.com/gorilla/websocket": "v1.5.3",
+    "golang.org/x/sys": "v0.45.0"
+  },
+  "cgo_required": false
+}
