@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
 )
 
 // TestKimiSecretAuditAcrossAllBoundaries (task 6.1) scans every outward-
@@ -26,16 +26,16 @@ func TestKimiSecretAuditAcrossAllBoundaries(t *testing.T) {
 			{Name: "fail", AccessToken: accessTokenSecret, Generation: 2},
 		}
 	})
-	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
+	srv.kimiFetch = func(a KimiAccount) (*kimi.KimiQuotaData, error) {
 		if a.Name == "fail" {
 			// Error message must not include the token even when the fetcher
 			// receives it.
 			return nil, errKimiAudit(a.AccessToken)
 		}
-		return &quota.KimiQuotaData{
-			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
-			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
-			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
+		return &kimi.KimiQuotaData{
+			Total:    kimi.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
+			FiveHour: kimi.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
+			SevenDay: kimi.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
 	}
 

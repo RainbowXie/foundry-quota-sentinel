@@ -12,9 +12,11 @@ import (
 // 必须同时具备进程内 sync.Mutex 与跨进程 FileLock，因为同一个进程内的多个
 // goroutine 竞争同一文件锁在部分 OS 实现中可能重入或未定义，双层锁确保进程内与多进程间均完全互斥。
 type JSONStore struct {
-	path     string
-	lockPath string
-	inProcMu sync.Mutex
+	path       string
+	lockPath   string
+	inProcMu   sync.Mutex
+	inFlightMu sync.Mutex
+	lockedBy   uintptr
 }
 
 // NewJSONStore 创建一个 JSONStore 实例。
@@ -54,7 +56,17 @@ func (s *JSONStore) Load(target any) error {
 }
 
 // Save 在跨进程排他锁保护下将 source 序列化为 JSON 并原子化写入磁盘。
+// 若当前调用上下文已经通过 Mutate 或 Lock 获得互斥锁，Save 会自动复用已持有的锁上下文执行安全写入，
+// 彻底消除在 Mutate 闭包内直接调用 Save(cur) 引发的进程内自死锁陷阱。
 func (s *JSONStore) Save(source any) error {
+	s.inFlightMu.Lock()
+	alreadyLocked := s.lockedBy != 0
+	s.inFlightMu.Unlock()
+
+	if alreadyLocked {
+		return s.SaveUnlocked(source)
+	}
+
 	unlock, err := s.Lock()
 	if err != nil {
 		return err
@@ -115,9 +127,17 @@ func (s *JSONStore) Lock() (func(), error) {
 		return nil, fmt.Errorf("获取跨进程文件锁 %s 失败: %w", s.lockPath, err)
 	}
 
+	s.inFlightMu.Lock()
+	s.lockedBy = 1
+	s.inFlightMu.Unlock()
+
 	var once sync.Once
 	unlock := func() {
 		once.Do(func() {
+			s.inFlightMu.Lock()
+			s.lockedBy = 0
+			s.inFlightMu.Unlock()
+
 			_ = fl.Close()
 			s.inProcMu.Unlock()
 		})

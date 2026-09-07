@@ -86,6 +86,40 @@ func TestJSONStore_ConcurrentMutate(t *testing.T) {
 	}
 }
 
+// TestJSONStore_MutateDirectSaveProvesNoDeadlock 验证调用方在 Mutate 闭包中直接调用
+// s.Save(cur) 不会发生自死锁，证明内建重入防御逻辑有效。
+func TestJSONStore_MutateDirectSaveProvesNoDeadlock(t *testing.T) {
+	dir := t.TempDir()
+	storePath := filepath.Join(dir, "store_deadlock.json")
+	s := NewJSONStore(storePath)
+
+	initial := testData{Count: 42}
+	if err := s.Save(initial); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	err := s.Mutate(func() error {
+		var cur testData
+		if err := s.Load(&cur); err != nil {
+			return err
+		}
+		cur.Count += 8
+		// 直接调用 Save 而非 SaveUnlocked，验证不自死锁
+		return s.Save(cur)
+	})
+	if err != nil {
+		t.Fatalf("Mutate with direct Save failed: %v", err)
+	}
+
+	var loaded testData
+	if err := s.Load(&loaded); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if loaded.Count != 50 {
+		t.Fatalf("expected count 50, got %d", loaded.Count)
+	}
+}
+
 func TestFlock_TryLock(t *testing.T) {
 	dir := t.TempDir()
 	lockPath := filepath.Join(dir, "test.lock")

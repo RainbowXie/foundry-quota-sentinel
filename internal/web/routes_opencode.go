@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 
-	"foundry-quota-sentinel/internal/quota"
 	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
 )
 
@@ -98,6 +97,4 @@ func (s *Server) registerOpenCodeRoutes(mux *http.ServeMux) {
 		}
 		writeJSON(w, 200, map[string]any{"success": true})
 	})
-
-	_ = quota.NewOpenCodeGoQuerier // retain package ref for backward compatibility
 }

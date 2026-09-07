@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
 )
 
 // TestKimiCardsReturnsSortedThreeMetricResults (task 5.2) proves the Kimi cards
@@ -26,14 +26,14 @@ func TestKimiCardsReturnsSortedThreeMetricResults(t *testing.T) {
 			{Name: "alpha", AccessToken: "alpha-tok", Generation: 2},
 		}
 	})
-	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
+	srv.kimiFetch = func(a KimiAccount) (*kimi.KimiQuotaData, error) {
 		if a.Name == "zeta" {
 			return nil, errors.New("unavailable")
 		}
-		return &quota.KimiQuotaData{
-			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
-			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
-			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
+		return &kimi.KimiQuotaData{
+			Total:    kimi.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
+			FiveHour: kimi.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
+			SevenDay: kimi.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
 	}
 
@@ -49,7 +49,7 @@ func TestKimiCardsReturnsSortedThreeMetricResults(t *testing.T) {
 		Data    []struct {
 			Name    string               `json:"name"`
 			Success bool                 `json:"success"`
-			Quota   *quota.KimiQuotaData `json:"quota,omitempty"`
+			Quota   *kimi.KimiQuotaData `json:"quota,omitempty"`
 			Error   string               `json:"error,omitempty"`
 		} `json:"data"`
 	}
@@ -80,11 +80,11 @@ func TestKimiCardsEndpointExcludesAuthFields(t *testing.T) {
 	srv.SetKimiProvider(func() []KimiAccount {
 		return []KimiAccount{{Name: "work", AccessToken: secret, Generation: 1}}
 	})
-	srv.kimiFetch = func(a KimiAccount) (*quota.KimiQuotaData, error) {
-		return &quota.KimiQuotaData{
-			Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
-			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
-			SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
+	srv.kimiFetch = func(a KimiAccount) (*kimi.KimiQuotaData, error) {
+		return &kimi.KimiQuotaData{
+			Total:    kimi.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99, ResetDisplay: "2026-08-27"},
+			FiveHour: kimi.KimiQuotaUsage{UsagePercent: 0, ResetDisplay: "07-29 19:58"},
+			SevenDay: kimi.KimiQuotaUsage{UsagePercent: 10.42, ResetDisplay: "08-04 23:58"},
 		}, nil
 	}
 
@@ -290,13 +290,13 @@ func TestKimiCardsPersistenceFailureSurfacesReLogin(t *testing.T) {
 		return []KimiAccount{{Name: "work", AccessToken: "expired-tok", RefreshToken: "rt", Generation: 1}}
 	})
 	srv.kimiFetch = nil // use production path
-	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*kimi.KimiQuotaData, *kimi.RefreshResult, error) {
 		// Refresh "succeeded": rotated tokens returned.
-		return &quota.KimiQuotaData{
-				Total:    quota.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99},
-				FiveHour: quota.KimiQuotaUsage{UsagePercent: 0},
-				SevenDay: quota.KimiQuotaUsage{UsagePercent: 10.42},
-			}, &quota.RefreshResult{
+		return &kimi.KimiQuotaData{
+				Total:    kimi.KimiTotalUsage{TotalPercent: 2.19, KimiPercent: 0.20, CodePercent: 1.99},
+				FiveHour: kimi.KimiQuotaUsage{UsagePercent: 0},
+				SevenDay: kimi.KimiQuotaUsage{UsagePercent: 10.42},
+			}, &kimi.RefreshResult{
 				AccessToken:  "rotated-access-SECRET",
 				RefreshToken: "rotated-refresh-SECRET",
 			}, nil
@@ -355,7 +355,7 @@ func TestKimiCardsSerializesPerAccountRefresh(t *testing.T) {
 		maxInFlight int
 		calls       int
 	)
-	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*kimi.KimiQuotaData, *kimi.RefreshResult, error) {
 		mu.Lock()
 		inFlight++
 		if inFlight > maxInFlight {
@@ -368,10 +368,10 @@ func TestKimiCardsSerializesPerAccountRefresh(t *testing.T) {
 		mu.Lock()
 		inFlight--
 		mu.Unlock()
-		return &quota.KimiQuotaData{
-			Total:    quota.KimiTotalUsage{TotalPercent: 1},
-			FiveHour: quota.KimiQuotaUsage{UsagePercent: 0},
-			SevenDay: quota.KimiQuotaUsage{UsagePercent: 2},
+		return &kimi.KimiQuotaData{
+			Total:    kimi.KimiTotalUsage{TotalPercent: 1},
+			FiveHour: kimi.KimiQuotaUsage{UsagePercent: 0},
+			SevenDay: kimi.KimiQuotaUsage{UsagePercent: 2},
 		}, nil, nil
 	}
 	// No save callback (no rotation) so we isolate the serialization check.
@@ -411,9 +411,9 @@ func TestKimiCardsReloadsLatestTokenInLock(t *testing.T) {
 	})
 	srv.kimiFetch = nil
 	var seenToken string
-	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*kimi.KimiQuotaData, *kimi.RefreshResult, error) {
 		seenToken = a.AccessToken
-		return &quota.KimiQuotaData{Total: quota.KimiTotalUsage{TotalPercent: 1}, FiveHour: quota.KimiQuotaUsage{}, SevenDay: quota.KimiQuotaUsage{}}, nil, nil
+		return &kimi.KimiQuotaData{Total: kimi.KimiTotalUsage{TotalPercent: 1}, FiveHour: kimi.KimiQuotaUsage{}, SevenDay: kimi.KimiQuotaUsage{}}, nil, nil
 	}
 	// Simulate a concurrent rotation that updated the saved token BEFORE this
 	// request's closure ran. curKimi() returns the latest, so the closure must
@@ -446,9 +446,9 @@ func TestKimiCardsReloadAccountNotFoundFailsHard(t *testing.T) {
 	})
 	srv.kimiFetch = nil
 	var called bool
-	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*quota.KimiQuotaData, *quota.RefreshResult, error) {
+	srv.kimiFetchWithRefresh = func(ctx context.Context, a KimiAccount) (*kimi.KimiQuotaData, *kimi.RefreshResult, error) {
 		called = true
-		return &quota.KimiQuotaData{}, nil, nil
+		return &kimi.KimiQuotaData{}, nil, nil
 	}
 	// The reloader reports the account is gone (deleted mid-flight).
 	srv.kimiReloadAccount = func(name string) (KimiAccount, bool) { return KimiAccount{}, false }

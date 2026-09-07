@@ -13,8 +13,7 @@ import (
 	"testing"
 
 	"foundry-quota-sentinel/internal/config"
-
-	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
 )
 
 // buildTestBinary builds the current main package into a temp binary and
@@ -387,7 +386,7 @@ func TestKimiReplayEnvelopeUsesRotatedTokenNotStaleSnapshot(t *testing.T) {
 	// rotation (the on-disk token is already the rotated one).
 	origRefresh := kimiReplayRefresh
 	defer func() { kimiReplayRefresh = origRefresh }()
-	kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, error) {
+	kimiReplayRefresh = func(acc *config.KimiAccount) (*kimi.RefreshResult, error) {
 		// No rotation needed — the latest disk token is already fresh.
 		return nil, nil
 	}
@@ -437,9 +436,9 @@ func TestKimiReplayEnvelopePersistsInPageRotationNotInvalidateDisk(t *testing.T)
 
 	origRefresh := kimiReplayRefresh
 	defer func() { kimiReplayRefresh = origRefresh }()
-	kimiReplayRefresh = func(acc *config.KimiAccount) (*quota.RefreshResult, error) {
+	kimiReplayRefresh = func(acc *config.KimiAccount) (*kimi.RefreshResult, error) {
 		// The access token is expired → refresh rotates both tokens.
-		return &quota.RefreshResult{
+		return &kimi.RefreshResult{
 			AccessToken:  "page-rotated-access-1234567890",
 			RefreshToken: "page-rotated-refresh-1234567890",
 		}, nil
