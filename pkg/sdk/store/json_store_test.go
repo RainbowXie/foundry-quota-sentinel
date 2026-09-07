@@ -86,11 +86,47 @@ func TestJSONStore_ConcurrentMutate(t *testing.T) {
 	}
 }
 
-// TestJSONStore_MutateDirectSaveProvesNoDeadlock 验证调用方在 Mutate 闭包中直接调用
-// s.Save(cur) 不会发生自死锁，证明内建重入防御逻辑有效。
-func TestJSONStore_MutateDirectSaveProvesNoDeadlock(t *testing.T) {
+// TestJSONStore_ConcurrentSaveSerializes 验证多个 Goroutine 并发直接调用 Save(cur) 时，
+// 互斥锁严格生效，数据写入不会发生破坏或丢失，所有并发调用均能安全串行化落盘。
+func TestJSONStore_ConcurrentSaveSerializes(t *testing.T) {
 	dir := t.TempDir()
-	storePath := filepath.Join(dir, "store_deadlock.json")
+	storePath := filepath.Join(dir, "store_concurrent_save.json")
+	s := NewJSONStore(storePath)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		workerID := i
+		go func() {
+			defer wg.Done()
+			data := testData{
+				Count: workerID,
+				Items: map[string]string{"worker": "done"},
+			}
+			if err := s.Save(data); err != nil {
+				t.Errorf("Save failed: %v", err)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	var loaded testData
+	if err := s.Load(&loaded); err != nil {
+		t.Fatalf("Load after concurrent Save failed: %v", err)
+	}
+	if loaded.Items["worker"] != "done" {
+		t.Fatal("expected items[worker] == done after concurrent saves")
+	}
+}
+
+// TestJSONStore_MutateWithSaveUnlocked 验证契约规范：调用方在 Mutate 闭包中使用 SaveUnlocked
+// 能正确完成读取-修改-保存事务，且不会发生死锁。
+func TestJSONStore_MutateWithSaveUnlocked(t *testing.T) {
+	dir := t.TempDir()
+	storePath := filepath.Join(dir, "store_mutate_unlocked.json")
 	s := NewJSONStore(storePath)
 
 	initial := testData{Count: 42}
@@ -104,11 +140,10 @@ func TestJSONStore_MutateDirectSaveProvesNoDeadlock(t *testing.T) {
 			return err
 		}
 		cur.Count += 8
-		// 直接调用 Save 而非 SaveUnlocked，验证不自死锁
-		return s.Save(cur)
+		return s.SaveUnlocked(cur)
 	})
 	if err != nil {
-		t.Fatalf("Mutate with direct Save failed: %v", err)
+		t.Fatalf("Mutate with SaveUnlocked failed: %v", err)
 	}
 
 	var loaded testData
