@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	"foundry-quota-sentinel/internal/config"
@@ -12,11 +13,21 @@ import (
 	"foundry-quota-sentinel/internal/web"
 )
 
-func ocgtPort() string {
-	if p := os.Getenv("FQS_PORT"); p != "" {
-		return p
+// ocgtPort 解析并校验环境变量 FQS_PORT。
+// 若未配置或为空，使用默认端口 8788；若配置了非法端口（非数字或超出 1~65535 范围），
+// 打印明确警告并安全回退至 8788，防止服务端在无效端口绑定失败或绑定动态端口 (:0) 导致客户端与服务端端口分裂。
+func ocgtPort() int {
+	const defaultPort = 8788
+	p := os.Getenv("FQS_PORT")
+	if p == "" {
+		return defaultPort
 	}
-	return "8788"
+	port, err := strconv.Atoi(p)
+	if err != nil || port < 1 || port > 65535 {
+		fmt.Fprintf(os.Stderr, "警告: 环境变量 FQS_PORT=%q 非法（有效范围 1-65535），回退至默认端口 %d\n", p, defaultPort)
+		return defaultPort
+	}
+	return port
 }
 
 func accountsFromConfig(conf *config.Config) []web.Account {
@@ -118,13 +129,15 @@ func cmdServe() {
 		return config.SaveKimiTokens(name, accessToken, refreshToken)
 	})
 	srv.SetDeleteHandler(deleteAccountFromConfig)
+	port := ocgtPort()
+	portStr := strconv.Itoa(port)
 	go func() {
-		if err := srv.Start(":" + ocgtPort()); err != nil {
+		if err := srv.Start(":" + portStr); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
 			os.Exit(1)
 		}
 	}()
-	fmt.Println("API 服务已启动: http://127.0.0.1:8788")
+	fmt.Printf("API 服务已启动: http://127.0.0.1:%s\n", portStr)
 	select {}
 }
 
@@ -142,14 +155,18 @@ func startSidebar() {
 	})
 	srv.SetWinSizeHandler(func(w, h int) { config.SaveWindowSize(w, h) })
 	srv.SetDeleteHandler(deleteAccountFromConfig)
+	port := ocgtPort()
+	portStr := strconv.Itoa(port)
 	go func() {
-		if err := srv.Start(":" + ocgtPort()); err != nil {
+		if err := srv.Start(":" + portStr); err != nil {
 			fmt.Fprintf(os.Stderr, "服务器启动失败: %v\n", err)
 			os.Exit(1)
 		}
 	}()
-	waitServerReady("127.0.0.1:"+ocgtPort(), 5*time.Second)
-	sb := sidebar.New(8788, cfg.WindowW, cfg.WindowH)
+	waitServerReady("127.0.0.1:"+portStr, 5*time.Second)
+
+	// 服务端监听与 Webview 窗口严格使用同一校验后的端口，消除端口分裂与无效回退风险。
+	sb := sidebar.New(port, cfg.WindowW, cfg.WindowH)
 	sb.Run()
 }
 

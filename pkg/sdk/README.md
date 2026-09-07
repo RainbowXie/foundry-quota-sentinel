@@ -34,4 +34,9 @@ pkg/sdk/
 
 ## 导出为独立仓库
 
-运行 `export-manifest.json` 中定义的导出映射即可将 `pkg/sdk/` 独立同步为独立的 `quota-sdk-go` 仓库代码树。
+运行根目录下的导出脚本：
+```bash
+./scripts/export-sdk.sh [输出路径]
+```
+该脚本会读取 `pkg/sdk/export-manifest.json`，自动完成目录结构复制、独立 `go.mod` 生成、import 依赖路径映射转换（将 `foundry-quota-sentinel/pkg/sdk/...` 映射为 `github.com/ethan/quota-sdk-go/...`），并运行 `go test ./...` 确保独立发布的 SDK 自包含且测试全绿。
+

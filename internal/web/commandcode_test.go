@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/pkg/sdk/providers/commandcode"
 )
 
 // TestCommandCodeAccountsEndpointReturnsShell proves /api/commandcode/accounts
@@ -51,14 +51,14 @@ func TestCommandCodeEndpointFetchesQuota(t *testing.T) {
 			{Name: "cc-bad", Cookie: "c2", UserName: "u2"},
 		}
 	})
-	srv.commandCodeFetch = func(a CommandCodeAccount) (*quota.QuotaData, error) {
+	srv.commandCodeFetch = func(a CommandCodeAccount) (*commandcode.QuotaData, error) {
 		if a.Name == "cc-bad" {
 			return nil, &errNoLeak{"boom"}
 		}
-		return &quota.QuotaData{
-			Rolling: quota.QuotaUsage{Status: "active", UsagePercent: 13},
-			Weekly:  quota.QuotaUsage{Status: "active", UsagePercent: 30},
-			Monthly: &quota.QuotaUsage{Status: "active", UsagePercent: 15},
+		return &commandcode.QuotaData{
+			Rolling: commandcode.QuotaUsage{Status: "active", UsagePercent: 13},
+			Weekly:  commandcode.QuotaUsage{Status: "active", UsagePercent: 30},
+			Monthly: &commandcode.QuotaUsage{Status: "active", UsagePercent: 15},
 		}, nil
 	}
 	r := httptest.NewRequest(http.MethodGet, "/api/commandcode", nil)
@@ -70,10 +70,10 @@ func TestCommandCodeEndpointFetchesQuota(t *testing.T) {
 	var got struct {
 		Success bool `json:"success"`
 		Data    []struct {
-			Name    string           `json:"name"`
-			Success bool             `json:"success"`
-			Quota   *quota.QuotaData `json:"quota"`
-			Error   string           `json:"error"`
+			Name    string                 `json:"name"`
+			Success bool                   `json:"success"`
+			Quota   *commandcode.QuotaData `json:"quota"`
+			Error   string                 `json:"error"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {

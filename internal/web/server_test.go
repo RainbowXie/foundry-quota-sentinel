@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"foundry-quota-sentinel/internal/quota"
+	"foundry-quota-sentinel/pkg/sdk/providers/ollama"
 )
 
 func TestOllamaCardsReturnsSortedQuotaResults(t *testing.T) {
@@ -18,11 +18,11 @@ func TestOllamaCardsReturnsSortedQuotaResults(t *testing.T) {
 		{Name: "zeta", Cookie: "zeta-cookie"},
 		{Name: "alpha", Cookie: "alpha-cookie"},
 	})
-	srv.ollamaFetch = func(a OllamaAccount) (*quota.QuotaData, error) {
+	srv.ollamaFetch = func(a OllamaAccount) (*ollama.QuotaData, error) {
 		if a.Name == "zeta" {
 			return nil, errors.New("unavailable")
 		}
-		return &quota.QuotaData{Rolling: quota.QuotaUsage{UsagePercent: 42}}, nil
+		return &ollama.QuotaData{Rolling: ollama.QuotaUsage{UsagePercent: 42}}, nil
 	}
 
 	r := httptest.NewRequest(http.MethodGet, "/api/ollama", nil)
@@ -35,10 +35,10 @@ func TestOllamaCardsReturnsSortedQuotaResults(t *testing.T) {
 	var got struct {
 		Success bool `json:"success"`
 		Data    []struct {
-			Name    string           `json:"name"`
-			Success bool             `json:"success"`
-			Quota   *quota.QuotaData `json:"quota"`
-			Error   string           `json:"error"`
+			Name    string            `json:"name"`
+			Success bool              `json:"success"`
+			Quota   *ollama.QuotaData `json:"quota"`
+			Error   string            `json:"error"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {

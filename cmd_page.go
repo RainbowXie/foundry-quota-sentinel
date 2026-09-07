@@ -106,7 +106,7 @@ func kimiPageRotationSaver(name string) func(prevAccess, prevRefresh, newAccess,
 
 func cmdOpenPage() {
 	if len(os.Args) < 4 {
-		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi> <账户名>")
+		fmt.Fprintln(os.Stderr, "用法: open-page <opencode|deepseek|ollama|kimi|commandcode> <账户名>")
 		os.Exit(1)
 	}
 	provider, name := os.Args[2], strings.TrimSpace(os.Args[3])
