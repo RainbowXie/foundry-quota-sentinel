@@ -11,7 +11,7 @@ import (
 var currencySymbols = map[string]string{"CNY": "¥", "USD": "$", "EUR": "€", "JPY": "¥", "GBP": "£"}
 var cfg *config.Config
 
-var version = "0.11.1"
+var version = "0.11.3"
 
 func init() { cfg = config.Load() }
 

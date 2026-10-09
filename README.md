@@ -5,7 +5,7 @@
 **多服务商 LLM 额度与用量监控**
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.11.0-4466FF?style=flat-square" alt="version">
+  <img src="https://img.shields.io/badge/version-0.11.3-4466FF?style=flat-square" alt="version">
   <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go" alt="go">
   <img src="https://img.shields.io/badge/license-MIT-22c55e?style=flat-square" alt="license">
 </p>
