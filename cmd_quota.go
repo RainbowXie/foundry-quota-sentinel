@@ -115,13 +115,18 @@ func cmdWatch() {
 		fmt.Printf("\n[%s] OpenCode Go 实时监控\n", time.Now().Format("15:04:05"))
 		if qd, err := q.FetchQuota(); err == nil {
 			fmt.Println("\n【套餐额度】（涵盖所有模型）")
-			fmt.Printf("  Rolling: %s  reset in %s\n", formatter.ProgressBar(qd.Rolling.UsagePercent, 25), qd.Rolling.ResetDisplay)
-			fmt.Printf("  Weekly:  %s  reset in %s\n", formatter.ProgressBar(qd.Weekly.UsagePercent, 25), qd.Weekly.ResetDisplay)
-			if qd.Monthly != nil {
-				fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
+			if qd.Lapsed {
+				// 订阅失效状态避免渲染 0% 虚假空指标。
+				fmt.Println("  OpenCode Go 订阅已失效")
 			} else {
-				// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
-				fmt.Println("  Monthly: 未提供/无月窗口")
+				fmt.Printf("  Rolling: %s  reset in %s\n", formatter.ProgressBar(qd.Rolling.UsagePercent, 25), qd.Rolling.ResetDisplay)
+				fmt.Printf("  Weekly:  %s  reset in %s\n", formatter.ProgressBar(qd.Weekly.UsagePercent, 25), qd.Weekly.ResetDisplay)
+				if qd.Monthly != nil {
+					fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
+				} else {
+					// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
+					fmt.Println("  Monthly: 未提供/无月窗口")
+				}
 			}
 		} else {
 			fmt.Printf("\n【套餐额度】查询失败: %v\n", err)

@@ -38,3 +38,21 @@ func TestFormatOpenCodeTableRendersPresentMonthly(t *testing.T) {
 		t.Fatalf("present monthly must not be reported as absent, got:\n%s", out)
 	}
 }
+
+// TestFormatOpenCodeTableLapsedSubscriptionRendersNotice 验证订阅失效时展示明确提示，
+// 且不得输出假空指标或虚假的重置时间倒计时。
+func TestFormatOpenCodeTableLapsedSubscriptionRendersNotice(t *testing.T) {
+	data := &opencode.QuotaData{
+		Rolling: opencode.QuotaUsage{Status: "unavailable", UsagePercent: 0, ResetDisplay: "0s"},
+		Weekly:  opencode.QuotaUsage{Status: "unavailable", UsagePercent: 0, ResetDisplay: "0s"},
+		Lapsed:  true,
+	}
+	out := FormatOpenCodeTable(data)
+	if !strings.Contains(out, "OpenCode Go 订阅已失效") {
+		t.Fatalf("lapsed subscription must render notice, got:\n%s", out)
+	}
+	if strings.Contains(out, "Rolling:") || strings.Contains(out, "Weekly:") {
+		t.Fatalf("lapsed subscription must not render normal meter rows, got:\n%s", out)
+	}
+}
+

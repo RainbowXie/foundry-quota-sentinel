@@ -18,6 +18,14 @@ func FormatOpenCodeTable(data *opencode.QuotaData) string {
 	sb.WriteString("  OpenCode Go 套餐额度\n")
 	sb.WriteString("  (涵盖所有通过套餐使用的模型)\n")
 	sb.WriteString("----------------------------------------\n")
+	if data.Lapsed {
+		// 与 Web 卡片（sidebar.html .qlapse）保持对齐：
+		// 订阅失效时不展示假的 0% 进度条或 0s 重置倒计时，明确标示订阅状态。
+		sb.WriteString("  OpenCode Go 订阅已失效\n")
+		sb.WriteString("========================================\n")
+		sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))
+		return sb.String()
+	}
 	sb.WriteString(fmt.Sprintf("  Rolling: %s  reset in %s\n", ProgressBar(data.Rolling.UsagePercent, 18), data.Rolling.ResetDisplay))
 	sb.WriteString(fmt.Sprintf("  Weekly:  %s  reset in %s\n", ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay))
 	if data.Monthly != nil {
