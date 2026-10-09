@@ -19,8 +19,14 @@ const (
 )
 
 // openCodeOrgIDRe 白名单校验 Console 返回的组织/工作区标识：org_ 或 wrk_ 前缀加字母数字主体。
-// 该值会被写进 x-org-id 请求头并持久化到配置，因此必须先过校验再使用。
+// 该值会被写进 x-org-id 请求头、持久化到配置并拼进账户页 URL，因此每个使用点都必须先过同一判定。
 var openCodeOrgIDRe = regexp.MustCompile(`^(?:org|wrk)_[a-zA-Z0-9]+$`)
+
+// ValidWorkspaceID 判定标识是否为受支持的 Console 工作区/组织形式。
+// 请求头白名单与账户页 URL 拼接共用它，避免两处规则各自演进后出现白名单缺口。
+func ValidWorkspaceID(id string) bool {
+	return openCodeOrgIDRe.MatchString(id)
+}
 
 // OpenCodeQuerier 负责与 opencode.ai 官方后端服务通信并获取原生配额数据。
 type OpenCodeQuerier struct {
@@ -75,7 +81,7 @@ func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
 		}
 		// 只取首个非空 ID 并整体校验：若它格式非法，说明上游返回了意料外的数据，
 		// 此时宁可失败也不能改挑后面的组织，否则可能把配额查到另一个组织上。
-		if !openCodeOrgIDRe.MatchString(org.ID) {
+		if !ValidWorkspaceID(org.ID) {
 			return "", fmt.Errorf("orgs response contains a malformed org id")
 		}
 		return org.ID, nil
@@ -127,7 +133,7 @@ func (q *OpenCodeQuerier) validate() error {
 	}
 	// 配置/环境变量里的 ID 同样要走白名单：它会被写进 x-org-id 并拼进账户页 URL，
 	// 不能只校验 /console/api/orgs 的响应，否则手工粘贴的 URL 会被原样发往上游。
-	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
+	if !ValidWorkspaceID(q.WorkspaceID) {
 		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID 格式非法：需要 org_ 或 wrk_ 前缀加字母数字")
 	}
 	return nil

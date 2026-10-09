@@ -199,15 +199,24 @@ func TestOpenCodeWorkspaceIDIgnoresAuthSubdomain(t *testing.T) {
 
 // TestValidateOpenCodePageURL 锁定账户页地址白名单：只接受 https + opencode.ai 主机，
 // 且必须与 openCodeWorkspaceID/openCodeConsoleURL 一样排除 auth 子域，
-// 避免同一升级里三处 host 策略不一致。
+// 并将工作区标识约束为 /console/<org_|wrk_> 段：配置里误存的完整 URL 拼出的畸形路径
+// 必须在这里失败，而不是被静默交给浏览器导航。
 func TestValidateOpenCodePageURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		url     string
 		wantErr bool
 	}{
-		{name: "console workspace page", url: "https://opencode.ai/console/org_x/go"},
-		{name: "console root page", url: "https://opencode.ai/console"},
+		{name: "console org page", url: "https://opencode.ai/console/org_x/go"},
+		{name: "console wrk page", url: "https://opencode.ai/console/wrk_abc123/go"},
+		{name: "console workspace route without go", url: "https://opencode.ai/console/org_01JXYZ"},
+		{name: "console root has no workspace", url: "https://opencode.ai/console", wantErr: true},
+		{name: "console go route has no workspace", url: "https://opencode.ai/console/go", wantErr: true},
+		{name: "pasted full url", url: "https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", wantErr: true},
+		{name: "bare identifier segment", url: "https://opencode.ai/console/01JXYZ/go", wantErr: true},
+		{name: "prefix without body", url: "https://opencode.ai/console/org_/go", wantErr: true},
+		{name: "hyphenated body", url: "https://opencode.ai/console/org_01-xyz/go", wantErr: true},
+		{name: "workspace token outside console route", url: "https://opencode.ai/docs/org_x/go", wantErr: true},
 		{name: "auth subdomain", url: "https://auth.opencode.ai/console/org_x/go", wantErr: true},
 		{name: "plain http", url: "http://opencode.ai/console/org_x/go", wantErr: true},
 		{name: "lookalike host", url: "https://evil-opencode.ai/console/org_x/go", wantErr: true},
@@ -224,6 +233,21 @@ func TestValidateOpenCodePageURL(t *testing.T) {
 				t.Fatalf("validateOpenCodePageURL(%q) = %v, want nil", tt.url, err)
 			}
 		})
+	}
+}
+
+// TestRunOpenCodePageRejectsMalformedWorkspaceURL 守住审阅证据里的具体形态：
+// 配置里误存完整 Console URL 时，公开入口必须在启动浏览器前就报错。
+func TestRunOpenCodePageRejectsMalformedWorkspaceURL(t *testing.T) {
+	prev := launchOpenCodeBrowser
+	launchOpenCodeBrowser = func(context.Context, string) (openCodeLoginBrowser, error) {
+		t.Fatal("a malformed account page URL must not launch a browser")
+		return nil, nil
+	}
+	t.Cleanup(func() { launchOpenCodeBrowser = prev })
+	err := RunOpenCodePage("https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", "console_session=good")
+	if err == nil {
+		t.Fatal("a pasted full Console URL must be rejected before any browser launch")
 	}
 }
 

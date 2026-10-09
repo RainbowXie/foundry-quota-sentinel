@@ -11,6 +11,7 @@ import (
 	"foundry-quota-sentinel/internal/web"
 	"foundry-quota-sentinel/pkg/sdk/auth"
 	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
 )
 
 func deleteAccountFromConfig(provider, name string) error {
@@ -131,6 +132,11 @@ func cmdOpenPage() {
 		p, ok := cfg.Profiles[name]
 		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
 			pageErr(fmt.Sprintf("OpenCode 账户 %q 不存在或缺少凭证", name))
+		}
+		// 与 `quota` 命令共用同一白名单：非法标识会拼出畸形账户页地址，
+		// 这里先给出可执行的提示，而不是让浏览器打开一个拼错的路径。
+		if !opencode.ValidWorkspaceID(p.WorkspaceID) {
+			pageErr(fmt.Sprintf("OpenCode 账户 %q 的工作区标识格式非法，请重新登录", name))
 		}
 		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {

@@ -206,6 +206,28 @@ func TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestValidWorkspaceIDMatchesConsoleIdentifiers(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{id: "org_01JXYZ", want: true},
+		{id: "wrk_abc123", want: true},
+		{id: "", want: false},
+		{id: "01JXYZ", want: false},
+		{id: "org_", want: false},
+		{id: "org_01-xyz", want: false},
+		{id: "acc_01JXYZ", want: false},
+		{id: " org_01JXYZ", want: false},
+		{id: "https://opencode.ai/console/org_01JXYZ/go", want: false},
+	}
+	for _, tt := range tests {
+		if got := ValidWorkspaceID(tt.id); got != tt.want {
+			t.Fatalf("ValidWorkspaceID(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}
+
 func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
 	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
 	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})

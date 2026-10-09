@@ -370,5 +370,11 @@ func validateOpenCodePageURL(rawURL string) error {
 	if browserauth.CookieDomainMatches(u.Hostname(), openCodeAuthHost) {
 		return fmt.Errorf("OpenCode 账户页地址无效")
 	}
+	// 工作区标识由配置原样拼进该 URL，必须与 x-org-id 请求头共用同一白名单：
+	// 只校验 scheme/host 会让误存的完整 URL 被拼成畸形路径且调用方毫无提示。
+	match := openCodeWorkspaceRe.FindStringSubmatch(u.Path)
+	if match == nil || !opencode.ValidWorkspaceID(match[1]) {
+		return fmt.Errorf("OpenCode 账户页地址无效")
+	}
 	return nil
 }
