@@ -27,7 +27,7 @@ pkg/sdk/
 │   ├── commandcode.go    # CommandCode 登录拦截与凭据回放
 │   └── ollama.go         # Ollama 登录拦截与凭据回放
 ├── providers/
-│   ├── opencode/         # OpenCode 原生配额 RPC 获取与 Seroval 解析器
+│   ├── opencode/         # Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支
 │   ├── deepseek/         # DeepSeek API 余额与 Web 钱包/按天明细获取
 │   ├── kimi/             # Kimi 原生配额获取、自动双 Token 轮换与信封模型
 │   ├── commandcode/      # CommandCode 原生配额与月度计算

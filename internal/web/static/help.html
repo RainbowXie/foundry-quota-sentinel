@@ -153,7 +153,7 @@ details table{margin:8px 0}
 
 <!-- ══════════ OVERVIEW ══════════ -->
 <h2 id=overview><span class=nr>01</span>工具简介 <span class=en>Overview</span></h2>
-<p>foundry-quota-sentinel 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+<p>foundry-quota-sentinel 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Console 的 <code>/console/api/go/status</code> 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
 
 <div class=card style="font-size:13px;color:var(--text-sec);line-height:2.2">
 <strong style=color:var(--text)>核心特性 <span class=en style="font-weight:400;font-size:12px;color:var(--text-ter)">Key Features</span></strong><br>
@@ -345,9 +345,9 @@ foundry-quota-sentinel serve</pre>
 <div class=card>
 <pre style="border:none;padding:0;margin:0;background:transparent;font-size:13px;line-height:2.2;color:var(--text-sec)">
 <span class=c style=color:var(--text-ter)>数据来源</span>
-OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
-DeepSeek API (/user/balance)   &rarr;  balance  // 账户余额
-ocgt JSONL 日志文件             &rarr;  history  // Token 消耗历史
+OpenCode Console API (/console/api/go/status)  &rarr;  quota    // 套餐额度
+DeepSeek API (/user/balance)                   &rarr;  balance  // 账户余额
+ocgt JSONL 日志文件                            &rarr;  history  // Token 消耗历史
 
 <span class=c style=color:var(--text-ter)>使用模式</span>
 CLI   &rarr;  <code style=font-size:12px>foundry-quota-sentinel quota|balance|history</code>

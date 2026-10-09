@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"foundry-quota-sentinel/pkg/sdk/auth/browserauth"
 )
@@ -12,16 +13,27 @@ import (
 // errOpenCodeTestResolve 模拟 /console/api/orgs 不可用（未登录、限流等）。
 var errOpenCodeTestResolve = errors.New("orgs api unavailable")
 
+// errOpenCodeTestProbe 模拟 CDP 探针持续失败（页面地址或 Cookie 读取故障）。
+var errOpenCodeTestProbe = errors.New("cdp probe failed")
+
 type fakeOpenCodeBrowser struct {
 	cdp        *fakeOpenCodeCDP
 	exited     bool
 	closed     bool
 	onClose    func()
+	onPoll     func()
+	polls      int
 	operations []string
 }
 
-func (b *fakeOpenCodeBrowser) CDP(context.Context) (openCodeCDP, error) { return b.cdp, nil }
-func (b *fakeOpenCodeBrowser) Exited() bool                             { return b.exited }
+func (b *fakeOpenCodeBrowser) CDP(context.Context) (openCodeCDP, error) {
+	b.polls++
+	if b.onPoll != nil {
+		b.onPoll()
+	}
+	return b.cdp, nil
+}
+func (b *fakeOpenCodeBrowser) Exited() bool { return b.exited }
 func (b *fakeOpenCodeBrowser) Wait() error {
 	b.operations = append(b.operations, "wait")
 	return nil
@@ -38,10 +50,15 @@ type fakeOpenCodeCDP struct {
 	browser      *fakeOpenCodeBrowser
 	cookieHeader string
 	pageURL      string
+	pageURLErr   error
+	cookieErr    error
 	closed       bool
 }
 
 func (c *fakeOpenCodeCDP) BrowserCookies(context.Context) ([]browserauth.Cookie, error) {
+	if c.cookieErr != nil {
+		return nil, c.cookieErr
+	}
 	if c.cookieHeader == "" {
 		return nil, nil
 	}
@@ -50,6 +67,9 @@ func (c *fakeOpenCodeCDP) BrowserCookies(context.Context) ([]browserauth.Cookie,
 
 // PageURL 返回浏览器当前地址；空地址模拟仍停留在鉴权页的情况。
 func (c *fakeOpenCodeCDP) PageURL(context.Context, ...string) (string, error) {
+	if c.pageURLErr != nil {
+		return "", c.pageURLErr
+	}
 	if c.pageURL == "" {
 		return "https://auth.opencode.ai/authorize", nil
 	}
@@ -115,6 +135,35 @@ func TestOpenCodeCookieHeaderKeepsHostPrefixedSessionCookie(t *testing.T) {
 	}
 	if got := openCodeCookieHeader(cookies); got != "__Host-console_session=abc123_-" {
 		t.Fatalf("header=%q", got)
+	}
+}
+
+func TestOpenCodeCookieHeaderDropsUnsafeCookies(t *testing.T) {
+	cookies := []browserauth.Cookie{
+		{Name: "bad name", Value: "ok", Domain: "opencode.ai"},
+		{Name: "session", Value: "bad;value", Domain: "opencode.ai"},
+		{Name: "session", Value: "good", Domain: "opencode.ai"},
+	}
+	// 过滤只在 openCodeCookieHeader 内实现一次；删除重复的 filterOpenCodeCookies
+	// 后该用例继续守住「域名 + 排除 auth 子域 + 字符安全」三项判据。
+	if got := openCodeCookieHeader(cookies); got != "session=good" {
+		t.Fatalf("header=%q, want only the safe main-domain cookie", got)
+	}
+}
+
+func TestShouldResolveOpenCodeOrgID(t *testing.T) {
+	now := time.Now()
+	if !shouldResolveOpenCodeOrgID(0, time.Time{}, now) {
+		t.Fatal("the first poll must be allowed to resolve the default org")
+	}
+	if shouldResolveOpenCodeOrgID(1, now.Add(openCodeOrgResolveInterval), now) {
+		t.Fatal("a retry inside the rate-limit interval must be rejected")
+	}
+	if !shouldResolveOpenCodeOrgID(1, now, now) {
+		t.Fatal("a retry after the rate-limit interval must be allowed")
+	}
+	if shouldResolveOpenCodeOrgID(openCodeOrgResolveMaxAttempts, time.Time{}, now) {
+		t.Fatal("attempts beyond the cap must be rejected")
 	}
 }
 
@@ -258,6 +307,70 @@ func TestRunOpenCodeLoginSkipsOrgIDResolveOnLoginPage(t *testing.T) {
 	_, _, err := runOpenCodeLogin(context.Background(), browser, func(string, string) bool { return true })
 	if err == nil {
 		t.Fatal("expected error while the browser still sits on the login page")
+	}
+}
+
+// TestRunOpenCodeLoginRateLimitsOrgIDResolve 守住热循环回归：
+// 反查持续失败时，300ms 轮询不得每轮都重发 /console/api/orgs。
+func TestRunOpenCodeLoginRateLimitsOrgIDResolve(t *testing.T) {
+	browser := newFakeOpenCodeBrowser("console_session=good", "https://opencode.ai/console/go", func() {})
+	// 第二次轮询后让浏览器退出，避免用例依赖 5 秒的重试间隔。
+	browser.onPoll = func() {
+		if browser.polls >= 2 {
+			browser.exited = true
+		}
+	}
+	calls := stubResolveOpenCodeOrgID(t, func(string) (string, error) {
+		return "", errOpenCodeTestResolve
+	})
+	_, _, err := runOpenCodeLogin(context.Background(), browser, func(string, string) bool { return true })
+	if err == nil {
+		t.Fatal("expected error when no workspace id could be resolved")
+	}
+	if len(*calls) != 1 {
+		t.Fatalf("org lookup calls = %d across %d polls, want 1", len(*calls), browser.polls)
+	}
+}
+
+// TestRunOpenCodeLoginReportsLastProbeError 守住静默吞错回归：
+// CDP 探针持续失败时，失败结论必须带上最后一次探针错误。
+func TestRunOpenCodeLoginReportsLastProbeError(t *testing.T) {
+	tests := []struct {
+		name    string
+		prepare func(*fakeOpenCodeCDP)
+		wantMsg string
+	}{
+		{
+			name:    "page url probe",
+			prepare: func(c *fakeOpenCodeCDP) { c.pageURLErr = errOpenCodeTestProbe },
+			wantMsg: "读取页面地址失败",
+		},
+		{
+			name:    "cookie probe",
+			prepare: func(c *fakeOpenCodeCDP) { c.cookieErr = errOpenCodeTestProbe },
+			wantMsg: "读取浏览器 Cookie 失败",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			browser := newFakeOpenCodeBrowser("console_session=good", "https://opencode.ai/console/go", func() {})
+			browser.exited = true
+			tt.prepare(browser.cdp)
+			stubResolveOpenCodeOrgID(t, func(string) (string, error) {
+				t.Fatal("a failing CDP probe must not trigger an org lookup")
+				return "", nil
+			})
+			_, _, err := runOpenCodeLogin(context.Background(), browser, func(string, string) bool { return true })
+			if err == nil {
+				t.Fatal("expected error when the CDP probe keeps failing")
+			}
+			if !strings.Contains(err.Error(), "未捕获到有效凭证（窗口已关闭）") {
+				t.Fatalf("error=%q, want the capture-failure reason", err)
+			}
+			if !errors.Is(err, errOpenCodeTestProbe) || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("error=%q, want the last probe error attached (%s)", err, tt.wantMsg)
+			}
+		})
 	}
 }
 

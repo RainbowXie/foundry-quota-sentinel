@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -25,12 +26,29 @@ var openCodeWorkspaceRe = regexp.MustCompile(`^/console/((?:org|wrk)_[a-zA-Z0-9]
 
 const openCodeLoginPollInterval = 300 * time.Millisecond
 
+// openCodeOrgResolveInterval 约束默认组织反查的最小间隔：轮询间隔只有 300ms，
+// 若上游持续 401/429 或会话 Cookie 尚未生效，每轮都重发会形成 ~3 req/s 的热循环，
+// 并可能自我延续限流。
+const openCodeOrgResolveInterval = 5 * time.Second
+
+// openCodeOrgResolveMaxAttempts 约束单次登录（最长 5 分钟）内的反查总次数：
+// 超过上限后只继续等待页面自身跳到 /console/<id>/go，不再向上游施压。
+const openCodeOrgResolveMaxAttempts = 5
+
+// shouldResolveOpenCodeOrgID 判断本轮轮询是否允许发起默认组织反查。
+func shouldResolveOpenCodeOrgID(attempts int, nextAllowed, now time.Time) bool {
+	return attempts < openCodeOrgResolveMaxAttempts && !now.Before(nextAllowed)
+}
+
 // resolveOpenCodeOrgID 在 URL 未携带 org/wrk 段时，用已捕获的 Cookie 反查默认组织 ID。
 // 做成变量以便单测注入，避免测试依赖真实网络。
 var resolveOpenCodeOrgID = func(cookie string) (string, error) {
 	return opencode.FetchDefaultOrgID(cookie, nil)
 }
 
+// openCodeCookieHeader 是 Cookie 过滤与拼装的唯一实现：同一个结果既用于保存凭据，
+// 也用于直接请求 Console API，因此排除 auth.opencode.ai（授权流程专用）与含不安全字符的
+// Cookie 必须只发生一次，避免两处过滤逻辑日后漂移出不一致的白名单。
 func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 	parts := make([]string, 0, len(cookies))
 	for _, cookie := range cookies {
@@ -189,6 +207,9 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 
 	var capturedCookie, capturedWS string
 	orgResolveLogged := false
+	orgResolveAttempts := 0
+	var orgResolveNext time.Time
+	var probeErr error
 	for {
 		cdp, cdpErr := browser.CDP(ctx)
 		if cdpErr != nil {
@@ -197,14 +218,25 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 		pageURL, urlErr := cdp.PageURL(ctx, openCodeHost)
 		wsid := openCodeWorkspaceID(pageURL)
 		cookies, cookieErr := cdp.BrowserCookies(ctx)
-		header := openCodeCookieHeader(filterOpenCodeCookies(cookies))
+		header := openCodeCookieHeader(cookies)
 		_ = cdp.Close()
+		// CDP 探针失败既不终止轮询也不上报，会让持续失败只表现为「未捕获到有效凭证」，
+		// 因此保留最后一次错误并入最终失败信息，让用户能区分页面地址与 Cookie 读取故障。
+		if urlErr != nil {
+			probeErr = fmt.Errorf("读取页面地址失败: %w", urlErr)
+		} else if cookieErr != nil {
+			probeErr = fmt.Errorf("读取浏览器 Cookie 失败: %w", cookieErr)
+		}
 		// Console v2 登录后前端路由可能停在 /console 或 /console/go 而不带 org/wrk 路径段，
 		// 此时用已到手的会话 Cookie 反查默认组织，避免用户被迫手动跳到工作区页面。
-		if urlErr == nil && cookieErr == nil && header != "" && wsid == "" && openCodeConsoleURL(pageURL) {
+		now := time.Now()
+		if urlErr == nil && cookieErr == nil && header != "" && wsid == "" && openCodeConsoleURL(pageURL) &&
+			shouldResolveOpenCodeOrgID(orgResolveAttempts, orgResolveNext, now) {
+			orgResolveAttempts++
+			orgResolveNext = now.Add(openCodeOrgResolveInterval)
 			resolved, resolveErr := resolveOpenCodeOrgID(header)
 			if resolveErr != nil {
-				// 轮询间隔 300ms，失败只提示一次，避免日志淹没有价值的诊断信息。
+				// 失败提示只记一次，避免日志淹没其他诊断信息；请求频率由上面的间隔与次数上限约束。
 				if !orgResolveLogged {
 					log.Printf("opencode: 解析默认组织失败，继续等待页面跳转: %v", resolveErr)
 					orgResolveLogged = true
@@ -218,11 +250,11 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 			break
 		}
 		if browser.Exited() {
-			return "", "", fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
+			return "", "", openCodeCaptureErr("未捕获到有效凭证（窗口已关闭）", probeErr)
 		}
 		select {
 		case <-ctx.Done():
-			return "", "", fmt.Errorf("未捕获到有效凭证（登录超时或已取消）")
+			return "", "", openCodeCaptureErr("未捕获到有效凭证（登录超时或已取消）", probeErr)
 		case <-time.After(openCodeLoginPollInterval):
 		}
 	}
@@ -234,6 +266,15 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 		return "", "", fmt.Errorf("OpenCode 凭证验证失败")
 	}
 	return capturedCookie, capturedWS, nil
+}
+
+// openCodeCaptureErr 给凭证捕获失败的结论补上最后一次 CDP 探针错误，
+// 避免用户只看到笼统提示而无法定位故障来源。
+func openCodeCaptureErr(reason string, probeErr error) error {
+	if probeErr == nil {
+		return errors.New(reason)
+	}
+	return fmt.Errorf("%s: %w", reason, probeErr)
 }
 
 func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL string, cookies []browserauth.Cookie) (err error) {
@@ -263,23 +304,6 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL 
 		return fmt.Errorf("OpenCode 账户页浏览器异常退出: %w", err)
 	}
 	return nil
-}
-
-func filterOpenCodeCookies(cookies []browserauth.Cookie) []browserauth.Cookie {
-	out := make([]browserauth.Cookie, 0, len(cookies))
-	for _, cookie := range cookies {
-		if !browserauth.CookieDomainMatches(cookie.Domain, openCodeHost) {
-			continue
-		}
-		if browserauth.CookieDomainMatches(cookie.Domain, openCodeAuthHost) {
-			continue
-		}
-		if !openCodeCookieValueSafe(cookie) {
-			continue
-		}
-		out = append(out, cookie)
-	}
-	return out
 }
 
 func openCodeCookieValueSafe(cookie browserauth.Cookie) bool {
