@@ -132,7 +132,7 @@ func cmdOpenPage() {
 		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
 			pageErr(fmt.Sprintf("OpenCode 账户 %q 不存在或缺少凭证", name))
 		}
-		url := "https://opencode.ai/workspace/" + p.WorkspaceID + "/go"
+		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {
 			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))
 		}

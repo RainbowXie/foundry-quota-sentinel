@@ -10,14 +10,25 @@ import (
 	"time"
 
 	"foundry-quota-sentinel/pkg/sdk/auth/browserauth"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
 )
 
-const openCodeAuthURL = "https://auth.opencode.ai/authorize?client_id=app&redirect_uri=https%3A%2F%2Fopencode.ai%2Fauth%2Fcallback&response_type=code"
+// openCodeAuthURL 指向 Console v2 登录页：旧版 /auth/authorize 授权流程已不再服务新控制台。
+const openCodeAuthURL = "https://opencode.ai/console/login?next=%2Fconsole%2Fgo"
 const openCodeHost = "opencode.ai"
 const openCodeAuthHost = "auth.opencode.ai"
 
-var openCodeWorkspaceRe = regexp.MustCompile(`wrk_[a-zA-Z0-9]+`)
+// openCodeWorkspaceRe 同时匹配 org_ 与 wrk_ 两种标识：Console v2 用组织 ID 路由
+// （/console/org_xxx/go），旧账号仍可能落在 wrk_ 工作区路径上。
+var openCodeWorkspaceRe = regexp.MustCompile(`(?:org|wrk)_[a-zA-Z0-9]+`)
+
 const openCodeLoginPollInterval = 300 * time.Millisecond
+
+// resolveOpenCodeOrgID 在 URL 未携带 org/wrk 段时，用已捕获的 Cookie 反查默认组织 ID。
+// 做成变量以便单测注入，避免测试依赖真实网络。
+var resolveOpenCodeOrgID = func(cookie string) (string, error) {
+	return opencode.FetchDefaultOrgID(cookie, nil)
+}
 
 func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 	parts := make([]string, 0, len(cookies))
@@ -45,6 +56,23 @@ func openCodeWorkspaceID(rawURL string) string {
 		return ""
 	}
 	return openCodeWorkspaceRe.FindString(u.Path)
+}
+
+// openCodeConsoleURL 判断页面是否已落在 Console 控制台内部（登录页除外）。
+// 只有进入控制台才说明会话可能已建立；登录页上的无关 Cookie 不该触发组织反查请求。
+func openCodeConsoleURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if !browserauth.CookieDomainMatches(u.Hostname(), openCodeHost) || browserauth.CookieDomainMatches(u.Hostname(), openCodeAuthHost) {
+		return false
+	}
+	path := strings.TrimSuffix(u.Path, "/")
+	if strings.HasPrefix(path, "/console/login") {
+		return false
+	}
+	return path == "/console" || strings.HasPrefix(path, "/console/")
 }
 
 type openCodeCDP interface {
@@ -155,6 +183,7 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 	}()
 
 	var capturedCookie, capturedWS string
+	orgResolveLogged := false
 	for {
 		cdp, cdpErr := browser.CDP(ctx)
 		if cdpErr != nil {
@@ -165,6 +194,20 @@ func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validat
 		cookies, cookieErr := cdp.BrowserCookies(ctx)
 		header := openCodeCookieHeader(filterOpenCodeCookies(cookies))
 		_ = cdp.Close()
+		// Console v2 登录后前端路由可能停在 /console 或 /console/go 而不带 org/wrk 路径段，
+		// 此时用已到手的会话 Cookie 反查默认组织，避免用户被迫手动跳到工作区页面。
+		if urlErr == nil && cookieErr == nil && header != "" && wsid == "" && openCodeConsoleURL(pageURL) {
+			resolved, resolveErr := resolveOpenCodeOrgID(header)
+			if resolveErr != nil {
+				// 轮询间隔 300ms，失败只提示一次，避免日志淹没有价值的诊断信息。
+				if !orgResolveLogged {
+					log.Printf("opencode: 解析默认组织失败，继续等待页面跳转: %v", resolveErr)
+					orgResolveLogged = true
+				}
+			} else {
+				wsid = resolved
+			}
+		}
 		if urlErr == nil && cookieErr == nil && wsid != "" && header != "" {
 			capturedCookie, capturedWS = header, wsid
 			break
@@ -267,6 +310,9 @@ func openCodeSavedCookies(cookieHeader string) ([]browserauth.Cookie, error) {
 			return nil, fmt.Errorf("OpenCode 登录状态无效")
 		}
 		seen[name] = true
+		// __Host-console_session 等宿主前缀 Cookie 在这里不需要特殊分支：
+		// Domain 保留为 opencodeHost 仅用于给 browserauth.cookieParam 选择注入 URL，
+		// 注入时它会自动清空 Domain 并改用 url，符合 __Host- 不得带 Domain 的规范。
 		out = append(out, browserauth.Cookie{
 			Name:     name,
 			Value:    value,

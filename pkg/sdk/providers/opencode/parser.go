@@ -8,8 +8,18 @@ import (
 	"time"
 )
 
-// ParseQuotaResponse 从 upstream 返回的 Seroval 序列化文本中精准提取出配额数据。
+// ParseQuotaResponse 解析 upstream 返回的配额响应。
+// OpenCode 已迁移到 Console v2 的 REST JSON，因此优先按新格式解析；
+// 旧版 Seroval 文本仍是历史响应与回归测试的输入，保留同一入口解析以免调用方感知差异。
 func ParseQuotaResponse(text string) (*QuotaData, error) {
+	if isConsoleStatusJSON(text) {
+		return parseConsoleStatusJSON(text)
+	}
+	return parseSerovalQuotaResponse(text)
+}
+
+// parseSerovalQuotaResponse 解析旧版 Seroval 序列化文本（如 `{rollingUsage:$R[1]={...}}`）。
+func parseSerovalQuotaResponse(text string) (*QuotaData, error) {
 	rolling, err := extractUsageWindow(text, "rollingUsage", false)
 	if err != nil {
 		return nil, err
@@ -25,12 +35,7 @@ func ParseQuotaResponse(text string) (*QuotaData, error) {
 		if !strings.Contains(text, "null") {
 			return nil, fmt.Errorf("failed to parse rollingUsage")
 		}
-		return &QuotaData{
-			Rolling:   QuotaUsage{Status: "unavailable", ResetDisplay: formatDurationCompact(0)},
-			Weekly:    QuotaUsage{Status: "unavailable", ResetDisplay: formatDurationCompact(0)},
-			Lapsed:    true,
-			FetchedAt: time.Now(),
-		}, nil
+		return lapsedQuotaData(), nil
 	}
 	if rolling == nil {
 		return nil, fmt.Errorf("failed to parse rollingUsage")
@@ -47,6 +52,18 @@ func ParseQuotaResponse(text string) (*QuotaData, error) {
 		monthly = monthlyRaw
 	}
 	return &QuotaData{Rolling: *rolling, Weekly: *weekly, Monthly: monthly, FetchedAt: time.Now()}, nil
+}
+
+// lapsedQuotaData 表示订阅失效（无 quota 记录）时的统一结果：
+// Rolling/Weekly 标记 unavailable，Monthly 留空，Lapsed 为 true 供 UI 渲染失效卡片。
+func lapsedQuotaData() *QuotaData {
+	unavailable := QuotaUsage{Status: "unavailable", ResetDisplay: formatDurationCompact(0)}
+	return &QuotaData{
+		Rolling:   unavailable,
+		Weekly:    unavailable,
+		Lapsed:    true,
+		FetchedAt: time.Now(),
+	}
 }
 
 func extractUsageWindow(text, windowName string, required bool) (*QuotaUsage, error) {

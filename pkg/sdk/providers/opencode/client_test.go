@@ -35,10 +35,59 @@ type readFailReader struct {
 
 func (r *readFailReader) Read([]byte) (int, error) { return 0, r.err }
 
+// opencodeRecordingTransport 记录最后一个请求，供断言 URL 与请求头。
+type opencodeRecordingTransport struct {
+	request *http.Request
+	status  int
+	body    string
+}
+
+func (t *opencodeRecordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.request = req
+	status := t.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(t.body)),
+	}, nil
+}
+
 func newOpenCodeTestQuerier(tr *opencodeFakeTransport) *OpenCodeQuerier {
-	q := &OpenCodeQuerier{Cookie: "synthetic-test-cookie", WorkspaceID: "synthetic-test-workspace"}
+	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "wrk_synthetic123"}
 	q.Client = &http.Client{Transport: tr}
 	return q
+}
+
+func TestOpenCodeFetchQuotaSendsConsoleV2Request(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: consoleStatusBody}
+	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "org_01JXYZ", Client: &http.Client{Transport: tr}}
+	got, err := q.FetchQuota()
+	if err != nil {
+		t.Fatalf("console payload must parse through the client: %v", err)
+	}
+	if got.Rolling.Status != "active" || got.Weekly.Status != "active" {
+		t.Fatalf("quota = %+v, want active rolling/weekly", got)
+	}
+	if tr.request == nil {
+		t.Fatal("no request was issued")
+	}
+	if tr.request.Method != http.MethodGet {
+		t.Fatalf("method = %s, want GET", tr.request.Method)
+	}
+	if got := tr.request.URL.String(); got != "https://opencode.ai/console/api/go/status" {
+		t.Fatalf("url = %q, want the Console v2 status endpoint", got)
+	}
+	if got := tr.request.Header.Get("Accept"); got != "application/json" {
+		t.Fatalf("Accept = %q, want application/json", got)
+	}
+	if got := tr.request.Header.Get("Cookie"); got != "console_session=synthetic-test-cookie" {
+		t.Fatalf("Cookie = %q", got)
+	}
+	if got := tr.request.Header.Get("x-org-id"); got != "org_01JXYZ" {
+		t.Fatalf("x-org-id = %q, want org_01JXYZ", got)
+	}
 }
 
 func TestOpenCodeFetchQuotaPropagatesReadError(t *testing.T) {
@@ -68,7 +117,7 @@ func (t *roundTripBody) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestOpenCodeFetchQuotaRejectsOversizedResponse(t *testing.T) {
 	big := canonicalBody + strings.Repeat("x", openCodeGoMaxResponseSize)
 	tr := &roundTripBody{body: strings.NewReader(big)}
-	q := &OpenCodeQuerier{Cookie: "synthetic-test-cookie", WorkspaceID: "synthetic-test-workspace"}
+	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "wrk_synthetic123"}
 	q.Client = &http.Client{Transport: tr}
 	got, err := q.FetchQuota()
 	if err == nil {
@@ -123,5 +172,86 @@ func TestOpenCodeFetchQuotaNon200DoesNotLeakBody(t *testing.T) {
 				t.Fatalf("must return nil quota on HTTP %d", tc.status)
 			}
 		})
+	}
+}
+
+func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
+	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})
+	if err != nil {
+		t.Fatalf("orgs payload must parse: %v", err)
+	}
+	if got != "org_01JXYZ" {
+		t.Fatalf("org id = %q, want org_01JXYZ", got)
+	}
+	if tr.request == nil {
+		t.Fatal("no request was issued")
+	}
+	if got := tr.request.URL.String(); got != "https://opencode.ai/console/api/orgs" {
+		t.Fatalf("url = %q, want the console orgs endpoint", got)
+	}
+	if got := tr.request.Header.Get("Accept"); got != "application/json" {
+		t.Fatalf("Accept = %q, want application/json", got)
+	}
+	if got := tr.request.Header.Get("Cookie"); got != "__Host-console_session=synthetic" {
+		t.Fatalf("Cookie = %q", got)
+	}
+	if got := tr.request.Header.Get("x-org-id"); got != "" {
+		t.Fatalf("orgs request must not carry x-org-id, got %q", got)
+	}
+}
+
+func TestFetchDefaultOrgIDSkipsEmptyIDs(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: `[{"id":"","name":"placeholder"},{"id":"wrk_ABC123","name":"Legacy"}]`}
+	got, err := FetchDefaultOrgID("console_session=synthetic", &http.Client{Transport: tr})
+	if err != nil {
+		t.Fatalf("empty id must be skipped, not accepted: %v", err)
+	}
+	if got != "wrk_ABC123" {
+		t.Fatalf("org id = %q, want wrk_ABC123", got)
+	}
+}
+
+func TestFetchDefaultOrgIDRejectsUnusableResponses(t *testing.T) {
+	marker := "PRIVATE-MARKER-ACCOUNT-SECRET-9f3a"
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{
+		{name: "empty array", body: `[]`},
+		{name: "ids absent", body: `[{"name":"Personal"}]`},
+		{name: "malformed id", body: `[{"id":"bad-id"}]`},
+		{name: "whitespace id", body: `[{"id":" "}]`},
+		{name: "header injection attempt", body: `[{"id":"org_ok\r\nx-evil: 1"}]`},
+		{name: "object instead of array", body: `{"id":"org_01JXYZ"}`},
+		{name: "truncated json", body: `[{"id":`},
+		{name: "unauthorized", status: http.StatusUnauthorized, body: `{"error":"` + marker + `"}`},
+		{name: "oversized", body: `[` + strings.Repeat("x", openCodeGoMaxResponseSize)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := &opencodeRecordingTransport{status: tt.status, body: tt.body}
+			got, err := FetchDefaultOrgID("console_session=synthetic", &http.Client{Transport: tr})
+			if err == nil {
+				t.Fatalf("expected error, got org id %q", got)
+			}
+			if strings.Contains(err.Error(), marker) {
+				t.Fatalf("error must not leak the response body, got %q", err)
+			}
+			if got != "" {
+				t.Fatalf("must return empty org id on failure, got %q", got)
+			}
+		})
+	}
+}
+
+func TestFetchDefaultOrgIDRequiresCookieWithoutRequest(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ"}]`}
+	if _, err := FetchDefaultOrgID("", &http.Client{Transport: tr}); err == nil {
+		t.Fatal("empty cookie must fail")
+	}
+	if tr.request != nil {
+		t.Fatal("empty cookie must not issue a request")
 	}
 }
