@@ -125,5 +125,10 @@ func (q *OpenCodeQuerier) validate() error {
 	if q.WorkspaceID == "" {
 		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID not set")
 	}
+	// 配置/环境变量里的 ID 同样要走白名单：它会被写进 x-org-id 并拼进账户页 URL，
+	// 不能只校验 /console/api/orgs 的响应，否则手工粘贴的 URL 会被原样发往上游。
+	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
+		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID 格式非法：需要 org_ 或 wrk_ 前缀加字母数字")
+	}
 	return nil
 }

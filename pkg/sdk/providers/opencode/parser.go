@@ -29,10 +29,10 @@ func parseSerovalQuotaResponse(text string) (*QuotaData, error) {
 		return nil, err
 	}
 	if rolling == nil && weekly == nil {
-		if strings.TrimSpace(text) == "" {
-			return nil, fmt.Errorf("failed to parse rollingUsage")
-		}
-		if !strings.Contains(text, "null") {
+		// 只有真正的 Seroval 文本才允许推断“无 quota 记录=订阅失效”：Seroval 响应一定带 `$R` 引用表
+		// 标记。任何非 JSON 的 200 响应体（截断输出、BOM 前缀、Cloudflare 拦截页）都可能含 "null"
+		// 字样，若仅凭它返回 Lapsed 就会把可用账号误报成“订阅已失效”，所以必须要求两个标记同时存在。
+		if !strings.Contains(text, "$R") || !strings.Contains(text, "null") {
 			return nil, fmt.Errorf("failed to parse rollingUsage")
 		}
 		return lapsedQuotaData(), nil

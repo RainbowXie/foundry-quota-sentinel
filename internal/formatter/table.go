@@ -23,7 +23,9 @@ func FormatOpenCodeTable(data *opencode.QuotaData) string {
 	if data.Monthly != nil {
 		sb.WriteString(fmt.Sprintf("  Monthly: %s  reset in %s\n", ProgressBar(data.Monthly.UsagePercent, 18), data.Monthly.ResetDisplay))
 	} else {
-		sb.WriteString("  Monthly: 无限额度\n")
+		// Monthly 为空只表示上游没有给出月窗口（v2 的 meters.month 可缺省，旧版 unlimited 也折叠为 nil），
+		// 并不等于“无限额度”，因此不能替上游做这个正向断言。
+		sb.WriteString("  Monthly: 未提供/无月窗口\n")
 	}
 	sb.WriteString("========================================\n")
 	sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))

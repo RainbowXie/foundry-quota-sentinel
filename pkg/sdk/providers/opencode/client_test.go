@@ -175,6 +175,37 @@ func TestOpenCodeFetchQuotaNon200DoesNotLeakBody(t *testing.T) {
 	}
 }
 
+func TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID(t *testing.T) {
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "empty", id: ""},
+		{name: "bare identifier", id: "01JXYZ"},
+		{name: "pasted console url", id: "https://opencode.ai/console/org_01JXYZ/go"},
+		{name: "prefix without body", id: "org_"},
+		{name: "hyphenated body", id: "org_01-xyz"},
+		{name: "leading whitespace", id: " org_01JXYZ"},
+		{name: "unexpected prefix", id: "acc_01JXYZ"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := &opencodeRecordingTransport{body: consoleStatusBody}
+			q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: tt.id, Client: &http.Client{Transport: tr}}
+			got, err := q.FetchQuota()
+			if err == nil {
+				t.Fatalf("workspace id %q must be rejected, got %+v", tt.id, got)
+			}
+			if got != nil {
+				t.Fatalf("must return nil quota on invalid workspace id %q", tt.id)
+			}
+			if tr.request != nil {
+				t.Fatalf("invalid workspace id %q must not reach upstream", tt.id)
+			}
+		})
+	}
+}
+
 func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
 	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
 	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})

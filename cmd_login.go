@@ -20,7 +20,7 @@ func cmdLoginOpenCode() {
 	if len(os.Args) > 2 {
 		name = strings.TrimSpace(os.Args[2])
 	}
-	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入你的 workspace 用量页…")
+	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入 Go 订阅用量页（/console/go）…")
 	validate := func(cookie, wsid string) bool {
 		q := &opencode.OpenCodeQuerier{Cookie: cookie, WorkspaceID: wsid}
 		_, err := q.FetchQuota()

@@ -120,7 +120,8 @@ func cmdWatch() {
 			if qd.Monthly != nil {
 				fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
 			} else {
-				fmt.Println("  Monthly: 无限额度")
+				// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
+				fmt.Println("  Monthly: 未提供/无月窗口")
 			}
 		} else {
 			fmt.Printf("\n【套餐额度】查询失败: %v\n", err)
