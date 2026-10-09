@@ -28,8 +28,8 @@ func showConfigHint() {
 	}
 	fmt.Println("还没有配置凭证！请任选一种方式：")
 	fmt.Println("  方式一：设置环境变量")
-	fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的cookie")
-	fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区ID")
+	fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的 cookie")
+	fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区 ID")
 	fmt.Println("  方式二：交互式配置（推荐）")
 	fmt.Println("    foundry-quota-sentinel config init")
 }
@@ -190,7 +190,7 @@ func cmdConfigInit() {
 	fmt.Println()
 	fmt.Println("  [OpenCode Go 凭证]")
 	fmt.Println("  从浏览器登录 opencode.ai，F12 -> 应用 -> Cookie 复制完整值")
-	p.Cookie = readLineDefault("Cookie（完整cookie字符串）", p.Cookie)
+	p.Cookie = readLineDefault("Cookie（完整 cookie 字符串）", p.Cookie)
 	fmt.Println("  从浏览器地址栏 /console/<orgId|wrkId>/go 获取")
 	p.WorkspaceID = readLineDefault("Workspace ID（org_xxx 或 wrk_xxx）", p.WorkspaceID)
 	fmt.Println()

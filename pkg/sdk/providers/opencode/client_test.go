@@ -10,15 +10,11 @@ import (
 )
 
 type opencodeFakeTransport struct {
-	status  int
-	body    string
-	bodyErr error
+	status int
+	body   string
 }
 
 func (t *opencodeFakeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if t.bodyErr != nil {
-		return nil, t.bodyErr
-	}
 	status := t.status
 	if status == 0 {
 		status = http.StatusOK

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Pure Go multi-provider quota retrieval, CDP browser authentication, and concurrency-locked token storage",
   "module": "github.com/ethan/quota-sdk-go",
-  "go_version": "1.23.0",
+  "go_version": "1.26.0",
   "packages": [
     "auth",
     "auth/browserauth",

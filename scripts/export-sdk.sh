@@ -25,7 +25,13 @@ fi
 
 TARGET_DIR="${1:-${EXPORT_DIR:-$REPO_ROOT/build/quota-sdk-go}}"
 MODULE_NAME="$(jq -r '.module' "$MANIFEST")"
+# go 指令与 require 块都从 manifest 读取：脚本不再硬编码版本，避免与 manifest / 根 go.mod 漂移。
 GO_VERSION="$(jq -r '.go_version' "$MANIFEST")"
+DEPENDENCIES="$(jq -r '.dependencies | to_entries[] | "\t\(.key) \(.value)"' "$MANIFEST")"
+if [ -z "$DEPENDENCIES" ]; then
+    echo "错误: manifest 的 dependencies 为空，无法生成独立 go.mod" >&2
+    exit 1
+fi
 
 echo "=== 正在导出 SDK 到: $TARGET_DIR ==="
 echo "Module:     $MODULE_NAME"
@@ -45,8 +51,7 @@ module $MODULE_NAME
 go $GO_VERSION
 
 require (
-	github.com/gorilla/websocket v1.5.3
-	golang.org/x/sys v0.45.0
+$DEPENDENCIES
 )
 EOF
 

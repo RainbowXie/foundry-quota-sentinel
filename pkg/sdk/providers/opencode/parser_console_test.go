@@ -207,6 +207,30 @@ func TestParseQuotaResponseConsoleUnstartedFiveHourWindow(t *testing.T) {
 	}
 }
 
+// TestParseQuotaResponseConsoleExpiredResetsAtClampsToZero 守住过期窗口的钳位分支：
+// resetsAt 已过去时 remaining < 0，必须归零，否则下游会渲染出负倒计时。
+// 时间基点取固定过去时刻（2020-01-01），断言不随真实时钟推移而腐化。
+func TestParseQuotaResponseConsoleExpiredResetsAtClampsToZero(t *testing.T) {
+	const expiredResetsAt = "2020-01-01T00:00:00Z"
+	body := consoleStatusFixture(consoleMetersFixture(
+		consoleMeterFixture(expiredResetsAt, "1200000000", "240000000"),
+		consoleMeterFixture(expiredResetsAt, "3000000000", "600000000"),
+		nil,
+	))
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("expired resetsAt must still parse: %v", err)
+	}
+	for name, usage := range map[string]QuotaUsage{"rolling": got.Rolling, "weekly": got.Weekly} {
+		if usage.ResetInSec != 0 {
+			t.Fatalf("%s ResetInSec = %d, want 0 (clamped)", name, usage.ResetInSec)
+		}
+		if usage.ResetDisplay != "0s" {
+			t.Fatalf("%s ResetDisplay = %q, want 0s", name, usage.ResetDisplay)
+		}
+	}
+}
+
 func TestParseQuotaResponseConsoleMissingFiveHourResetsAtKey(t *testing.T) {
 	now := time.Now()
 	fiveHour := map[string]any{"limitMicroCents": "1200000000", "usedMicroCents": "0"}

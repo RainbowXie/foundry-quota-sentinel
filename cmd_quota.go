@@ -141,12 +141,12 @@ func cmdWatch() {
 			daily := storage.CalculateDailyStats(logs, 1)
 			today := time.Now().Format("2006-01-02")
 			if stat, ok := daily[today]; ok {
-				fmt.Printf("\n【今日消耗】输入:%-8s 输出:%-8s 总计:%-8s (请求%d次)\n", formatter.FormatNumber(stat.InputTokens), formatter.FormatNumber(stat.OutputTokens), formatter.FormatNumber(stat.TotalTokens), stat.RequestCount)
+				fmt.Printf("\n【今日消耗】输入:%-8s 输出:%-8s 总计:%-8s (请求 %d 次)\n", formatter.FormatNumber(stat.InputTokens), formatter.FormatNumber(stat.OutputTokens), formatter.FormatNumber(stat.TotalTokens), stat.RequestCount)
 			} else {
 				fmt.Printf("\n【今日消耗】暂无数据\n")
 			}
 		}
-		fmt.Printf("\n--- 下次刷新: 60秒后 (Ctrl+C 退出) ---\n")
+		fmt.Printf("\n--- 下次刷新: 60 秒后 (Ctrl+C 退出) ---\n")
 		time.Sleep(60 * time.Second)
 	}
 }
