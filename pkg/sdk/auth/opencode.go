@@ -18,9 +18,10 @@ const openCodeAuthURL = "https://opencode.ai/console/login?next=%2Fconsole%2Fgo"
 const openCodeHost = "opencode.ai"
 const openCodeAuthHost = "auth.opencode.ai"
 
-// openCodeWorkspaceRe 同时匹配 org_ 与 wrk_ 两种标识：Console v2 用组织 ID 路由
-// （/console/org_xxx/go），旧账号仍可能落在 wrk_ 工作区路径上。
-var openCodeWorkspaceRe = regexp.MustCompile(`(?:org|wrk)_[a-zA-Z0-9]+`)
+// openCodeWorkspaceRe 只从 Console 工作区路由 `/console/<org_...|wrk_...>[/...]` 中提取标识
+// （design 决策 3 的契约）：锚定前缀可避免在文档页、活动页等无关路径里截取到 org_/wrk_
+// 字样，从而静默保存成非目标工作区。
+var openCodeWorkspaceRe = regexp.MustCompile(`^/console/((?:org|wrk)_[a-zA-Z0-9]+)(?:/|$)`)
 
 const openCodeLoginPollInterval = 300 * time.Millisecond
 
@@ -55,7 +56,11 @@ func openCodeWorkspaceID(rawURL string) string {
 	if !browserauth.CookieDomainMatches(u.Hostname(), openCodeHost) || browserauth.CookieDomainMatches(u.Hostname(), openCodeAuthHost) {
 		return ""
 	}
-	return openCodeWorkspaceRe.FindString(u.Path)
+	match := openCodeWorkspaceRe.FindStringSubmatch(u.Path)
+	if match == nil {
+		return ""
+	}
+	return match[1]
 }
 
 // openCodeConsoleURL 判断页面是否已落在 Console 控制台内部（登录页除外）。
@@ -334,6 +339,11 @@ func validateOpenCodePageURL(rawURL string) error {
 		return fmt.Errorf("OpenCode 账户页地址无效: %w", err)
 	}
 	if u.Scheme != "https" || !browserauth.CookieDomainMatches(u.Hostname(), openCodeHost) {
+		return fmt.Errorf("OpenCode 账户页地址无效")
+	}
+	// 账户页与登录鉴权主机分属不同来源：auth.opencode.ai 只承载授权流程，
+	// 放行它会与 openCodeWorkspaceID/openCodeConsoleURL 的排除策略不一致。
+	if browserauth.CookieDomainMatches(u.Hostname(), openCodeAuthHost) {
 		return fmt.Errorf("OpenCode 账户页地址无效")
 	}
 	return nil

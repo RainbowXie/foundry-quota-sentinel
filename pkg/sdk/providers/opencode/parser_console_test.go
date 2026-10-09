@@ -2,6 +2,7 @@ package opencode
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -160,6 +161,27 @@ func assertResetWithin(t *testing.T, window string, got, want int) {
 	t.Helper()
 	if got > want || got < want-5 {
 		t.Fatalf("%s ResetInSec = %d, want within [%d,%d]", window, got, want-5, want)
+	}
+}
+
+// TestParseQuotaResponseConsoleClampsFarFutureResetsAt 守住 32 位 int 平台的溢出边界：
+// 100 年后的 resetsAt 距 now 约 3.15×10⁹ 秒，已超过 math.MaxInt32，
+// 不钳位时会溢出为负值，使“倒计时非负”的契约反向。时间基点取 now，避免用例随时钟失效。
+func TestParseQuotaResponseConsoleClampsFarFutureResetsAt(t *testing.T) {
+	farFuture := timePtr(time.Now().AddDate(100, 0, 0))
+	body := consoleStatusFixture(consoleMetersFixture(
+		consoleMeterFixture(farFuture, "1200000000", "240000000"),
+		consoleMeterFixture(farFuture, "3000000000", "600000000"),
+		nil,
+	))
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("far-future resetsAt must parse: %v", err)
+	}
+	for name, usage := range map[string]QuotaUsage{"rolling": got.Rolling, "weekly": got.Weekly} {
+		if usage.ResetInSec != math.MaxInt32 {
+			t.Fatalf("%s ResetInSec = %d, want clamp to math.MaxInt32 (%d)", name, usage.ResetInSec, math.MaxInt32)
+		}
 	}
 }
 

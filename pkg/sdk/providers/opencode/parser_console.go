@@ -139,11 +139,16 @@ func consoleResetInSec(resetsAt *string, label string, allowNull bool, now time.
 	if err != nil {
 		return 0, fmt.Errorf("%s resetsAt is not a valid RFC3339 timestamp", label)
 	}
-	remaining := int(ts.Sub(now).Seconds())
+	remaining := ts.Sub(now).Seconds()
 	if remaining < 0 {
 		return 0, nil
 	}
-	return remaining, nil
+	// Go 的 int 宽度随平台变化：远期 resetsAt（如夹具里的 2099 年）约 2.5×10⁹ 秒，
+	// 在 32 位平台上会溢出成负值并翻转“倒计时非负”的契约，因此统一钳位到 int32 上界。
+	if remaining > math.MaxInt32 {
+		return math.MaxInt32, nil
+	}
+	return int(remaining), nil
 }
 
 // parseMicroCents 解析微美分额度。上游以 BigInt 的十进制字符串传输该值，

@@ -126,9 +126,12 @@ func TestOpenCodeWorkspaceIDFromConsoleURL(t *testing.T) {
 	}{
 		{name: "org identifier", url: "https://opencode.ai/console/org_01JXYZ/go", want: "org_01JXYZ"},
 		{name: "wrk identifier", url: "https://opencode.ai/console/wrk_abc123/go", want: "wrk_abc123"},
+		{name: "workspace route without trailing segment", url: "https://opencode.ai/console/org_01JXYZ", want: "org_01JXYZ"},
 		{name: "console root has no identifier", url: "https://opencode.ai/console", want: ""},
 		{name: "console go route has no identifier", url: "https://opencode.ai/console/go", want: ""},
 		{name: "login page has no identifier", url: "https://opencode.ai/console/login?next=%2Fconsole%2Fgo", want: ""},
+		{name: "workspace token outside the console route", url: "https://opencode.ai/docs/org_fake123/go", want: ""},
+		{name: "workspace token deeper in a non-console route", url: "https://opencode.ai/workspaces/wrk_fake123/go", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -142,6 +145,36 @@ func TestOpenCodeWorkspaceIDFromConsoleURL(t *testing.T) {
 func TestOpenCodeWorkspaceIDIgnoresAuthSubdomain(t *testing.T) {
 	if got := openCodeWorkspaceID("https://auth.opencode.ai/console/org_fake123/go"); got != "" {
 		t.Fatalf("workspace=%q", got)
+	}
+}
+
+// TestValidateOpenCodePageURL 锁定账户页地址白名单：只接受 https + opencode.ai 主机，
+// 且必须与 openCodeWorkspaceID/openCodeConsoleURL 一样排除 auth 子域，
+// 避免同一升级里三处 host 策略不一致。
+func TestValidateOpenCodePageURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+	}{
+		{name: "console workspace page", url: "https://opencode.ai/console/org_x/go"},
+		{name: "console root page", url: "https://opencode.ai/console"},
+		{name: "auth subdomain", url: "https://auth.opencode.ai/console/org_x/go", wantErr: true},
+		{name: "plain http", url: "http://opencode.ai/console/org_x/go", wantErr: true},
+		{name: "lookalike host", url: "https://evil-opencode.ai/console/org_x/go", wantErr: true},
+		{name: "foreign host", url: "https://example.com/console/org_x/go", wantErr: true},
+		{name: "unparsable url", url: "https://opencode.ai/%zz", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateOpenCodePageURL(tt.url)
+			if tt.wantErr && err == nil {
+				t.Fatalf("validateOpenCodePageURL(%q) must be rejected", tt.url)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("validateOpenCodePageURL(%q) = %v, want nil", tt.url, err)
+			}
+		})
 	}
 }
 
