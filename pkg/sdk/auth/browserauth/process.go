@@ -31,6 +31,7 @@ type LaunchOptions struct {
 // current platform. Tests inject their own lookPath so platform differences
 // do not require every binary on the test host.
 var browserCandidates = []string{
+	"helium",
 	"google-chrome",
 	"google-chrome-stable",
 	"chromium",
