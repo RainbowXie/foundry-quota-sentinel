@@ -157,6 +157,9 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("DeepSeek 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://platform.deepseek.com/usage"
+		auth.DeepSeekPageSyncSave = func(token, webStore string) error {
+			return config.SaveDeepSeekAccount(name, token, webStore)
+		}
 		if err := auth.RunDeepSeekPage(url, acc.WebStore); err != nil {
 			pageErr(fmt.Sprintf("DeepSeek 账户页浏览器不可用: %v", err))
 		}
@@ -172,6 +175,9 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("Ollama 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://ollama.com/settings"
+		auth.OllamaPageSyncSave = func(cookie, userAgent string) error {
+			return config.SaveOllamaAccount(name, cookie, userAgent)
+		}
 		if err := auth.RunOllamaPage(url, acc.Cookie, acc.UserAgent); err != nil {
 			pageErr(fmt.Sprintf("Ollama 账户页浏览器不可用: %v", err))
 		}
@@ -197,6 +203,9 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("CommandCode 账户 %q 不存在或缺少凭证", name))
 		}
 		url := "https://commandcode.ai/" + acc.UserName + "/settings/usage"
+		auth.CommandCodePageSyncSave = func(cookie, userName string) error {
+			return config.SaveCommandCodeAccount(name, cookie, userName)
+		}
 		if err := auth.RunCommandCodePage(url, acc.Cookie); err != nil {
 			pageErr(fmt.Sprintf("CommandCode 账户页浏览器不可用: %v", err))
 		}

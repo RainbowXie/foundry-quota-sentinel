@@ -78,6 +78,30 @@ func SaveOpenCodeProfile(name, cookie, wsid string) error {
 	})
 }
 
+// SaveCommandCodeAccount 原子持久化 CommandCode 账户凭证与用户名。
+func SaveCommandCodeAccount(name, cookie, userName string) error {
+	return Mutate(func(c *Config) error {
+		c.UpsertCommandCodeAccount(CommandCodeAccount{Name: name, Cookie: cookie, UserName: userName})
+		return nil
+	})
+}
+
+// SaveOllamaAccount 原子持久化 Ollama 账户凭证与 User-Agent。
+func SaveOllamaAccount(name, cookie, userAgent string) error {
+	return Mutate(func(c *Config) error {
+		c.UpsertOllamaAccount(OllamaAccount{Name: name, Cookie: cookie, UserAgent: userAgent})
+		return nil
+	})
+}
+
+// SaveDeepSeekAccount 原子持久化 DeepSeek 账户 Token 与 WebStore。
+func SaveDeepSeekAccount(name, token, webStore string) error {
+	return Mutate(func(c *Config) error {
+		c.UpsertDeepSeekAccount(DeepSeekAccount{Name: name, Token: token, WebStore: webStore})
+		return nil
+	})
+}
+
 // configPathOverride lets tests redirect the config file to a temp location
 // without touching the real user config. Empty in production. Guarded by
 // configPathMu because Load/Save may run concurrently (e.g. window-size save

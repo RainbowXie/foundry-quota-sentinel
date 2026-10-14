@@ -122,6 +122,9 @@ func RunOllamaLogin() (OllamaLoginCredentials, error) {
 	return runOllamaLogin(ctx, browser)
 }
 
+// OllamaPageSyncSave 是 Ollama 账户页凭证变更持久化回调钩子。
+var OllamaPageSyncSave func(cookie, userAgent string) error
+
 // RunOllamaPage 注入 Cookie 和 User-Agent 打开指定的 Ollama 页面。
 func RunOllamaPage(pageURL, cookieHeader, userAgent string) error {
 	if err := validateOllamaPageURL(pageURL); err != nil {
@@ -210,6 +213,41 @@ func runOllamaPage(ctx context.Context, browser ollamaLoginBrowser, pageURL stri
 	}
 	log.Printf("ollama: 账户页导航已发送")
 	SignalOpenPageReady()
+
+	if OllamaPageSyncSave != nil {
+		stopPoll := make(chan struct{})
+		defer close(stopPoll)
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopPoll:
+					return
+				case <-ticker.C:
+					conn, err := browser.CDP(context.Background())
+					if err != nil {
+						continue
+					}
+					cookieList, _ := conn.BrowserCookies(context.Background())
+					curCandidate := ollamaSessionCookieHeader(cookieList)
+					curUA, _ := conn.BrowserUserAgent(context.Background())
+					_ = conn.Close()
+
+					if curCandidate != "" && curCandidate != ollamaSessionCookieHeader(cookies) {
+						ua := userAgent
+						if curUA != "" {
+							ua = curUA
+						}
+						if serr := OllamaPageSyncSave(curCandidate, ua); serr == nil {
+							log.Printf("ollama: 账户页凭证变更已自动同步更新")
+						}
+					}
+				}
+			}
+		}()
+	}
+
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("Ollama 账户页浏览器异常退出: %w", err)
 	}

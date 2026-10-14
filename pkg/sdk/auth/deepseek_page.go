@@ -33,6 +33,9 @@ func isDeepSeekExpectedNavRejection(err error) bool {
 	return errors.As(err, &target)
 }
 
+// DeepSeekPageSyncSave 是 DeepSeek 账户页凭证变更持久化回调钩子。
+var DeepSeekPageSyncSave func(token, webStore string) error
+
 // RunDeepSeekPage 恢复持久化的 WebStore 并打开 DeepSeek 用量页面，若遭遇鉴权决定失效则等待用户关闭。
 func RunDeepSeekPage(pageURL, webStore string) error {
 	if err := validateDeepSeekPageURL(pageURL); err != nil {
@@ -139,6 +142,59 @@ func runDeepSeekPage(ctx context.Context, browser deepSeekLoginBrowser, pageURL,
 
 	log.Printf("deepseek: 账户页已认证（usage 页，userToken 长度匹配）")
 	SignalOpenPageReady()
+
+	if DeepSeekPageSyncSave != nil {
+		stopPoll := make(chan struct{})
+		defer close(stopPoll)
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopPoll:
+					return
+				case <-ticker.C:
+					conn, err := browser.CDP(context.Background())
+					if err != nil {
+						continue
+					}
+					pageURL, _ := conn.PageURL(context.Background(), deepSeekHost)
+					raw, snapErr := conn.Evaluate(context.Background(), deepSeekSnapshotJS)
+					var snapshot string
+					if snapErr == nil {
+						var env struct {
+							Result struct {
+								Value string `json:"value"`
+							} `json:"result"`
+						}
+						if json.Unmarshal(raw, &env) == nil {
+							snapshot = env.Result.Value
+						}
+					}
+					if isDeepSeekSnapshotValid(snapshot) && !isDeepSeekLoginPage(pageURL) {
+						fullSnap := deepSeekSnapshotWithCookies(context.Background(), snapshot, conn)
+						candidates := deepSeekStorageCandidates(snapshot)
+						_ = conn.Close()
+						if len(candidates) > 0 && fullSnap != "" {
+							tok := candidates[0]
+							expectedTok := ""
+							if origCandidates := deepSeekStorageCandidates(webStore); len(origCandidates) > 0 {
+								expectedTok = origCandidates[0]
+							}
+							if tok != expectedTok {
+								if serr := DeepSeekPageSyncSave(tok, fullSnap); serr == nil {
+									log.Printf("deepseek: 账户页凭证变更已自动同步更新")
+								}
+							}
+						}
+					} else {
+						_ = conn.Close()
+					}
+				}
+			}
+		}()
+	}
+
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("DeepSeek 账户页浏览器异常退出: %w", err)
 	}

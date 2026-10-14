@@ -103,6 +103,9 @@ func RunCommandCodeLogin(validate func(cookie, userName string) bool) (string, s
 	return runCommandCodeLogin(ctx, browser, validate)
 }
 
+// CommandCodePageSyncSave 是 CommandCode 账户页凭证变更持久化回调钩子。
+var CommandCodePageSyncSave func(cookie, userName string) error
+
 // RunCommandCodePage 注入凭据打开 CommandCode 账户用量页。
 func RunCommandCodePage(pageURL, cookie string) error {
 	if err := validateCommandCodePageURL(pageURL); err != nil {
@@ -188,6 +191,41 @@ func runCommandCodePage(ctx context.Context, browser commandCodeLoginBrowser, pa
 	}
 	log.Printf("commandcode: 账户页导航已发送")
 	SignalOpenPageReady()
+
+	if CommandCodePageSyncSave != nil {
+		stopPoll := make(chan struct{})
+		defer close(stopPoll)
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopPoll:
+					return
+				case <-ticker.C:
+					conn, err := browser.CDP(context.Background())
+					if err != nil {
+						continue
+					}
+					pageURL, _ := conn.PageURL(context.Background(), commandCodeHost)
+					cookieList, _ := conn.BrowserCookies(context.Background())
+					curHeader := commandCodeCookieHeader(filterCommandCodeCookies(cookieList))
+					curUser := commandCodeUserName(pageURL)
+					if curUser == "" && curHeader != "" {
+						curUser = commandCodeUserNameFromSession(curHeader)
+					}
+					_ = conn.Close()
+
+					if curHeader != "" && curUser != "" && (curHeader != commandCodeCookieHeader(cookies) || curUser != commandCodeUserName(pageURL)) {
+						if serr := CommandCodePageSyncSave(curHeader, curUser); serr == nil {
+							log.Printf("commandcode: 账户页凭证变更已自动同步更新 (user %s)", curUser)
+						}
+					}
+				}
+			}
+		}()
+	}
+
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("CommandCode 账户页浏览器异常退出: %w", err)
 	}

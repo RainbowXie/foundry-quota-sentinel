@@ -172,3 +172,45 @@ func TestSaveAtomic(t *testing.T) {
 		t.Fatal("Save produced a torn/partial file visible to a reader — must be atomic (temp+rename)")
 	}
 }
+
+func TestSaveProviderAccountHelpers(t *testing.T) {
+	dir := t.TempDir()
+	SetPathOverrideForTest(filepath.Join(dir, "config.json"))
+	defer SetPathOverrideForTest("")
+
+	// Test SaveCommandCodeAccount
+	if err := SaveCommandCodeAccount("test-cc", "session=123", "userA"); err != nil {
+		t.Fatalf("SaveCommandCodeAccount failed: %v", err)
+	}
+	loaded := Load()
+	if len(loaded.CommandCodeAccounts) != 1 || loaded.CommandCodeAccounts[0].Name != "test-cc" || loaded.CommandCodeAccounts[0].Cookie != "session=123" || loaded.CommandCodeAccounts[0].UserName != "userA" {
+		t.Fatalf("unexpected CommandCodeAccounts: %+v", loaded.CommandCodeAccounts)
+	}
+
+	// Test SaveOllamaAccount
+	if err := SaveOllamaAccount("test-ol", "cookie=abc", "Agent/1.0"); err != nil {
+		t.Fatalf("SaveOllamaAccount failed: %v", err)
+	}
+	loaded = Load()
+	if len(loaded.OllamaAccounts) != 1 || loaded.OllamaAccounts[0].Name != "test-ol" || loaded.OllamaAccounts[0].Cookie != "cookie=abc" || loaded.OllamaAccounts[0].UserAgent != "Agent/1.0" {
+		t.Fatalf("unexpected OllamaAccounts: %+v", loaded.OllamaAccounts)
+	}
+
+	// Test SaveDeepSeekAccount
+	if err := SaveDeepSeekAccount("test-ds", "tok-xyz", `{"l":{}}`); err != nil {
+		t.Fatalf("SaveDeepSeekAccount failed: %v", err)
+	}
+	loaded = Load()
+	if len(loaded.DeepSeekAccounts) != 1 || loaded.DeepSeekAccounts[0].Name != "test-ds" || loaded.DeepSeekAccounts[0].Token != "tok-xyz" || loaded.DeepSeekAccounts[0].WebStore != `{"l":{}}` || loaded.DeepSeekAccounts[0].Generation != 1 {
+		t.Fatalf("unexpected DeepSeekAccounts: %+v", loaded.DeepSeekAccounts)
+	}
+
+	// Update DeepSeekAccount bumps generation
+	if err := SaveDeepSeekAccount("test-ds", "tok-new", `{"l":{"new":1}}`); err != nil {
+		t.Fatalf("update SaveDeepSeekAccount failed: %v", err)
+	}
+	loaded = Load()
+	if loaded.DeepSeekAccounts[0].Generation != 2 || loaded.DeepSeekAccounts[0].Token != "tok-new" {
+		t.Fatalf("expected generation 2, got %+v", loaded.DeepSeekAccounts[0])
+	}
+}
