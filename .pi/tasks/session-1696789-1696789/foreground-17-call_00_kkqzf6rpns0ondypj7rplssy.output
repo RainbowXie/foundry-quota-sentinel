@@ -1,0 +1,8 @@
+pkg/sdk/auth/commandcode_test.go
+pkg/sdk/providers/commandcode/client.go
+pkg/sdk/providers/opencode/types.go
+== pre-existing drift check ==
+pkg/sdk/providers/opencode/types.go UNFORMATTED at HEAD
+pkg/sdk/auth/commandcode_test.go UNFORMATTED at HEAD
+pkg/sdk/providers/commandcode/client.go UNFORMATTED at HEAD
+internal/web/server.go UNFORMATTED at HEAD

@@ -1,0 +1,126 @@
+}
+
+// TestParseQuotaResponseNonSerovalNullIsNotLapsed 守住“失效推断”的下界：
+// 只有带 `$R` 引用表标记的 Seroval 文本才允许把“没有 quota 记录”解释为订阅失效。
+// 其它含 "null" 的非 JSON 响应体（截断输出、BOM 前缀、HTML 拦截页）必须报错，
+// 否则会把可用账号静默渲染成“订阅已失效”。
+func TestParseQuotaResponseNonSerovalNullIsNotLapsed(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "truncated console json mentioning null", body: `{"access":{"meters":{"fiveHour":{"resetsAt":null`},
+		{name: "bom prefixed console body", body: "\ufeff" + consoleStatusBody},
+		{name: "html interstitial mentioning null", body: `<html><body>gateway says null</body></html>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseQuotaResponse(tt.body)
+			if err == nil {
+				t.Fatalf("non-Seroval body %q must error instead of reporting lapsed, got %+v", tt.body, got)
+			}
+			if got != nil {
+				t.Fatalf("parser must return nil quota on error for %q, got %+v", tt.body, got)
+			}
+		})
+	}
+}
+=== client_test 55-90 ===
+	}
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(t.body)),
+	}, nil
+}
+
+func newOpenCodeTestQuerier(tr *opencodeFakeTransport) *OpenCodeQuerier {
+	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "wrk_synthetic123"}
+	q.Client = &http.Client{Transport: tr}
+	return q
+}
+
+func TestOpenCodeFetchQuotaSendsConsoleV2Request(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: consoleStatusBody}
+	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "org_01JXYZ", Client: &http.Client{Transport: tr}}
+	got, err := q.FetchQuota()
+	if err != nil {
+		t.Fatalf("console payload must parse through the client: %v", err)
+	}
+	if got.Rolling.Status != "active" || got.Weekly.Status != "active" {
+		t.Fatalf("quota = %+v, want active rolling/weekly", got)
+	}
+	if tr.request == nil {
+		t.Fatal("no request was issued")
+	}
+	if tr.request.Method != http.MethodGet {
+		t.Fatalf("method = %s, want GET", tr.request.Method)
+	}
+	if got := tr.request.URL.String(); got != "https://opencode.ai/console/api/go/status" {
+		t.Fatalf("url = %q, want the Console v2 status endpoint", got)
+	}
+	if got := tr.request.Header.Get("Accept"); got != "application/json" {
+		t.Fatalf("Accept = %q, want application/json", got)
+	}
+	if got := tr.request.Header.Get("Cookie"); got != "console_session=synthetic-test-cookie" {
+		t.Fatalf("Cookie = %q", got)
+	}
+	if got := tr.request.Header.Get("x-org-id"); got != "org_01JXYZ" {
+		t.Fatalf("x-org-id = %q, want org_01JXYZ", got)
+	}
+}
+
+func TestOpenCodeFetchQuotaPropagatesReadError(t *testing.T) {
+	prefix := monthlyAbsentBody
+	tr := &opencodeFakeTransport{}
+=== client_test 180-230 ===
+		name string
+		id   string
+	}{
+		{name: "empty", id: ""},
+		{name: "bare identifier", id: "01JXYZ"},
+		{name: "pasted console url", id: "https://opencode.ai/console/org_01JXYZ/go"},
+		{name: "prefix without body", id: "org_"},
+		{name: "hyphenated body", id: "org_01-xyz"},
+		{name: "leading whitespace", id: " org_01JXYZ"},
+		{name: "unexpected prefix", id: "acc_01JXYZ"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := &opencodeRecordingTransport{body: consoleStatusBody}
+			q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: tt.id, Client: &http.Client{Transport: tr}}
+			got, err := q.FetchQuota()
+			if err == nil {
+				t.Fatalf("workspace id %q must be rejected, got %+v", tt.id, got)
+			}
+			if got != nil {
+				t.Fatalf("must return nil quota on invalid workspace id %q", tt.id)
+			}
+			if tr.request != nil {
+				t.Fatalf("invalid workspace id %q must not reach upstream", tt.id)
+			}
+		})
+	}
+}
+
+func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
+	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})
+	if err != nil {
+		t.Fatalf("orgs payload must parse: %v", err)
+	}
+	if got != "org_01JXYZ" {
+		t.Fatalf("org id = %q, want org_01JXYZ", got)
+	}
+	if tr.request == nil {
+		t.Fatal("no request was issued")
+	}
+	if got := tr.request.URL.String(); got != "https://opencode.ai/console/api/orgs" {
+		t.Fatalf("url = %q, want the console orgs endpoint", got)
+	}
+	if got := tr.request.Header.Get("Accept"); got != "application/json" {
+		t.Fatalf("Accept = %q, want application/json", got)
+	}
+	if got := tr.request.Header.Get("Cookie"); got != "__Host-console_session=synthetic" {
+		t.Fatalf("Cookie = %q", got)
+	}
+	if got := tr.request.Header.Get("x-org-id"); got != "" {

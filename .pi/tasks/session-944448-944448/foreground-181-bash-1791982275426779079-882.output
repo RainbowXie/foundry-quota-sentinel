@@ -1,0 +1,23 @@
+internal/web/sidebar_test.go:89:	if !strings.Contains(string(html), "openPage") {
+internal/web/sidebar_test.go:90:		t.Fatal("open-account-page action must route through a named openPage handler that checks the response")
+internal/web/sidebar_test.go:92:	if !strings.Contains(string(html), "openPageError") {
+internal/web/sidebar_test.go:93:		t.Fatal("open-account-page must surface a spawn failure via an openPageError path")
+internal/web/kimi_card_test.go:349:// generic account-page flow (context menu → openPage) stays intact.
+internal/web/kimi_card_test.go:372:	// must remain: menu item + handler routing through openPage.
+internal/web/kimi_card_test.go:376:	if !regexp.MustCompile(`openItem\.addEventListener\("click"[\s\S]*?openPage\(cur\.prov, cur\.name\)`).MatchString(html) {
+internal/web/kimi_card_test.go:377:		t.Fatal("generic context-menu open action must keep routing through openPage(cur.prov, cur.name)")
+internal/web/kimi_card_test.go:381:// TestOpenPageReachableFromGlobalScope (regression) proves openPage is
+internal/web/kimi_card_test.go:431:if (typeof sandbox.openPage !== "function") {
+internal/web/kimi_card_test.go:432:	console.error("openPage is " + typeof sandbox.openPage + " — scoped inside the ctx-menu IIFE, unreachable from the kimiCards delegation");
+internal/web/kimi_card_test.go:435:sandbox.openPage("kimi", "layout1");
+internal/web/kimi_card_test.go:438:		console.error("openPage did not fetch /api/open for the named account; calls=" + JSON.stringify(calls));
+internal/web/kimi_card_test.go:441:	console.log("openPage reachable and fetches /api/open for the named account");
+internal/web/kimi_card_test.go:453:		t.Fatalf("openPage must be a top-level callable that fetches the authenticated page route: %v\n%s", err, out)
+internal/web/static/sidebar.html:2603:            // openPage opens the account page and surfaces spawn
+internal/web/static/sidebar.html:2608:            // surfaced via openPageError.
+internal/web/static/sidebar.html:2611:            // may call openPage from outside the context-menu IIFE —
+internal/web/static/sidebar.html:2614:            function openPage(prov, name) {
+internal/web/static/sidebar.html:2624:                            openPageError((r && r.error) || "无法打开账户页");
+internal/web/static/sidebar.html:2627:                    .catch(function () { openPageError("无法打开账户页"); });
+internal/web/static/sidebar.html:2629:            function openPageError(msg) {
+internal/web/static/sidebar.html:2675:                    openPage(cur.prov, cur.name);

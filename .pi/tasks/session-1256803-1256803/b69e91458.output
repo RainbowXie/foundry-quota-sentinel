@@ -1,0 +1,1292 @@
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push less than a minute ago
+
+JOBS
+* deb (webkit 4.1) (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.1)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+* build (windows-latest) (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  * Run actions/setup-go@v5
+  * Install Linux deps
+  * Build
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+* build (ubuntu-22.04) (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install Linux deps
+  * Build
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+* build (macos-latest) (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  * Run actions/setup-go@v5
+  * Install Linux deps
+  * Build
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push less than a minute ago
+
+JOBS
+* deb (webkit 4.1) (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* build (ubuntu-22.04) (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install Linux deps
+  * Build
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+* build (macos-latest) (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 1 minute ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 1 minute ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 1 minute ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 1 minute ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 2 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 2 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 2 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 3 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 3 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 3 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 3 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  * Install deps
+  * Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 4 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* deb (webkit 4.0) (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.0)
+  * Package deb
+  * Upload artifact
+  * Post Run actions/setup-go@v5
+  * Post Run actions/checkout@v4
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* v0.11.3 build · 37896321229
+Triggered via push about 4 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ deb (webkit 4.0) in 4m15s (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.0)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ release in 6s (ID 113709665811)
+  ✓ Set up job
+  ✓ Download all artifacts
+  ✓ Create GitHub Release
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/download-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+release: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+release: .github#1
+
+✓ v0.11.3 build · 37896321229
+Triggered via push about 4 minutes ago
+
+JOBS
+✓ deb (webkit 4.1) in 47s (ID 113708375249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.1)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (windows-latest) in 34s (ID 113708375343)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (ubuntu-22.04) in 53s (ID 113708375356)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ portable (static) in 17s (ID 113708375450)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Build portable
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ deb (webkit 4.0) in 4m15s (ID 113708375519)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  ✓ Install deps
+  ✓ Build (webkit 4.0)
+  ✓ Package deb
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ build (macos-latest) in 37s (ID 113708375560)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-go@v5
+  - Install Linux deps
+  ✓ Build
+  ✓ Upload artifact
+  ✓ Post Run actions/setup-go@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ release in 6s (ID 113709665811)
+  ✓ Set up job
+  ✓ Download all artifacts
+  ✓ Create GitHub Release
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+portable (static): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+portable (static): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-go@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+build (macos-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/download-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+release: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+release: .github#1
+
+=== exit=0 ===
+{"conclusion":"success","displayTitle":"chore(release): bump version to 0.11.3","status":"completed","url":"https://github.com/RainbowXie/foundry-quota-sentinel/actions/runs/37896321229"}

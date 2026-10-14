@@ -1,0 +1,5 @@
+internal/web/sidebar_schedule_test.go  now=662  before_sdk_split=662
+internal/web/server_test.go  now=628  before_sdk_split=628
+internal/web/delete_flow_test.go  now=602  before_sdk_split=602
+main_kimi_test.go  now=599  before_sdk_split=599
+internal/web/static/sidebar.html  now=2896  before_sdk_split=2896

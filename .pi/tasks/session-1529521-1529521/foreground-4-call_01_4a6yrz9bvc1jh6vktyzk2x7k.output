@@ -1,0 +1,67 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"foundry-quota-sentinel/internal/config"
+	"foundry-quota-sentinel/pkg/sdk/auth"
+	"foundry-quota-sentinel/pkg/sdk/providers/commandcode"
+	"foundry-quota-sentinel/pkg/sdk/providers/deepseek"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
+	"foundry-quota-sentinel/pkg/sdk/providers/ollama"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
+)
+
+func cmdLoginOpenCode() {
+	name := ""
+	if len(os.Args) > 2 {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入你的 workspace 用量页…")
+	validate := func(cookie, wsid string) bool {
+		q := &opencode.OpenCodeQuerier{Cookie: cookie, WorkspaceID: wsid}
+		_, err := q.FetchQuota()
+		return err == nil
+	}
+	cookie, wsid, err := auth.RunOpenCodeLogin(validate)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "登录失败: %v\n", err)
+		os.Exit(1)
+	}
+	if name == "" {
+		name = "OpenCode"
+	}
+	if err := config.Mutate(func(c *config.Config) error {
+		c.AddProfile(name, config.Profile{Cookie: cookie, WorkspaceID: wsid})
+		c.ActiveProfile = name
+		return nil
+=== help.html ===
+<p>从发布页下载 <code>foundry-quota-sentinel.exe</code>，放到任意文件夹。<span class=en>Download the latest release from GitHub.</span></p>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>2</div>
+<div class=step-b>
+<h3>配置凭证 <span class=en>Set up credentials</span></h3>
+<p>打开终端（CMD），运行配置向导：<span class=en>Open a terminal and run the setup wizard.</span></p>
+<pre>foundry-quota-sentinel config init</pre>
+<p>按提示输入以下信息。DeepSeek Key 可不填（余额功能不可用）。<span class=en>Follow the prompts. DeepSeek key is optional.</span></p>
+<table>
+<tr><th>项目</th><th>获取方式</th></tr>
+<tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
+<tr><td>Workspace ID</td><td><code>wrk_xxx</code> 格式，从浏览器 URL 中获取</td></tr>
+<tr><td>DeepSeek API Key</td><td>（可选）platform.deepseek.com API Keys 页面</td></tr>
+</table>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>3</div>
+<div class=step-b>
+<h3>双击运行 <span class=en>Double-click to launch</span></h3>
+<p>直接双击 <code>foundry-quota-sentinel.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>foundry-quota-sentinel serve --sidebar</code> 或 <code>foundry-quota-sentinel quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>

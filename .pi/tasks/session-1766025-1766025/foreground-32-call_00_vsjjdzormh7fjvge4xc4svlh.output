@@ -1,0 +1,52 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"foundry-quota-sentinel/internal/config"
+)
+
+var currencySymbols = map[string]string{"CNY": "¥", "USD": "$", "EUR": "€", "JPY": "¥", "GBP": "£"}
+var cfg *config.Config
+
+var version = "0.11.1"
+
+func init() { cfg = config.Load() }
+
+func currencySymbol(code string) string {
+	if s, ok := currencySymbols[code]; ok {
+		return s
+	}
+	return code + " "
+}
+
+func homeDir() string { h, _ := os.UserHomeDir(); return h }
+
+func mask(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:4] + "****" + s[len(s)-4:]
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		startSidebar()
+		return
+	}
+	switch os.Args[1] {
+	case "quota":
+=== find build tags ===
+./main_locktest_nogui_test.go:1://go:build nogui
+./pkg/sdk/store/flock_unix.go:1://go:build !windows
+./pkg/sdk/store/flock_windows.go:1://go:build windows
+./main_locktest_gui_test.go:1://go:build !nogui
+./internal/sidebar/sidebar_unix.go:1://go:build (darwin || linux) && !nogui
+./internal/sidebar/sidebar_nogui.go:1://go:build nogui || (!windows && !darwin && !linux)
+./internal/sidebar/sidebar_windows.go:1://go:build windows && !nogui
+./internal/web/openlog_release.go:1://go:build !debuglog
+./internal/web/openlog_debug.go:1://go:build debuglog
+=== devlog ===
+ocgt-monitor.md

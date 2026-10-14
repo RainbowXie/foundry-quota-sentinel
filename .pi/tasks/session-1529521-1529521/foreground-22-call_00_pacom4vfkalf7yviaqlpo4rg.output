@@ -1,0 +1,21 @@
+			Path:     "/",
+			Secure:   true,
+			HTTPOnly: true,
+		})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("OpenCode 登录状态无效")
+	}
+	return out, nil
+}
+
+func validateOpenCodePageURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("OpenCode 账户页地址无效: %w", err)
+	}
+	if u.Scheme != "https" || !browserauth.CookieDomainMatches(u.Hostname(), openCodeHost) {
+		return fmt.Errorf("OpenCode 账户页地址无效")
+	}
+	return nil
+}

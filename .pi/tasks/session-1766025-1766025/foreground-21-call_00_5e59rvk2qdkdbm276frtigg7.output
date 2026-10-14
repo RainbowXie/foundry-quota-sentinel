@@ -1,0 +1,111 @@
+=== 2026-07-31-add-kimi-code-provider/ ===
+### Modified Capabilities
+
+None.
+
+## Impact
+
+- Configuration and provider dispatch in `internal/config` and `main.go`.
+--- delta headers ---
+## ADDED Requirements
+=== 2026-07-31-fix-kimi-card-layout/ ===
+### Modified Capabilities
+
+None. The underlying `kimi-code-provider` capability remains in its existing active change and is not synced or archived by this proposal.
+
+## Impact
+
+- Kimi-specific sidebar card markup, styles, and obsolete booster-action wiring in `internal/sidebar`.
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-01-unify-quota-card-template/ ===
+### Modified Capabilities
+
+- `kimi-card-presentation`: Replace Kimi's absolute reset-date presentation with shared compact relative durations while preserving its decimal percentages, exact Rolling/Weekly/Monthly mapping, truthful Monthly fill, and Kimi/Code breakdown.
+
+## Impact
+
+- Shared quota-card shell/row rendering functions and CSS design tokens in `internal/web/static/sidebar.html`; provider adapters and typed extension content for OpenCode Go, Ollama, and Kimi replace only duplicated common markup.
+--- delta headers ---
+## ADDED Requirements
+## MODIFIED Requirements
+=== 2026-08-03-delete-failure-surfacing/ ===
+### Modified Capabilities
+
+None — the behavior is a frontend-only interaction-state fix; no existing
+spec-level requirement changes (the archived change explicitly kept delete
+wiring "unchanged" as a non-goal, so this is a new capability).
+
+## Impact
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-03-stabilize-opencode-quota-refresh/ ===
+### Modified Capabilities
+
+None.
+
+## Impact
+
+- `internal/quota/opencode.go` and new focused tests: replace the exact whole-object regex assumption with a structured, bounded parser for the three quota windows.
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-19-deepseek-nav1-early-reload/ ===
+### Modified Capabilities
+
+（无）
+
+## Impact
+
+- `internal/sidebar/login_deepseek.go`：`runDeepSeekPage` 的 nav1 等待路径、
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-20-card-shell-first-async-load/ ===
+### Modified Capabilities
+
+- `sidebar-refresh-scheduling`: 新增"卡片壳先行、配额异步回填"的渲染
+  时机要求——卡片壳渲染不得依赖配额请求结算，配额回填仍受单飞与
+  30s 调度约束
+
+## Impact
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-25-add-commandcode-provider/ ===
+### Modified Capabilities
+
+- `provider-account-selector`: 添加卡片选择器新增 commandcode 选项
+- `sidebar-refresh-scheduling`: 将 commandcode 纳入 per-provider 单飞
+  与 30s 调度、卡片壳先行渲染
+
+## Impact
+--- delta headers ---
+## ADDED Requirements
+=== 2026-08-25-opencode-exhausted-status/ ===
+### Modified Capabilities
+
+- `opencode-quota-response-parsing`: `fails closed on unsupported data`
+  的语义收窄为"字段结构 fail-closed"；`status` 值不再作为 fail-closed
+  依据，任何非空枚举串均可解析渲染。其余需求不变
+
+## Impact
+--- delta headers ---
+## MODIFIED Requirements
+=== 2026-08-25-refresh-keep-stale-data/ ===
+### Modified Capabilities
+
+- `sidebar-refresh-scheduling`: 新增"刷新期间保留旧数据（stale-while-refresh）"要求——壳仅用于无数据态；已有数据的刷新不得回退为加载中
+
+## Impact
+
+- `internal/web/static/sidebar.html`：`renderProviderShells` 的守卫逻辑、`fetchXxxShells` 与 fill 的衔接
+--- delta headers ---
+## ADDED Requirements
+=== 2026-09-02-fix-commandcode-account-page-cookie-domain/ ===
+### Modified Capabilities
+- `commandcode-provider`: Ensure injected cookies for the account page use the `.commandcode.ai` apex domain so cross-origin API calls to `api.commandcode.ai` are authenticated.
+
+## Impact
+
+- `internal/sidebar/login_commandcode.go`: Cookie domain restored with `Domain: ".commandcode.ai"` in `commandCodeSavedCookies`.
+- `internal/sidebar/login_commandcode_test.go`: Update unit test assertions to verify `Domain: ".commandcode.ai"`.
+--- delta headers ---
+## MODIFIED Requirements

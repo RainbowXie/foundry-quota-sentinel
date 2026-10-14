@@ -1,0 +1,13 @@
+$
+<div class=card>$
+<pre style="border:none;padding:0;margin:0;background:transparent;font-size:13px;line-height:2.2;color:var(--text-sec)">$
+<span class=c style=color:var(--text-ter)>M-fM-^UM-0M-fM-^MM-.M-fM-^]M-%M-fM-:M-^P</span>$
+OpenCode Go RPC (/_server)     &rarr;  quota    // M-eM-%M-^WM-iM-$M-^PM-iM-"M-^]M-eM-:M-&$
+DeepSeek API (/user/balance)   &rarr;  balance  // M-hM-4M-&M-fM-^HM-7M-dM-=M-^YM-iM-"M-^]$
+ocgt JSONL M-fM-^WM-%M-eM-?M-^WM-fM-^VM-^GM-dM-;M-6             &rarr;  history  // Token M-fM-6M-^HM-hM-^@M-^WM-eM-^NM-^FM-eM-^OM-2$
+$
+<span class=c style=color:var(--text-ter)>M-dM-=M-?M-gM-^TM-(M-fM-(M-!M-eM-<M-^O</span>$
+CLI   &rarr;  <code style=font-size:12px>foundry-quota-sentinel quota|balance|history</code>$
+Web   &rarr;  <code style=font-size:12px>foundry-quota-sentinel serve</code>        &rarr;  http://127.0.0.1:8788$
+Panel &rarr;  <code style=font-size:12px>M-eM-^OM-^LM-eM-^GM-; exe</code> M-fM-^HM-^V <code style=font-size:12px>serve --sidebar</code>  &rarr;  WebView2</pre>$
+</div>$

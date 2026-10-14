@@ -1,0 +1,36 @@
+// consoleResetInSec 计算距重置的剩余秒数：已过期或未开始计时一律归零，
+// 避免下游把负值当成“刚刚重置”以外的含义。
+func consoleResetInSec(resetsAt *string, label string, allowNull bool, now time.Time) (int, error) {
+	if resetsAt == nil {
+		if !allowNull {
+			return 0, fmt.Errorf("%s resetsAt is required", label)
+		}
+		return 0, nil
+	}
+	ts, err := time.Parse(time.RFC3339, strings.TrimSpace(*resetsAt))
+	if err != nil {
+		return 0, fmt.Errorf("%s resetsAt is not a valid RFC3339 timestamp", label)
+	}
+	remaining := ts.Sub(now).Seconds()
+	if remaining < 0 {
+		return 0, nil
+	}
+	return int(remaining), nil
+}
+
+// parseMicroCents 解析微美分额度。上游以 BigInt 的十进制字符串传输该值，
+// 因此先取出原始 token 再严格按十进制非负整数解析：拒绝负号、小数、科学计数法、
+// 空值与 null。宽松解析（例如先转 float64）会把超界金额静默截断成错误的配额。
+func parseMicroCents(raw json.RawMessage) (uint64, error) {
+=== 386 run (expect FAIL) ===
+--- FAIL: TestParseQuotaResponseConsoleClampsFarFutureResetsAt (0.00s)
+    parser_console_test.go:183: rolling ResetInSec = -1139293697, want clamp to math.MaxInt32 (2147483647)
+FAIL
+FAIL	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.003s
+FAIL
+=== restored ===
+ pkg/sdk/auth/opencode.go                          | 18 ++++++++++---
+ pkg/sdk/auth/opencode_test.go                     | 33 +++++++++++++++++++++++
+ pkg/sdk/providers/opencode/parser_console.go      |  9 +++++--
+ pkg/sdk/providers/opencode/parser_console_test.go | 22 +++++++++++++++
+ 4 files changed, 76 insertions(+), 6 deletions(-)

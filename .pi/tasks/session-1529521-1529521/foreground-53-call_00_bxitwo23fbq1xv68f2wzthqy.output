@@ -1,0 +1,5 @@
+--- old stale guidance (expect none) ---
+0
+--- new guidance present ---
+ /console/<orgId|wrkId>/go 
+--- monthly text ---

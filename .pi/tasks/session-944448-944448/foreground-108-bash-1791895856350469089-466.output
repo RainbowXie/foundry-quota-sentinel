@@ -1,0 +1,35 @@
+ethan@172.22.22.138 {'domain': 'WORKGROUP', 'protocol': 'smb', 'server': '172.22.22.138', 'user': 'ethan', 'xdg:schema': 'org.gnome.keyring.NetworkPassword'}
+Chromium Safe Storage {'application': 'Antigravity Manager', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+Remmina: 客户业务服务器 - password {'filename': '/home/ethan/.local/share/remmina/group_ssh_客户业务服务器_38-54-119-84.remmina', 'key': 'password', 'xdg:schema': 'org.remmina.Password'}
+Chromium Safe Storage {'application': 'obsidian', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+zed-github-account {'url': 'https://api.xiaomimimo.com/v1', 'username': 'Bearer', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Password for 'RainbowXie' on 'gh:github.com' {'service': 'gh:github.com', 'username': 'RainbowXie', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+zed-github-account {'url': 'https://zed.dev', 'username': '431569', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+zed-github-account {'url': 'http://192.168.8.234:8045/v1', 'username': 'Bearer', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Chromium Safe Storage {'application': 'draw.io', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+IntelliJ Platform GitHub — 1ae6e0ea-d1d8-4478-a2ca-a305c96c8664 {'account': '1ae6e0ea-d1d8-4478-a2ca-a305c96c8664', 'service': 'IntelliJ Platform GitHub — 1ae6e0ea-d1d8-4478-a2ca-a305c96c8664', 'xdg:schema': 'com.intellij.credentialStore.Credential'}
+ethan@192.168.192.192 {'domain': 'WORKGROUP', 'protocol': 'smb', 'server': '192.168.192.192', 'user': 'ethan', 'xdg:schema': 'org.gnome.keyring.NetworkPassword'}
+Password for '' on 'gh:github.com' {'service': 'gh:github.com', 'username': '', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+zed-github-account {'url': 'http://127.0.0.1:8317', 'username': 'Bearer', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Remmina: HKLite-One - password {'filename': '/home/ethan/.local/share/remmina/group_ssh_hklite-one_45-196-235-204.remmina', 'key': 'password', 'xdg:schema': 'org.remmina.Password'}
+Remmina: 客户测试路由服务器2 - password {'filename': '/home/ethan/.local/share/remmina/group_ssh_客户测试路由服务器2_38-54-16-235.remmina', 'key': 'password', 'xdg:schema': 'org.remmina.Password'}
+ {'app_id': 'org.chromium.Chromium', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+IntelliJ Platform Google Login Credential Storage — doducan843@gmail.com_studio_google_login_refresh_token_key {'account': 'doducan843@gmail.com_studio_google_login_refresh_token_key', 'service': 'IntelliJ Platform Google Login Credential Storage — doducan843@gmail.com_studio_google_login_refresh_token_key', 'xdg:schema': 'com.intellij.credentialStore.Credential'}
+ethan@192.168.123.239 {'domain': 'WORKGROUP', 'protocol': 'smb', 'server': '192.168.123.239', 'user': 'ethan', 'xdg:schema': 'org.gnome.keyring.NetworkPassword'}
+Password for 'noah-anderson4327' on 'gh:github.com' {'service': 'gh:github.com', 'username': 'noah-anderson4327', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Chromium Safe Storage {'application': 'Code', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+Remmina: 客户测试路由服务器 - password {'filename': '/home/ethan/.local/share/remmina/group_ssh_客户测试路由服务器_38-60-198-86.remmina', 'key': 'password', 'xdg:schema': 'org.remmina.Password'}
+Chromium Safe Storage {'application': 'chromium', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+secrets@goose:default (keyring v3.6.3) {'application': 'rust-keyring', 'service': 'goose', 'target': 'default', 'username': 'secrets', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+zed-github-account {'url': 'http://127.0.0.1:8317/v1', 'username': 'Bearer', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Chromium Safe Storage {'application': 'Antigravity', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}
+Password for 'antigravity' on 'gemini' {'service': 'gemini', 'username': 'antigravity', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+ethan@ethan-dynabook-tecra-x40-f.local {'domain': 'WORKGROUP', 'protocol': 'smb', 'server': 'ethan-dynabook-tecra-x40-f.local', 'user': 'ethan', 'xdg:schema': 'org.gnome.keyring.NetworkPassword'}
+AntigravityManager/MasterKey {'account': 'MasterKey', 'service': 'AntigravityManager', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+IntelliJ Platform GitHub — c1c76ae3-4586-4e7f-8428-48719d3b6666 {'account': 'c1c76ae3-4586-4e7f-8428-48719d3b6666', 'service': 'IntelliJ Platform GitHub — c1c76ae3-4586-4e7f-8428-48719d3b6666', 'xdg:schema': 'com.intellij.credentialStore.Credential'}
+Remmina: 快速连接 - password {'filename': '/home/ethan/.local/share/remmina/user_sg_ssh_快速连接_38-54-50-188.remmina', 'key': 'password', 'xdg:schema': 'org.remmina.Password'}
+ {'app_id': '', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+ {'app_id': 'io', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+Chrome Safe Storage Control {'explanation': 'Because of quirks in the gnome libsecret API, Chrome needs to store a dummy entry to guarantee that this keyring was properly unlocked. More details at http://crbug.com/660005.', 'xdg:schema': '_chrome_dummy_schema_for_unlocking'}
+zed-github-account {'url': '', 'username': 'Bearer', 'xdg:schema': 'org.freedesktop.Secret.Generic'}
+ethan@100.107.133.118 {'domain': 'WORKGROUP', 'protocol': 'smb', 'server': '100.107.133.118', 'user': 'ethan', 'xdg:schema': 'org.gnome.keyring.NetworkPassword'}

@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Fri, 09 Oct 2026 02:15:11 GMT
+content-type: text/javascript
+location: /auth/authorize
+set-cookie: auth=Fe26.2**1d82d550d069a18f825bbf99914b97d0b24f6a45bac7a3c997ee910d85fd4406*M5Y9l93NByzHidEauJI5cg*NHivjC3kxnliewQDqjaAacnUJK45nY7t0UCE_8taoOCdQn_uJFE7NAUDoTc9AyV_QHrWham1Q-65_PhJso-EVaoqV7VAC71wd-Kjo-Ytr0Lv7ujNhIHSyXinojBet_xb*1823048111054*07195ddd650d87f719c3baa76b9b9373621dabc66db051670271727fb653924a*f_SlD5q-oJhQIS9QV0n95HbIvCKunCXJXxGOHL9iI7o; Path=/; Expires=Sat, 09 Oct 2027 02:15:11 GMT; HttpOnly
+set-cookie: auth=Fe26.2**1d82d550d069a18f825bbf99914b97d0b24f6a45bac7a3c997ee910d85fd4406*M5Y9l93NByzHidEauJI5cg*NHivjC3kxnliewQDqjaAacnUJK45nY7t0UCE_8taoOCdQn_uJFE7NAUDoTc9AyV_QHrWham1Q-65_PhJso-EVaoqV7VAC71wd-Kjo-Ytr0Lv7ujNhIHSyXinojBet_xb*1823048111054*07195ddd650d87f719c3baa76b9b9373621dabc66db051670271727fb653924a*f_SlD5q-oJhQIS9QV0n95HbIvCKunCXJXxGOHL9iI7o; Path=/; Expires=Sat, 09 Oct 2027 02:15:11 GMT; HttpOnly
+cf-placement: remote-ORD
+x-error: true
+server: cloudflare
+cf-ray: a479e045db8019bd-LAX
+
+;0x000000c9;((self.$R=self.$R||{})["server-fn:3"]=[],($R=>$R[0]=new Response(null,$R[1]={headers:$R[2]=new Headers($R[3]=[$R[4]=["location","/auth/authorize"]]),status:302,statusText:"Found"}))($R["server-fn:3"]))

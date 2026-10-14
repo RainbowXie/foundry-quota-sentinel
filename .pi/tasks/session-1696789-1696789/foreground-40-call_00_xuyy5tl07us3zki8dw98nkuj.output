@@ -1,0 +1,26 @@
+变更：4 个文件，23 个符号
+受影响流程：3
+风险等级：medium
+
+已变更符号：
+  Symbol quota-sdk-go → pkg/sdk/README.md
+  Symbol 包结构 → pkg/sdk/README.md
+  Symbol openCodeCookieHeader → pkg/sdk/auth/opencode.go
+  Symbol openCodeWorkspaceID → pkg/sdk/auth/opencode.go
+  Symbol runOpenCodePage → pkg/sdk/auth/opencode.go
+  Symbol filterOpenCodeCookies → pkg/sdk/auth/opencode.go
+  Symbol openCodeCookieValueSafe → pkg/sdk/auth/opencode.go
+  Symbol openCodeSavedCookies → pkg/sdk/auth/opencode.go
+  Symbol openCodeCDP → pkg/sdk/auth/opencode.go
+  Symbol BrowserCookies → pkg/sdk/auth/opencode.go
+  Symbol PageURL → pkg/sdk/auth/opencode.go
+  Symbol fakeOpenCodeCDP → pkg/sdk/auth/opencode_test.go
+  Symbol browser → pkg/sdk/auth/opencode_test.go
+  Symbol cookieHeader → pkg/sdk/auth/opencode_test.go
+  Symbol workspaceID → pkg/sdk/auth/opencode_test.go
+... 以及另外 8 个
+
+受影响执行流程：
+  • CmdOpenPage → Cookie (4 步) — 已变更：openCodeSavedCookies
+  • RunOpenCodeLogin → OnClose (3 步) — 已变更：Close
+  • RunOpenCodePage → OnClose (3 步) — 已变更：runOpenCodePage, Close

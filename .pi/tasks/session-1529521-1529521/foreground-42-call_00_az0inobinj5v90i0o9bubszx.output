@@ -1,0 +1,48 @@
+210 /tmp/fix-backup.patch
+保存工作目录和索引状态 WIP on master: 1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+--- running new tests against pre-fix source ---
+--- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/bare_identifier (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/pasted_console_url (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/prefix_without_body (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/hyphenated_body (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/leading_whitespace (0.00s)
+    --- FAIL: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/unexpected_prefix (0.00s)
+--- FAIL: TestParseQuotaResponseNonSerovalNullIsNotLapsed (0.00s)
+    --- FAIL: TestParseQuotaResponseNonSerovalNullIsNotLapsed/truncated_console_json_mentioning_null (0.00s)
+    --- FAIL: TestParseQuotaResponseNonSerovalNullIsNotLapsed/bom_prefixed_console_body (0.00s)
+    --- FAIL: TestParseQuotaResponseNonSerovalNullIsNotLapsed/html_interstitial_mentioning_null (0.00s)
+FAIL
+FAIL	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.005s
+--- FAIL: TestFormatOpenCodeTableAbsentMonthlyIsNotUnlimited (0.00s)
+FAIL
+FAIL	foundry-quota-sentinel/internal/formatter	0.004s
+FAIL
+=== restoring ===
+位于分支 master
+尚未暂存以备提交的变更：
+  （使用 "git add <文件>..." 更新要提交的内容）
+  （使用 "git restore <文件>..." 丢弃工作区的改动）
+	修改：     cmd_config.go
+	修改：     cmd_login.go
+	修改：     cmd_quota.go
+	修改：     internal/formatter/table.go
+	修改：     internal/web/static/help.html
+	修改：     pkg/sdk/providers/opencode/client.go
+	修改：     pkg/sdk/providers/opencode/client_test.go
+	修改：     pkg/sdk/providers/opencode/parser.go
+	修改：     pkg/sdk/providers/opencode/parser_test.go
+
+未跟踪的文件:
+  （使用 "git add <文件>..." 以包含要提交的内容）
+	.agents/
+	.claude/
+	.codex/
+	.endless-supervisor/
+	.pi/
+	AGENTS.md
+	CLAUDE.md
+	internal/formatter/table_test.go
+
+修改尚未加入提交（使用 "git add" 和/或 "git commit -a"）
+丢弃了 refs/stash@{0}（3a1032eb49ed998c12bc5bdf996e2e99d283713d）

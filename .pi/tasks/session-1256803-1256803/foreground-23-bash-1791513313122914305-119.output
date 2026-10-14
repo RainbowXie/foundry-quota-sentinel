@@ -1,0 +1,4 @@
+- Creating change 'update-opencode-console-v2' with schema 'spec-driven'...
+Created change 'update-opencode-console-v2' at openspec/changes/update-opencode-console-v2/
+Schema: spec-driven
+Next: openspec status --change update-opencode-console-v2

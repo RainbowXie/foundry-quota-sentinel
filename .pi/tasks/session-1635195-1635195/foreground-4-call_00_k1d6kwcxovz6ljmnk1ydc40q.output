@@ -1,0 +1,156 @@
+60:	unavailable := QuotaUsage{Status: "unavailable", ResetDisplay: formatDurationCompact(0)}
+61-	return &QuotaData{
+62-		Rolling:   unavailable,
+63-		Weekly:    unavailable,
+64-		Lapsed:    true,
+65-		FetchedAt: time.Now(),
+66-	}
+67-}
+68-
+69-func extractUsageWindow(text, windowName string, required bool) (*QuotaUsage, error) {
+70-	objects, err := findAllUsageObjects(text, windowName)
+71-	if err != nil {
+72-		return nil, err
+73-	}
+74-	if len(objects) == 0 {
+75-		if required {
+76-			return nil, fmt.Errorf("failed to parse %s", windowName)
+77-		}
+78-		return nil, nil
+79-	}
+80-	usage, err := parseUsageObject(objects[0])
+81-	if err != nil {
+82-		return nil, fmt.Errorf("failed to parse %s: %w", windowName, err)
+83-	}
+84-	return &usage, nil
+85-}
+86-
+87-func findAllUsageObjects(text, windowName string) ([]string, error) {
+88-	var out []string
+89-	inString := false
+90-	escaped := false
+--
+263:		ResetDisplay: formatDurationCompact(resetInSec),
+264-	}, nil
+265-}
+266-
+267-func splitTopLevelFields(s string) []string {
+268-	var fields []string
+269-	depth := 0
+270-	inString := false
+271-	escaped := false
+272-	start := 0
+273-	for i := 0; i < len(s); i++ {
+274-		c := s[i]
+275-		if inString {
+276-			if escaped {
+277-				escaped = false
+278-			} else if c == '\\' {
+279-				escaped = true
+280-			} else if c == '"' {
+281-				inString = false
+282-			}
+283-			continue
+284-		}
+285-		switch c {
+286-		case '"':
+287-			inString = true
+288-		case '{':
+289-			depth++
+290-		case '}':
+=== cmd_page ===
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+
+	"foundry-quota-sentinel/internal/config"
+	"foundry-quota-sentinel/internal/web"
+	"foundry-quota-sentinel/pkg/sdk/auth"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
+)
+
+func deleteAccountFromConfig(provider, name string) error {
+	return config.Mutate(func(c *config.Config) error {
+		switch provider {
+		case "opencode":
+			return c.DeleteProfile(name)
+		case "deepseek":
+			return c.DeleteDeepSeekAccount(name)
+		case "ollama":
+			return c.DeleteOllamaAccount(name)
+		case "kimi":
+			return c.DeleteKimiAccount(name)
+		case "commandcode":
+			return c.DeleteCommandCodeAccount(name)
+		default:
+			return fmt.Errorf("未知 provider: %s", provider)
+		}
+	})
+}
+
+func latestKimiAccount(name string) (config.KimiAccount, bool) {
+	for _, a := range config.Load().KimiAccounts {
+		if a.Name == name {
+			return a, true
+		}
+	}
+	return config.KimiAccount{}, false
+}
+
+var kimiReplayRefresh = func(acc *config.KimiAccount) (*kimi.RefreshResult, error) {
+	q := &kimi.KimiQuerier{
+		AccessToken:  acc.Auth.AccessToken(),
+		RefreshToken: acc.Auth.RefreshToken(),
+		Headers:      kimiEnvelopeHeaders(&acc.Auth),
+	}
+	_, rotated, err := q.FetchQuotaWithRefresh(context.Background())
+	return rotated, err
+}
+
+func kimiReplayEnvelope(name string) (string, error) {
+	release, lerr := config.AcquireKimiAccountLock(name)
+	if lerr != nil {
+		return "", fmt.Errorf("Kimi 账户 %q 页面锁失败: %v", name, lerr)
+	}
+	defer release()
+
+	acc, ok := latestKimiAccount(name)
+	if !ok {
+		return "", fmt.Errorf("Kimi 账户 %q 不存在", name)
+	}
+
+	rotated, rerr := kimiReplayRefresh(&acc)
+	if rerr != nil {
+		return "", fmt.Errorf("Kimi 账户 %q 刷新失败: %v", name, rerr)
+	}
+	if rotated != nil {
+		if saveErr := config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken); saveErr != nil {
+			return "", fmt.Errorf("Kimi 账户 %q token 轮换保存失败，请重新登录", name)
+		}
+		acc, ok = latestKimiAccount(name)
+		if !ok {
+			return "", fmt.Errorf("Kimi 账户 %q 已不存在", name)
+		}
+	}
+	envJSON, err := acc.Auth.Encode()
+	if err != nil {
+=== grep WorkspaceRe ===
+./pkg/sdk/auth/opencode_test.go:135:			if got := openCodeWorkspaceID(tt.url); got != tt.want {
+./pkg/sdk/auth/opencode_test.go:143:	if got := openCodeWorkspaceID("https://auth.opencode.ai/console/org_fake123/go"); got != "" {
+./pkg/sdk/auth/opencode.go:21:// openCodeWorkspaceRe 同时匹配 org_ 与 wrk_ 两种标识：Console v2 用组织 ID 路由
+./pkg/sdk/auth/opencode.go:23:var openCodeWorkspaceRe = regexp.MustCompile(`(?:org|wrk)_[a-zA-Z0-9]+`)
+./pkg/sdk/auth/opencode.go:50:func openCodeWorkspaceID(rawURL string) string {
+./pkg/sdk/auth/opencode.go:58:	return openCodeWorkspaceRe.FindString(u.Path)
+./pkg/sdk/auth/opencode.go:193:		wsid := openCodeWorkspaceID(pageURL)
+./build/quota-sdk-go/auth/opencode_test.go:135:			if got := openCodeWorkspaceID(tt.url); got != tt.want {
+./build/quota-sdk-go/auth/opencode_test.go:143:	if got := openCodeWorkspaceID("https://auth.opencode.ai/console/org_fake123/go"); got != "" {
+./build/quota-sdk-go/auth/opencode.go:21:// openCodeWorkspaceRe 同时匹配 org_ 与 wrk_ 两种标识：Console v2 用组织 ID 路由
+./build/quota-sdk-go/auth/opencode.go:23:var openCodeWorkspaceRe = regexp.MustCompile(`(?:org|wrk)_[a-zA-Z0-9]+`)
+./build/quota-sdk-go/auth/opencode.go:50:func openCodeWorkspaceID(rawURL string) string {
+./build/quota-sdk-go/auth/opencode.go:58:	return openCodeWorkspaceRe.FindString(u.Path)
+./build/quota-sdk-go/auth/opencode.go:193:		wsid := openCodeWorkspaceID(pageURL)

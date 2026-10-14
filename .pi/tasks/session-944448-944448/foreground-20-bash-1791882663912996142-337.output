@@ -1,0 +1,41 @@
+1344-                    '<span class="qp ' + bc + '">' + pctStr + '</span>' +
+1345-                    '<span class="qtm">' + resetStr + '</span>' +
+1346-                    '</div>';
+1347-
+1348-                // Render row details (typed extension slot for Kimi/Code breakdown, etc.)
+1349-                if (row.details && row.details.length > 0) {
+1350-                    html += '<div class="qr qrd">';
+1351-                    for (var i = 0; i < row.details.length; i++) {
+1352-                        var d = row.details[i];
+1353-                        if (!d) continue;
+1354-                        html += '<span class="qrd-' + qesc(String(d.label || "").toLowerCase()) + '">' +
+1355-                            qesc(d.label || "") + ' ' + qesc(d.value || "") + '</span>';
+1356-                    }
+1357-                    html += '</div>';
+1358-                }
+1359-                return html;
+1360-            }
+1361-
+1362-            // renderQuotaCard renders a complete quota card from the shared view model.
+1363-            // Task 2.2: Shared shell/header, error region, ordered rows, extension slots.
+1364:            function renderQuotaCard(view) {
+1365-                var body;
+1366-                if (!view.success) {
+1367-                    // Error state with optional action: rendered as a real
+1368-                    // <button> so the re-login affordance is keyboard-
+1369-                    // focusable (a span is not). The shared .qact class
+1370-                    // provides unified styling; the declared class (e.g.
+1371-                    // kimiLogin/olLogin) is retained for per-container
+1372-                    // delegated dispatch.
+1373-                    body = '<div class="qerr">' + qesc(view.error || "查询失败") + '</div>';
+1374-                    if (view.errorAction) {
+1375-                        body += '<div class="bc-d"><button type="button" class="qact ' + qesc(view.errorAction.class || "") +
+1376-                            '" data-action="relogin" data-name="' + qesc(view.accountName) + '">' +
+1377-                            qesc(view.errorAction.label) + '</button></div>';
+1378-                    }
+1379-                } else {
+1380-                    // Success state: render ordered rows
+1381-                    body = "";
+1382-                    if (view.rows && view.rows.length > 0) {
+1383-                        for (var i = 0; i < view.rows.length; i++) {
+1384-                            body += renderQuotaRow(view.rows[i]);

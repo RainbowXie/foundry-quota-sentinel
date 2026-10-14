@@ -1,0 +1,2 @@
+ethan    2364053  0.0  0.0  13040  3608 ?        Ss   18:02   0:00 bash -c ps aux | grep "login-opencode"
+ethan    2364055  0.0  0.0  12264  2440 ?        S    18:02   0:00 grep login-opencode

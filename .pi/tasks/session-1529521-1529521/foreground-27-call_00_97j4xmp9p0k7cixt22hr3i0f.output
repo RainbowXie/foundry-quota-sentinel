@@ -1,0 +1,6 @@
+./pkg/sdk/providers/commandcode/types.go:20:	Lapsed    bool        `json:"lapsed,omitempty"`
+./pkg/sdk/providers/opencode/parser.go:58:// Rolling/Weekly 标记 unavailable，Monthly 留空，Lapsed 为 true 供 UI 渲染失效卡片。
+./pkg/sdk/providers/opencode/parser.go:64:		Lapsed:    true,
+./pkg/sdk/providers/opencode/types.go:22:	// Lapsed 标记当前账号的订阅已失效（OpenCode 配额 RPC 对失效订阅返回 null）。
+./pkg/sdk/providers/opencode/types.go:23:	Lapsed    bool        `json:"lapsed,omitempty"`
+./pkg/sdk/providers/ollama/types.go:20:	Lapsed    bool        `json:"lapsed,omitempty"`

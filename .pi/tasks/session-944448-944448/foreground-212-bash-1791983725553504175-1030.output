@@ -1,0 +1,171 @@
+diff --git a/cmd_page.go b/cmd_page.go
+index 5ff820c..0222dfb 100644
+--- a/cmd_page.go
++++ b/cmd_page.go
+@@ -139,6 +139,9 @@ func cmdOpenPage() {
+ 			pageErr(fmt.Sprintf("OpenCode 账户 %q 的工作区标识格式非法，请重新登录", name))
+ 		}
+ 		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
++		auth.OpenCodePageSyncSave = func(cookie, wsid string) error {
++			return config.SaveOpenCodeProfile(name, cookie, wsid)
++		}
+ 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {
+ 			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))
+ 		}
+diff --git a/internal/config/config.go b/internal/config/config.go
+index 4766e16..7ac6f37 100644
+--- a/internal/config/config.go
++++ b/internal/config/config.go
+@@ -70,6 +70,14 @@ func SaveWindowSize(w, h int) {
+ 	})
+ }
+ 
++// SaveOpenCodeProfile 原子持久化 OpenCode 账户凭证与 WorkspaceID。
++func SaveOpenCodeProfile(name, cookie, wsid string) error {
++	return Mutate(func(c *Config) error {
++		c.AddProfile(name, Profile{Cookie: cookie, WorkspaceID: wsid})
++		return nil
++	})
++}
++
+ // configPathOverride lets tests redirect the config file to a temp location
+ // without touching the real user config. Empty in production. Guarded by
+ // configPathMu because Load/Save may run concurrently (e.g. window-size save
+diff --git a/internal/web/quota_card_adapter_test.go b/internal/web/quota_card_adapter_test.go
+index 4f2b87f..9a54b1f 100644
+--- a/internal/web/quota_card_adapter_test.go
++++ b/internal/web/quota_card_adapter_test.go
+@@ -46,6 +46,36 @@ func TestOpenCodeGoLapsedSubscriptionRendersNotice(t *testing.T) {
+ 	}
+ }
+ 
++// TestOpenCodeGoErrorWithReLogin proves OpenCode Go error cards render with the
++// "重新登录" action using the shared error action slot (ocLogin).
++func TestOpenCodeGoErrorWithReLogin(t *testing.T) {
++	dto := map[string]any{
++		"name":    "opencode-broken",
++		"success": false,
++		"error":   "opencode API returned HTTP 401",
++	}
++
++	result := runQuotaCardTest(t, map[string]any{
++		"type":    "adapter",
++		"adapter": "opencode",
++		"dto":     dto,
++	})
++
++	if !strings.Contains(result, `class="qerr"`) {
++		t.Error("OpenCode error card must have .qerr element")
++	}
++	if !strings.Contains(result, "opencode API returned HTTP 401") {
++		t.Error("OpenCode error card must display error message")
++	}
++
++	if !strings.Contains(result, "ocLogin") {
++		t.Error("OpenCode error card must have ocLogin action button")
++	}
++	if !strings.Contains(result, "重新登录") {
++		t.Error("OpenCode error card must have '重新登录' button text")
++	}
++}
++
+ // TestOpenCodeGoCardStructure proves the OpenCode Go card uses the shared
+ // foundation structure with Rolling, Weekly, and optional Monthly rows.
+ func TestOpenCodeGoCardStructure(t *testing.T) {
+diff --git a/internal/web/static/sidebar.html b/internal/web/static/sidebar.html
+index 8e74cd7..33cbba2 100644
+--- a/internal/web/static/sidebar.html
++++ b/internal/web/static/sidebar.html
+@@ -574,6 +574,7 @@
+             /* Provider-specific action classes: delegation hooks only; the
+                shared .qact styles apply to both. */
+             .kimiLogin,
++            .ocLogin,
+             .olLogin {
+                 color: var(--text-sec);
+             }
+@@ -1434,7 +1435,9 @@
+                     error: a.error,
+                     rows: []
+                 };
+-                if (a.success && a.quota) {
++                if (!a.success) {
++                    view.errorAction = { label: "重新登录", class: "ocLogin" };
++                } else if (a.quota) {
+                     var d = a.quota;
+                     // Lapsed subscription (OBSERVED 2026-08-19): the quota
+                     // RPC returns null → backend marks QuotaData.lapsed.
+@@ -2475,6 +2478,13 @@
+                         fo, name, 1000, 250);
+                 });
+             }
++            document
++                .getElementById("accountCards")
++                .addEventListener("click", function (e) {
++                    var t = e.target;
++                    if (t.classList.contains("ocLogin"))
++                        ocDoLogin(t.getAttribute("data-name"));
++                });
+             document
+                 .getElementById("dsCards")
+                 .addEventListener("click", function (e) {
+diff --git a/pkg/sdk/auth/opencode.go b/pkg/sdk/auth/opencode.go
+index 6d81b7e..7635d7a 100644
+--- a/pkg/sdk/auth/opencode.go
++++ b/pkg/sdk/auth/opencode.go
+@@ -180,6 +180,9 @@ func RunOpenCodeLogin(validate func(cookie, wsid string) bool) (string, string,
+ 	return runOpenCodeLogin(ctx, browser, validate)
+ }
+ 
++// OpenCodePageSyncSave 是 OpenCode 账户页登录态变更持久化回调钩子。
++var OpenCodePageSyncSave func(cookie, wsid string) error
++
+ // RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+ func RunOpenCodePage(pageURL, cookie string) error {
+ 	if err := validateOpenCodePageURL(pageURL); err != nil {
+@@ -300,6 +303,45 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL
+ 	}
+ 	log.Printf("opencode: 账户页导航已发送")
+ 	SignalOpenPageReady()
++
++	if OpenCodePageSyncSave != nil {
++		stopPoll := make(chan struct{})
++		defer close(stopPoll)
++		go func() {
++			ticker := time.NewTicker(1 * time.Second)
++			defer ticker.Stop()
++			for {
++				select {
++				case <-stopPoll:
++					return
++				case <-ticker.C:
++					conn, err := browser.CDP(context.Background())
++					if err != nil {
++						continue
++					}
++					pageURL, _ := conn.PageURL(context.Background(), openCodeHost)
++					curWS := openCodeWorkspaceID(pageURL)
++					cookieList, _ := conn.BrowserCookies(context.Background())
++					curHeader := openCodeCookieHeader(cookieList)
++					_ = conn.Close()
++
++					if curHeader != "" && openCodeConsoleURL(pageURL) {
++						if curWS == "" {
++							if res, rerr := resolveOpenCodeOrgID(curHeader); rerr == nil {
++								curWS = res
++							}
++						}
++						if curWS != "" && (curHeader != openCodeCookieHeader(cookies) || curWS != openCodeWorkspaceID(pageURL)) {
++							if serr := OpenCodePageSyncSave(curHeader, curWS); serr == nil {
++								log.Printf("opencode: 账户页凭证变更已自动同步更新 (workspace %s)", curWS)
++							}
++						}
++					}
++				}
++			}
++		}()
++	}
++
+ 	if err := browser.Wait(); err != nil {
+ 		return fmt.Errorf("OpenCode 账户页浏览器异常退出: %w", err)
+ 	}

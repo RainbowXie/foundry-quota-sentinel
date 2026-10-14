@@ -1,0 +1,36 @@
+2459:            function olDoLogin(name) {
+2460-                fetch(
+2461-                    "/api/ollama/login" +
+2462-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2463-                ).then(function () {
+2464-                    // Same shell-first + fill pattern as OpenCode; fill is
+2465-                    // fo() (single-flight wrapper), so the account-appear
+2466-                    // fill joins a busy periodic refresh instead of
+2467-                    // duplicating it. 250×1s ≈ 5min, aligned with
+2468-                    // dsLoginPoll.
+2469-                    return loginShellPoll(
+2470-                        function () {
+2471-                            return shellFetchForPoll(
+2472-                                "/api/ollama/accounts",
+2473-                                "ollamaCards", "ollama", "Ollama", name);
+2474-                        },
+2475-                        fo, name, 1000, 250);
+2476-                });
+2477-            }
+2478-            document
+2479-                .getElementById("dsCards")
+2480-                .addEventListener("click", function (e) {
+2481-                    var t = e.target;
+2482-                    if (t.classList.contains("dsLogin"))
+2483-                        dsDoLogin(t.getAttribute("data-name"));
+2484-                });
+2485-            document
+2486-                .getElementById("ollamaCards")
+2487-                .addEventListener("click", function (e) {
+2488-                    var t = e.target;
+2489-                    if (t.classList.contains("olLogin"))
+2490-                        olDoLogin(t.getAttribute("data-name"));
+2491-                });
+2492-            document
+2493-                .getElementById("kimiCards")
+2494-                .addEventListener("click", function (e) {

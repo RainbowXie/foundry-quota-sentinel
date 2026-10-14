@@ -1,0 +1,80 @@
+package opencode
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+)
+
+// consoleStatusBody 是一份最小可用的 Console v2 `/go/status` 响应：
+// fiveHour 尚未开始计时（resetsAt 为 null），week 有明确重置时间。
+const consoleStatusBody = `{"subscriberUserId":"user_synthetic","product":"go","renewalProduct":"go","useBalance":false,"cancelAtPeriodEnd":false,"renewalPending":false,"access":{"startsAt":"2099-10-01T00:00:00.000Z","endsAt":"2099-11-01T00:00:00.000Z","meters":{"fiveHour":{"startsAt":null,"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"240000000"},"week":{"startsAt":"2099-10-05T00:00:00.000Z","resetsAt":"2099-10-12T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"600000000"}}}}`
+
+const consoleRFC3339Millis = "2006-01-02T15:04:05.000Z07:00"
+
+// consoleStatusFixture 用签名示例的字段顺序拼装响应体：顶层订阅字段与 access 包装层，
+// 让解析器面对的是与线上抓包同构的输入，而不是被裁剪过的假数据。
+func consoleStatusFixture(access any) string {
+	payload := map[string]any{
+		"subscriberUserId":  "user_synthetic",
+		"product":           "go",
+		"renewalProduct":    "go",
+		"useBalance":        false,
+		"cancelAtPeriodEnd": false,
+		"renewalPending":    false,
+		"access":            access,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
+func consoleMetersFixture(fiveHour, week, month any) map[string]any {
+	meters := map[string]any{"fiveHour": fiveHour, "week": week}
+	if month != nil {
+		meters["month"] = month
+	}
+	return map[string]any{"startsAt": "2099-10-01T00:00:00.000Z", "meters": meters}
+}
+
+// consoleMeterFixture 组装单个 meter；resetsAt 为 nil 时按上游语义写成 JSON null。
+func consoleMeterFixture(resetsAt any, limit, used any) map[string]any {
+	return map[string]any{
+		"startsAt":        "2099-10-01T00:00:00.000Z",
+		"resetsAt":        resetsAt,
+		"limitMicroCents": limit,
+		"usedMicroCents":  used,
+	}
+}
+
+func timePtr(t time.Time) string { return t.UTC().Format(consoleRFC3339Millis) }
+
+// consoleDesignExampleBody 是变更设计文档中记录的原始响应样本（含毫秒级 ISO-8601
+// 时间戳与全部合同字段），作为解析器对上游契约的定盘测试。
+// 断言只取与当前时间无关的事实：固定时间戳下 ResetInSec 会随时间衰减到 0。
+const consoleDesignExampleBody = `{
+  "subscriberUserId": "user_synthetic",
+  "product": "go",
+  "renewalProduct": "go",
+  "useBalance": false,
+  "cancelAtPeriodEnd": false,
+  "renewalPending": false,
+  "access": {
+    "startsAt": "2026-10-01T00:00:00.000Z",
+    "endsAt": "2026-11-01T00:00:00.000Z",
+    "cancelAtPeriodEnd": false,
+    "meters": {
+      "fiveHour": {
+        "startsAt": "2026-10-09T01:00:00.000Z",
+        "resetsAt": "2026-10-09T06:00:00.000Z",
+        "limitMicroCents": "1200000000",
+        "usedMicroCents": "240000000"
+      },
+      "week": {
+        "startsAt": "2026-10-05T00:00:00.000Z",
+        "resetsAt": "2026-10-12T00:00:00.000Z",
+        "limitMicroCents": "3000000000",
+        "usedMicroCents": "600000000"

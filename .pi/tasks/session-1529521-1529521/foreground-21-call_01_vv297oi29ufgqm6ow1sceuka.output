@@ -1,0 +1,3 @@
+internal/config/config.go:13:	WorkspaceID    string `json:"workspace_id,omitempty"`
+internal/config/kimi_test.go:18:		"profiles": {"work": {"cookie": "c", "workspace_id": "wrk_1", "deepseek_api_key": "dk"}},
+internal/config/kimi_test.go:41:	if !strings.Contains(string(out), `"work"`) || !strings.Contains(string(out), `"wrk_1"`) {

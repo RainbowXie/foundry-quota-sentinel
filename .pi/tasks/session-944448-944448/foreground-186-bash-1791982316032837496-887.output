@@ -1,0 +1,31 @@
+internal/web/kimi_card_test.go:158:// rule as the OpenCode Go card container (#accountCards): one shared
+internal/web/kimi_card_test.go:163:	containerRule := regexp.MustCompile(`(?s)([^{}]*#accountCards[^{}]*)\{[^}]*repeat\(auto-fill,\s*minmax\(320px,\s*1fr\)\)`)
+internal/web/kimi_card_test.go:171:	childRule := regexp.MustCompile(`(?s)([^{}]*#accountCards\s*>\s*\*[^{}]*)\{`)
+internal/web/kimi_card_test.go:174:		t.Fatal("shared direct-child margin rule (#accountCards > *) not found")
+internal/web/quota_card_structure_test.go:364:	for _, container := range []string{"#accountCards", "#ollamaCards", "#kimiCards"} {
+internal/web/sidebar_schedule_test.go:138:const containerIds = ["accountCards", "ollamaCards", "kimiCards", "dsCards", "commandCodeCards"];
+internal/web/sidebar_shell_test.go:120:	// The accountCards container must contain a real card (Rolling) at the
+internal/web/sidebar_shell_test.go:124:		if w.ID == "accountCards" {
+internal/web/sidebar_shell_test.go:129:		t.Fatalf("periodic refresh must keep existing card data, last accountCards html = %q", last)
+internal/web/sidebar_shell_test.go:217:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NotWantName: "B", NoLoading: true},
+internal/web/sidebar_shell_test.go:231:		{Op: "checkContainer", ID: "accountCards", WantName: "A", WantName2: "B", NoLoading: true},
+internal/web/sidebar_shell_test.go:236:		if w.ID == "accountCards" && !sawPreFill {
+internal/web/sidebar_shell_test.go:326:		if w.ID == "accountCards" {
+internal/web/sidebar_shell_test.go:354:		if w.ID == "accountCards" {
+internal/web/stale_while_refresh_test.go:33:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NoLoading: true},
+internal/web/stale_while_refresh_test.go:48:		if w.ID != "accountCards" {
+internal/web/stale_while_refresh_test.go:74:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NoLoading: true},
+internal/web/stale_while_refresh_test.go:77:		if w.ID == "accountCards" && strings.Contains(w.HTML, "加载中") {
+internal/web/stale_while_refresh_test.go:103:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NoLoading: false},
+internal/web/stale_while_refresh_test.go:114:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NoLoading: true},
+internal/web/stale_while_refresh_test.go:120:		if w.ID != "accountCards" {
+internal/web/stale_while_refresh_test.go:149:		if w.ID == "accountCards" && strings.Contains(w.HTML, "qerr") {
+internal/web/stale_while_refresh_test.go:174:		{Op: "checkContainer", ID: "accountCards", WantName: "A", NoLoading: true},
+internal/web/stale_while_refresh_test.go:177:		if w.ID == "accountCards" && strings.Contains(w.HTML, "qerr") {
+internal/web/static/sidebar.html:1061:            #accountCards,
+internal/web/static/sidebar.html:1071:            #accountCards > *,
+internal/web/static/sidebar.html:1097:                    <div id="accountCards">
+internal/web/static/sidebar.html:1791:                    renderProviderShells("accountCards", "opencode", "OpenCode Go", r.data);
+internal/web/static/sidebar.html:1805:                    document.getElementById("accountCards").innerHTML = h;
+internal/web/static/sidebar.html:1816:                        document.getElementById("accountCards").innerHTML =
+internal/web/static/sidebar.html:2453:                                    "accountCards", "opencode", "OpenCode Go", name);

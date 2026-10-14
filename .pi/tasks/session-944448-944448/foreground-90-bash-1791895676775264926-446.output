@@ -1,0 +1,5 @@
+X Error of failed request:  BadColor (invalid Colormap parameter)
+  Major opcode of failed request:  91 (X_QueryColors)
+  Resource id in failed request:  0x0
+  Serial number of failed request:  560
+  Current serial number in output stream:  560

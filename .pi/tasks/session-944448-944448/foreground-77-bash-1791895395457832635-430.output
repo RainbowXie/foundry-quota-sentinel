@@ -1,0 +1,4 @@
+pkg/sdk/auth/opencode.go:22:// openCodeWorkspaceRe 只从 Console 工作区路由 `/console/<org_...|wrk_...>[/...]` 中提取标识
+pkg/sdk/auth/opencode.go:25:var openCodeWorkspaceRe = regexp.MustCompile(`^/console/((?:org|wrk)_[a-zA-Z0-9]+)(?:/|$)`)
+pkg/sdk/auth/opencode.go:77:	match := openCodeWorkspaceRe.FindStringSubmatch(u.Path)
+pkg/sdk/auth/opencode.go:375:	match := openCodeWorkspaceRe.FindStringSubmatch(u.Path)

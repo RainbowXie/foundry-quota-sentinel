@@ -1,0 +1,5 @@
+总计 40M
+-rwxrwxr-x 1 ethan ethan  12M 10月  9 12:56 foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan  15M 10月  9 12:56 fqs-cli
+-rwxrwxr-x 1 ethan ethan  15M  9月  7 19:59 fqs-cli-v0.11.2
+drwxrwxr-x 5 ethan ethan 4.0K 10月  9 12:56 quota-sdk-go

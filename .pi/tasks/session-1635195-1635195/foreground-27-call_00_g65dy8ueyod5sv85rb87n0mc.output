@@ -1,0 +1,37 @@
+=== go vet -tags nogui ./... ===
+=== go test -tags nogui ./... ===
+ok  	foundry-quota-sentinel	(cached)
+?   	foundry-quota-sentinel/cmd/cdpprobe	[no test files]
+ok  	foundry-quota-sentinel/internal/config	(cached)
+ok  	foundry-quota-sentinel/internal/formatter	(cached)
+?   	foundry-quota-sentinel/internal/sidebar	[no test files]
+?   	foundry-quota-sentinel/internal/state	[no test files]
+?   	foundry-quota-sentinel/internal/storage	[no test files]
+ok  	foundry-quota-sentinel/internal/web	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)
+=== CGO_ENABLED=0 go test ./pkg/sdk/... ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.309s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.012s
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)
+=== GOARCH=386 go test (32-bit overflow guard) ===
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.015s
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.307s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.088s
+=== line counts ===
+  350 pkg/sdk/auth/opencode.go
+  319 pkg/sdk/auth/opencode_test.go
+  177 pkg/sdk/providers/opencode/parser_console.go
+  364 pkg/sdk/providers/opencode/parser_console_test.go
+ 1210 总计

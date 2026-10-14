@@ -1,0 +1,210 @@
+diff --git a/cmd_config.go b/cmd_config.go
+index 23739a9..5518c04 100644
+--- a/cmd_config.go
++++ b/cmd_config.go
+@@ -191,8 +191,8 @@ func cmdConfigInit() {
+ 	fmt.Println("  [OpenCode Go 凭证]")
+ 	fmt.Println("  从浏览器登录 opencode.ai，F12 -> 应用 -> Cookie 复制完整值")
+ 	p.Cookie = readLineDefault("Cookie（完整cookie字符串）", p.Cookie)
+-	fmt.Println("  从浏览器地址栏 /workspace/<workspaceId>/usage 获取")
+-	p.WorkspaceID = readLineDefault("Workspace ID（wrk_xxx）", p.WorkspaceID)
++	fmt.Println("  从浏览器地址栏 /console/<orgId|wrkId>/go 获取")
++	p.WorkspaceID = readLineDefault("Workspace ID（org_xxx 或 wrk_xxx）", p.WorkspaceID)
+ 	fmt.Println()
+ 	fmt.Println("  [DeepSeek API Key]（可选，仅查余额需要）")
+ 	p.DeepSeekAPIKey = readLineDefault("DeepSeek API Key", p.DeepSeekAPIKey)
+@@ -241,7 +241,7 @@ func cmdConfigAdd() {
+ 	fmt.Print("  Cookie（从 opencode.ai 浏览器获取）: ")
+ 	inputReader.Scan()
+ 	p.Cookie = strings.TrimSpace(inputReader.Text())
+-	fmt.Print("  Workspace ID（wrk_xxx 格式）: ")
++	fmt.Print("  Workspace ID（org_xxx 或 wrk_xxx 格式）: ")
+ 	inputReader.Scan()
+ 	p.WorkspaceID = strings.TrimSpace(inputReader.Text())
+ 	fmt.Println("  [DeepSeek API Key]（可选）")
+diff --git a/cmd_login.go b/cmd_login.go
+index 621de71..93cc345 100644
+--- a/cmd_login.go
++++ b/cmd_login.go
+@@ -20,7 +20,7 @@ func cmdLoginOpenCode() {
+ 	if len(os.Args) > 2 {
+ 		name = strings.TrimSpace(os.Args[2])
+ 	}
+-	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入你的 workspace 用量页…")
++	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入 Go 订阅用量页（/console/go）…")
+ 	validate := func(cookie, wsid string) bool {
+ 		q := &opencode.OpenCodeQuerier{Cookie: cookie, WorkspaceID: wsid}
+ 		_, err := q.FetchQuota()
+diff --git a/cmd_quota.go b/cmd_quota.go
+index ad6ee82..e408c55 100644
+--- a/cmd_quota.go
++++ b/cmd_quota.go
+@@ -120,7 +120,8 @@ func cmdWatch() {
+ 			if qd.Monthly != nil {
+ 				fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
+ 			} else {
+-				fmt.Println("  Monthly: 无限额度")
++				// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
++				fmt.Println("  Monthly: 未提供/无月窗口")
+ 			}
+ 		} else {
+ 			fmt.Printf("\n【套餐额度】查询失败: %v\n", err)
+diff --git a/internal/formatter/table.go b/internal/formatter/table.go
+index c72d97e..43cbd8e 100644
+--- a/internal/formatter/table.go
++++ b/internal/formatter/table.go
+@@ -23,7 +23,9 @@ func FormatOpenCodeTable(data *opencode.QuotaData) string {
+ 	if data.Monthly != nil {
+ 		sb.WriteString(fmt.Sprintf("  Monthly: %s  reset in %s\n", ProgressBar(data.Monthly.UsagePercent, 18), data.Monthly.ResetDisplay))
+ 	} else {
+-		sb.WriteString("  Monthly: 无限额度\n")
++		// Monthly 为空只表示上游没有给出月窗口（v2 的 meters.month 可缺省，旧版 unlimited 也折叠为 nil），
++		// 并不等于“无限额度”，因此不能替上游做这个正向断言。
++		sb.WriteString("  Monthly: 未提供/无月窗口\n")
+ 	}
+ 	sb.WriteString("========================================\n")
+ 	sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))
+diff --git a/internal/web/static/help.html b/internal/web/static/help.html
+index e6554f0..b70ba54 100644
+--- a/internal/web/static/help.html
++++ b/internal/web/static/help.html
+@@ -186,7 +186,7 @@ details table{margin:8px 0}
+ <table>
+ <tr><th>项目</th><th>获取方式</th></tr>
+ <tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
+-<tr><td>Workspace ID</td><td><code>wrk_xxx</code> 格式，从浏览器 URL 中获取</td></tr>
++<tr><td>Workspace ID</td><td><code>org_xxx</code> 或 <code>wrk_xxx</code> 格式，从浏览器 <code>/console/&lt;id&gt;/go</code> 地址栏中获取</td></tr>
+ <tr><td>DeepSeek API Key</td><td>（可选）platform.deepseek.com API Keys 页面</td></tr>
+ </table>
+ </div>
+diff --git a/pkg/sdk/providers/opencode/client.go b/pkg/sdk/providers/opencode/client.go
+index 61cb46c..b25e610 100644
+--- a/pkg/sdk/providers/opencode/client.go
++++ b/pkg/sdk/providers/opencode/client.go
+@@ -125,5 +125,10 @@ func (q *OpenCodeQuerier) validate() error {
+ 	if q.WorkspaceID == "" {
+ 		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID not set")
+ 	}
++	// 配置/环境变量里的 ID 同样要走白名单：它会被写进 x-org-id 并拼进账户页 URL，
++	// 不能只校验 /console/api/orgs 的响应，否则手工粘贴的 URL 会被原样发往上游。
++	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
++		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID 格式非法：需要 org_ 或 wrk_ 前缀加字母数字")
++	}
+ 	return nil
+ }
+diff --git a/pkg/sdk/providers/opencode/client_test.go b/pkg/sdk/providers/opencode/client_test.go
+index 4a920a1..b17bd6c 100644
+--- a/pkg/sdk/providers/opencode/client_test.go
++++ b/pkg/sdk/providers/opencode/client_test.go
+@@ -175,6 +175,37 @@ func TestOpenCodeFetchQuotaNon200DoesNotLeakBody(t *testing.T) {
+ 	}
+ }
+ 
++func TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID(t *testing.T) {
++	tests := []struct {
++		name string
++		id   string
++	}{
++		{name: "empty", id: ""},
++		{name: "bare identifier", id: "01JXYZ"},
++		{name: "pasted console url", id: "https://opencode.ai/console/org_01JXYZ/go"},
++		{name: "prefix without body", id: "org_"},
++		{name: "hyphenated body", id: "org_01-xyz"},
++		{name: "leading whitespace", id: " org_01JXYZ"},
++		{name: "unexpected prefix", id: "acc_01JXYZ"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			tr := &opencodeRecordingTransport{body: consoleStatusBody}
++			q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: tt.id, Client: &http.Client{Transport: tr}}
++			got, err := q.FetchQuota()
++			if err == nil {
++				t.Fatalf("workspace id %q must be rejected, got %+v", tt.id, got)
++			}
++			if got != nil {
++				t.Fatalf("must return nil quota on invalid workspace id %q", tt.id)
++			}
++			if tr.request != nil {
++				t.Fatalf("invalid workspace id %q must not reach upstream", tt.id)
++			}
++		})
++	}
++}
++
+ func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
+ 	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
+ 	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})
+diff --git a/pkg/sdk/providers/opencode/parser.go b/pkg/sdk/providers/opencode/parser.go
+index 435d1ce..8392894 100644
+--- a/pkg/sdk/providers/opencode/parser.go
++++ b/pkg/sdk/providers/opencode/parser.go
+@@ -29,10 +29,10 @@ func parseSerovalQuotaResponse(text string) (*QuotaData, error) {
+ 		return nil, err
+ 	}
+ 	if rolling == nil && weekly == nil {
+-		if strings.TrimSpace(text) == "" {
+-			return nil, fmt.Errorf("failed to parse rollingUsage")
+-		}
+-		if !strings.Contains(text, "null") {
++		// 只有真正的 Seroval 文本才允许推断“无 quota 记录=订阅失效”：Seroval 响应一定带 `$R` 引用表
++		// 标记。任何非 JSON 的 200 响应体（截断输出、BOM 前缀、Cloudflare 拦截页）都可能含 "null"
++		// 字样，若仅凭它返回 Lapsed 就会把可用账号误报成“订阅已失效”，所以必须要求两个标记同时存在。
++		if !strings.Contains(text, "$R") || !strings.Contains(text, "null") {
+ 			return nil, fmt.Errorf("failed to parse rollingUsage")
+ 		}
+ 		return lapsedQuotaData(), nil
+diff --git a/pkg/sdk/providers/opencode/parser_test.go b/pkg/sdk/providers/opencode/parser_test.go
+index aa557d2..d9ddaa6 100644
+--- a/pkg/sdk/providers/opencode/parser_test.go
++++ b/pkg/sdk/providers/opencode/parser_test.go
+@@ -5,13 +5,13 @@ import (
+ )
+ 
+ const (
+-	canonicalBody = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[3]={status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	referenceDriftBody = `{region:$R[1]=["us"],rollingUsage:$R[7]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[8]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[9]={status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	inlineBody = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	reorderedFieldsBody = `{rollingUsage:{usagePercent:42,status:"ok",resetInSec:300},weeklyUsage:{usagePercent:80,resetInSec:604800,status:"ok"},monthlyUsage:{status:"ok",usagePercent:55,resetInSec:2592000}}`
+-	whitespaceBody = `{rollingUsage: $R[1] = { status: "ok", resetInSec: 300, usagePercent: 42 },weeklyUsage:{status:"ok", resetInSec:604800, usagePercent:80},monthlyUsage:{ status:"ok",resetInSec:2592000,usagePercent:55 }}`
+-	additionalPropsBody = `{rollingUsage:{foo:1,status:"ok",bar:"x",resetInSec:300,baz:true,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80,extra:0},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	monthlyAbsentBody = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80}}`
++	canonicalBody        = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[3]={status:"ok",resetInSec:2592000,usagePercent:55}}`
++	referenceDriftBody   = `{region:$R[1]=["us"],rollingUsage:$R[7]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[8]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[9]={status:"ok",resetInSec:2592000,usagePercent:55}}`
++	inlineBody           = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
++	reorderedFieldsBody  = `{rollingUsage:{usagePercent:42,status:"ok",resetInSec:300},weeklyUsage:{usagePercent:80,resetInSec:604800,status:"ok"},monthlyUsage:{status:"ok",usagePercent:55,resetInSec:2592000}}`
++	whitespaceBody       = `{rollingUsage: $R[1] = { status: "ok", resetInSec: 300, usagePercent: 42 },weeklyUsage:{status:"ok", resetInSec:604800, usagePercent:80},monthlyUsage:{ status:"ok",resetInSec:2592000,usagePercent:55 }}`
++	additionalPropsBody  = `{rollingUsage:{foo:1,status:"ok",bar:"x",resetInSec:300,baz:true,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80,extra:0},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
++	monthlyAbsentBody    = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80}}`
+ 	monthlyUnlimitedBody = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"unlimited",resetInSec:0,usagePercent:0}}`
+ )
+ 
+@@ -278,3 +278,29 @@ func TestParseQuotaResponseLapsedSubscriptionMarksUnavailable(t *testing.T) {
+ 		t.Fatalf("lapsed subscription must omit monthly, got %+v", *got.Monthly)
+ 	}
+ }
++
++// TestParseQuotaResponseNonSerovalNullIsNotLapsed 守住“失效推断”的下界：
++// 只有带 `$R` 引用表标记的 Seroval 文本才允许把“没有 quota 记录”解释为订阅失效。
++// 其它含 "null" 的非 JSON 响应体（截断输出、BOM 前缀、HTML 拦截页）必须报错，
++// 否则会把可用账号静默渲染成“订阅已失效”。
++func TestParseQuotaResponseNonSerovalNullIsNotLapsed(t *testing.T) {
++	tests := []struct {
++		name string
++		body string
++	}{
++		{name: "truncated console json mentioning null", body: `{"access":{"meters":{"fiveHour":{"resetsAt":null`},
++		{name: "bom prefixed console body", body: "\ufeff" + consoleStatusBody},
++		{name: "html interstitial mentioning null", body: `<html><body>gateway says null</body></html>`},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := ParseQuotaResponse(tt.body)
++			if err == nil {
++				t.Fatalf("non-Seroval body %q must error instead of reporting lapsed, got %+v", tt.body, got)
++			}
++			if got != nil {
++				t.Fatalf("parser must return nil quota on error for %q, got %+v", tt.body, got)
++			}
++		})
++	}
++}

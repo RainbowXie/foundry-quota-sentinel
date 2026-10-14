@@ -1,0 +1,142 @@
+name: build
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: foundry-quota-sentinel.exe
+            ldflags: "-s -w -H windowsgui"
+          - os: macos-latest
+            artifact: foundry-quota-sentinel-macos
+            ldflags: "-s -w"
+          - os: ubuntu-22.04
+            artifact: foundry-quota-sentinel-linux
+            ldflags: "-s -w"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+        run: go build -ldflags="${{ matrix.ldflags }}" -o ${{ matrix.artifact }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  # 两套 webkit ABI 的 .deb：4.0（老发行版）/ 4.1（新发行版），apt 安装自动拉依赖
+  linux-deb:
+    name: deb (webkit ${{ matrix.webkit }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - webkit: "4.0"
+            suffix: "40"
+            runner: ubuntu-22.04
+            dev: libwebkit2gtk-4.0-dev
+            depends: "libwebkit2gtk-4.0-37, libgtk-3-0"
+            shim: "false"
+          - webkit: "4.1"
+            suffix: "41"
+            runner: ubuntu-24.04
+            dev: libwebkit2gtk-4.1-dev
+            depends: "libwebkit2gtk-4.1-0, libgtk-3-0t64 | libgtk-3-0"
+            shim: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev ${{ matrix.dev }}
+
+      - name: Build (webkit ${{ matrix.webkit }})
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          if [ "${{ matrix.shim }}" = "true" ]; then
+            mkdir -p /tmp/pcshim
+            printf 'Name: webkit2gtk-4.0\nDescription: shim->4.1\nVersion: 2.44.0\nRequires: webkit2gtk-4.1\n' > /tmp/pcshim/webkit2gtk-4.0.pc
+            export PKG_CONFIG_PATH=/tmp/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          fi
+          go build -ldflags="-s -w" -o fqs-bin .
+
+      - name: Package deb
+        run: |
+          VERSION=$(awk -F'"' '/^var version =/{print $2; exit}' main.go)
+          OUT="foundry-quota-sentinel_${VERSION}_amd64-webkit${{ matrix.suffix }}.deb"
+          bash scripts/pack-deb.sh fqs-bin "$VERSION" "${{ matrix.depends }}" "${{ matrix.webkit }}" "$OUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-webkit-${{ matrix.suffix }}
+          path: "*.deb"
+
+  # 便携版：纯 Go 静态二进制，零 webkit 依赖，任何 Linux 直接跑（浏览器打开面板）
+  linux-portable:
+    name: portable (static)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build portable
+        env:
+          CGO_ENABLED: "0"
+        run: go build -tags nogui -ldflags="-s -w" -o foundry-quota-sentinel-linux-portable .
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundry-quota-sentinel-linux-portable
+          path: foundry-quota-sentinel-linux-portable
+
+  release:
+    name: release
+    needs: [build, linux-deb, linux-portable]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "${{ github.ref_name }}" dist/*/* --generate-notes

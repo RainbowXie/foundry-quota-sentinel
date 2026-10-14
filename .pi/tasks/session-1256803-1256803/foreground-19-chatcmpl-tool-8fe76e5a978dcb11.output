@@ -1,0 +1,29 @@
+- Loading change status...
+Change: update-opencode-console-v2
+Schema: spec-driven
+Change root: /mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2
+Progress: 4/4 artifacts complete
+
+[x] proposal
+[x] specs
+[x] design
+[x] tasks
+
+All planning artifacts complete!
+=== tasks ===
+## 1. OpenCode Console v2 Quota Client & Parser
+
+- [x] 1.1 Update `pkg/sdk/providers/opencode/client.go` to request `GET https://opencode.ai/console/api/go/status` with `Accept: application/json` and `x-org-id: <WorkspaceID>`, plus add `FetchDefaultOrgID` helper for `/console/api/orgs`.
+- [x] 1.2 Extend `pkg/sdk/providers/opencode/parser.go` to parse the Console v2 JSON response (`access.meters.{fiveHour, week, month}` with `usedMicroCents`, `limitMicroCents`, and nullable `resetsAt`), handling `access: null` as `Lapsed: true` and failing closed on invalid/negative values.
+- [x] 1.3 Add unit tests in `pkg/sdk/providers/opencode/parser_test.go` and `client_test.go` covering Console v2 active meters, unstarted 5h window (`resetsAt: null`), lapsed subscription (`access: null`), malformed micro-cents, and HTTP header verification.
+
+## 2. OpenCode Console v2 Browser Auth & Account Page
+
+- [x] 2.1 Update `pkg/sdk/auth/opencode.go` login URL to `https://opencode.ai/console/login?next=%2Fconsole%2Fgo` and expand `openCodeWorkspaceID` regex to match both `org_[a-zA-Z0-9]+` and `wrk_[a-zA-Z0-9]+`.
+- [x] 2.2 Update `cmd_page.go` to open `https://opencode.ai/console/<workspaceID>/go` for OpenCode accounts.
+- [x] 2.3 Add unit tests in `pkg/sdk/auth/opencode_test.go` verifying `org_` and `wrk_` extraction from `/console/<id>/go` URLs and `__Host-console_session` cookie handling.
+
+## 3. Build, Export & Verification
+
+- [x] 3.1 Run `go test -tags nogui ./...` and `CGO_ENABLED=0 go test ./pkg/sdk/...` to verify all tests pass.
+- [x] 3.2 Re-export standalone SDK via `./scripts/export-sdk.sh` and rebuild both CLI (`build/fqs-cli`) and GUI (`build/foundry-quota-sentinel`) binaries.

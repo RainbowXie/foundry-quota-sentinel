@@ -1,0 +1,7 @@
+./docs/superpowers/plans/2026-07-18-unified-browser-auth.md:401:	if got := openCodeWorkspaceID("https://opencode.ai/workspace/wrk_abc123/go"); got != "wrk_abc123" {
+./cmd_config.go:195:	p.WorkspaceID = readLineDefault("Workspace ID（org_xxx 或 wrk_xxx）", p.WorkspaceID)
+./cmd_config.go:244:	fmt.Print("  Workspace ID（org_xxx 或 wrk_xxx 格式）: ")
+./openspec/changes/archive/2026-08-25-add-commandcode-provider/design.md:6:`opencode.ai/workspace/<id>/go` 高度相似，预期配额数据走同族 seroval
+./openspec/changes/archive/2026-08-25-add-commandcode-provider/proposal.md:6:形态与 `opencode.ai/workspace/<id>/go` 同族（commandcode 是 OpenCode
+./internal/web/static/help.html:189:<tr><td>Workspace ID</td><td><code>org_xxx</code> 或 <code>wrk_xxx</code> 格式，从浏览器 <code>/console/&lt;id&gt;/go</code> 地址栏中获取</td></tr>
+./internal/web/static/help.html:252:<span class=cmd>set</span> <span class=str>OPENCODE_GO_WORKSPACE_ID</span>=wrk_xxxxxxxxxxxx

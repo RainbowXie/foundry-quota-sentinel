@@ -1,0 +1,122 @@
+1051-                width: 100%;
+1052-                padding: 9px;
+1053-                border: none;
+1054-                border-radius: 9px;
+1055-                background: var(--accent);
+1056-                color: #fff;
+1057-                font-size: 13px;
+1058-                font-weight: 600;
+1059-                cursor: pointer;
+1060-            }
+1061:            #accountCards,
+1062-            #ollamaCards,
+1063-            #dsCards,
+1064-            #kimiCards,
+1065-            #commandCodeCards {
+1066-                display: grid;
+1067-                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+1068-                gap: 8px;
+1069-                margin-bottom: 8px;
+1070-            }
+1071:            #accountCards > *,
+1072-            #ollamaCards > *,
+1073-            #dsCards > *,
+1074-            #kimiCards > *,
+1075-            #commandCodeCards > * {
+1076-                margin-bottom: 0;
+1077-            }
+1078-        </style>
+1079-    </head>
+1080-    <body>
+1081-        <div class="p">
+--
+1087-                <div class="hr">
+1088-                    <span class="sd" id="sd"></span
+1089-                    ><span class="ht" id="ht">--:--</span>
+1090-                    <button class="hb" id="themeBtn" title="主题">🌙</button>
+1091-                    <button class="hb" id="pinBtn" title="固定">📌</button>
+1092-                    <button class="qb" id="quitBtn" title="关闭">✕</button>
+1093-                </div>
+1094-            </div>
+1095-            <div class="ct">
+1096-                <div class="tc act" id="tOv">
+1097:                    <div id="accountCards">
+1098-                        <div class="emp">加载中...</div>
+1099-                    </div>
+1100-                    <div id="ollamaCards"></div>
+1101-                    <div id="kimiCards"></div>
+1102-                    <div id="commandCodeCards"></div>
+1103-                    <div id="dsCards"></div>
+1104-                    <div class="bc" id="addCard" style="cursor: pointer">
+1105-                        <div
+1106-                            style="text-align:center;font-size:26px;line-height:1;color:var(--accent)"
+1107-                        >
+--
+1781-            }
+1782-
+1783-            function acard(a) {
+1784-                // Use shared quota-card foundation via adapter (Task 2.3)
+1785-                return renderQuotaCard(opencodeAdapter(a));
+1786-            }
+1787-            async function fetchOpenCodeShells() {
+1788-                try {
+1789-                    var r = await (await fetch("/api/opencode/accounts")).json();
+1790-                    if (!r.success) throw new Error(r.error || "failed");
+1791:                    renderProviderShells("accountCards", "opencode", "OpenCode Go", r.data);
+1792-                } catch (e) {
+1793-                    // Shell failure is non-fatal: the fill below renders its
+1794-                    // own error/empty state; do not blank the container.
+1795-                }
+1796-            }
+1797-            async function fetchOpenCodeCards() {
+1798-                try {
+1799-                    var r = await (await fetch("/api/accounts")).json();
+1800-                    if (!r.success) throw new Error(r.error || "failed");
+1801-                    var h = "";
+1802-                    (r.data || []).forEach(function (a) {
+1803-                        h += acard(a);
+1804-                    });
+1805:                    document.getElementById("accountCards").innerHTML = h;
+1806-                    // A successful fill means the container now holds real
+1807-                    // data: future shells are suppressed (stale-while-refresh).
+1808-                    // An EMPTY account list is not data — the container stays
+1809-                    // shellable so a later login/new account can shell-first.
+1810-                    markContainerData("opencode", (r.data || []).length > 0);
+1811-                } catch (e) {
+1812-                    // stale-while-refresh: a failed refresh must NOT wipe
+1813-                    // visible data. Only when the container had no data yet
+1814-                    // (first load fill failed) does the error state render.
+1815-                    if (!containerHasData["opencode"]) {
+1816:                        document.getElementById("accountCards").innerHTML =
+1817-                            "<div class=qerr>" + qesc(e.message) + "</div>";
+1818-                    }
+1819-                }
+1820-            }
+1821-            function fq() {
+1822-                return scheduleProviderRefresh("opencode", function () {
+1823-                    // Shell first (local, no request), then single-flight fill.
+1824-                    return fetchOpenCodeShells().then(fetchOpenCodeCards);
+1825-                });
+1826-            }
+--
+2443-                        // until the account appears so no ghost card shows
+2444-                        // on a failed login. The fill is fq() — the
+2445-                        // scheduleProviderRefresh wrapper — so it joins any
+2446-                        // in-flight periodic refresh (single-flight) and
+2447-                        // rearms the 30s deadline from its settlement.
+2448-                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+2449-                        return loginShellPoll(
+2450-                            function () {
+2451-                                return shellFetchForPoll(
+2452-                                    "/api/opencode/accounts",
+2453:                                    "accountCards", "opencode", "OpenCode Go", name);
+2454-                            },
+2455-                            fq, name, 1000, 250);
+2456-                    })
+2457-                    .catch(function () {});
+2458-            }
+2459-            function olDoLogin(name) {
+2460-                fetch(
+2461-                    "/api/ollama/login" +
+2462-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2463-                ).then(function () {

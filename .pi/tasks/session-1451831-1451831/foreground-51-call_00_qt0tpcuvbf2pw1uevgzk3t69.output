@@ -1,0 +1,15 @@
+M  cmd_page.go
+M  pkg/sdk/auth/opencode.go
+M  pkg/sdk/auth/opencode_test.go
+M  pkg/sdk/providers/opencode/client.go
+M  pkg/sdk/providers/opencode/client_test.go
+M  pkg/sdk/providers/opencode/parser.go
+A  pkg/sdk/providers/opencode/parser_console.go
+A  pkg/sdk/providers/opencode/parser_console_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md

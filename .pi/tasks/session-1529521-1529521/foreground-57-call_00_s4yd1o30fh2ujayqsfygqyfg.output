@@ -1,0 +1,40 @@
+          },
+          {
+            "id": "proc_81_handler",
+            "label": "Handler → OpenLogPath",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_80_handler",
+            "label": "Handler → NewOpenSession",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_38_handler",
+            "label": "Handler → AccountsFn",
+            "processType": "intra_community",
+            "step": 1
+          },
+          {
+            "id": "proc_39_handler",
+            "label": "Handler → OpenHandshakePath",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_116_handler",
+            "label": "Handler → BuildRPCArgs",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ]
+  },
+  "staleness": {
+    "commitsBehind": 1,
+    "hint": "⚠️ Index is 1 commit behind HEAD. Run analyze tool to update."
+  }
+}

@@ -1,0 +1,8 @@
+internal/web/commandcode_sidebar_test.go:35:	// ccLogin must route the login-fill through the single-flight wrapper.
+internal/web/commandcode_sidebar_test.go:115:// the ccLogin re-login action and the container click handler is wired.
+internal/web/commandcode_sidebar_test.go:122:	if !strings.Contains(s, `errorAction = { label: "重新登录", class: "ccLogin" }`) {
+internal/web/commandcode_sidebar_test.go:123:		t.Fatalf("commandcodeAdapter must expose ccLogin error action")
+internal/web/commandcode_sidebar_test.go:125:	if !strings.Contains(s, `t.classList.contains("ccLogin")`) {
+internal/web/commandcode_sidebar_test.go:126:		t.Fatalf("commandCodeCards click handler must dispatch ccLogin")
+internal/web/static/sidebar.html:1576:                    view.errorAction = { label: "重新登录", class: "ccLogin" };
+internal/web/static/sidebar.html:2503:                    if (t.classList.contains("ccLogin"))

@@ -1,0 +1,97 @@
+1411-
+1412-                html += body;
+1413-
+1414-                // Footer extension slot
+1415-                if (view.footerExtension) {
+1416-                    html += '<div class="' + qesc(view.footerExtension.class || "") + '">' +
+1417-                        qesc(view.footerExtension.content || "") + '</div>';
+1418-                }
+1419-
+1420-                html += '</div>'; // .acard
+1421-                return html;
+1422-            }
+1423-
+1424-            /* ===== Provider Adapters (Tasks 2.3-2.5) ===== */
+1425-
+1426:            // opencodeAdapter converts OpenCode Go DTO to shared view model.
+1427-            // Task 2.3: Rolling, Weekly, optional Monthly with integer precision.
+1428:            function opencodeAdapter(a) {
+1429-                var view = {
+1430-                    provider: "opencode",
+1431-                    providerLabel: "OpenCode Go",
+1432-                    accountName: a.name,
+1433-                    success: a.success,
+1434-                    error: a.error,
+1435-                    rows: []
+1436-                };
+1437-                if (a.success && a.quota) {
+1438-                    var d = a.quota;
+1439-                    // Lapsed subscription (OBSERVED 2026-08-19): the quota
+1440-                    // RPC returns null → backend marks QuotaData.lapsed.
+1441-                    // Render an explicit 失效 notice instead of a normal
+1442-                    // meter card (percent 0 would look like a healthy empty
+1443-                    // account).
+--
+1550-                        if (t.kimi_percent !== undefined) {
+1551-                            monthlyRow.details.push({ label: "Kimi", value: formatPercent(t.kimi_percent, 2) });
+1552-                        }
+1553-                        if (t.code_percent !== undefined) {
+1554-                            monthlyRow.details.push({ label: "Code", value: formatPercent(t.code_percent, 2) });
+1555-                        }
+1556-                        view.rows.push(monthlyRow);
+1557-                    }
+1558-                }
+1559-                return view;
+1560-            }
+1561-
+1562-            // commandcodeAdapter converts CommandCode DTO to shared view
+1563-            // model. The commandcode quota mirrors the OpenCode shape
+1564-            // (fiveHour→Rolling, weekly→Weekly, monthly→Monthly with integer
+1565:            // precision), so the mapping is identical to opencodeAdapter.
+1566-            function commandcodeAdapter(a) {
+1567-                var view = {
+1568-                    provider: "commandcode",
+1569-                    providerLabel: "CommandCode",
+1570-                    accountName: a.name,
+1571-                    success: a.success,
+1572-                    error: a.error,
+1573-                    rows: []
+1574-                };
+1575-                if (!a.success) {
+1576-                    view.errorAction = { label: "重新登录", class: "ccLogin" };
+1577-                } else if (a.quota) {
+1578-                    var d = a.quota;
+1579-                    if (d.rolling) view.rows.push({
+1580-                        label: "Rolling",
+--
+1770-                }
+1771-
+1772-                var h = "";
+1773-                for (var i = 0; i < shells.length; i++) {
+1774-                    var s = shells[i];
+1775-                    if (!s || !s.name) continue;
+1776-                    h += renderQuotaCard(shellView(provider, providerLabel, s.name));
+1777-                }
+1778-                if (h !== "") {
+1779-                    box.innerHTML = html + h;
+1780-                }
+1781-            }
+1782-
+1783-            function acard(a) {
+1784-                // Use shared quota-card foundation via adapter (Task 2.3)
+1785:                return renderQuotaCard(opencodeAdapter(a));
+1786-            }
+1787-            async function fetchOpenCodeShells() {
+1788-                try {
+1789-                    var r = await (await fetch("/api/opencode/accounts")).json();
+1790-                    if (!r.success) throw new Error(r.error || "failed");
+1791-                    renderProviderShells("accountCards", "opencode", "OpenCode Go", r.data);
+1792-                } catch (e) {
+1793-                    // Shell failure is non-fatal: the fill below renders its
+1794-                    // own error/empty state; do not blank the container.
+1795-                }
+1796-            }
+1797-            async function fetchOpenCodeCards() {
+1798-                try {
+1799-                    var r = await (await fetch("/api/accounts")).json();
+1800-                    if (!r.success) throw new Error(r.error || "failed");

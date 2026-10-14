@@ -1,0 +1,58 @@
+pkg/sdk/providers/commandcode/commandcode_test.go:27:	if got.Rolling.ResetInSec != 10120 {
+pkg/sdk/providers/commandcode/commandcode_test.go:28:		t.Errorf("fiveHour resetInSec = %d, want 10120", got.Rolling.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:34:	if got.Weekly.ResetInSec != 477314 {
+pkg/sdk/providers/commandcode/commandcode_test.go:35:		t.Errorf("weekly resetInSec = %d, want 477314", got.Weekly.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:44:	if got.Monthly.ResetInSec != 2550616 {
+pkg/sdk/providers/commandcode/commandcode_test.go:45:		t.Errorf("monthly resetInSec = %d, want 2550616", got.Monthly.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:106:	if got.Rolling.ResetInSec != 0 {
+pkg/sdk/providers/commandcode/commandcode_test.go:107:		t.Fatalf("resetAt=0 must render reset 0m, got resetInSec=%d", got.Rolling.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:112:	if got.Weekly.ResetInSec <= 0 {
+pkg/sdk/providers/commandcode/commandcode_test.go:113:		t.Fatalf("weekly resetInSec = %d, want > 0", got.Weekly.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:197:	if got.Rolling.ResetInSec != 0 {
+pkg/sdk/providers/commandcode/commandcode_test.go:198:		t.Fatalf("fiveHour resetInSec = %d, want 0 (resetAt=0)", got.Rolling.ResetInSec)
+pkg/sdk/providers/commandcode/commandcode_test.go:203:	if got.Weekly.ResetInSec <= 0 {
+pkg/sdk/providers/commandcode/commandcode_test.go:204:		t.Fatalf("weekly resetInSec = %d, want > 0", got.Weekly.ResetInSec)
+pkg/sdk/providers/commandcode/parser.go:110:		ResetInSec:   resetInSec,
+pkg/sdk/providers/commandcode/parser.go:147:		ResetInSec:   resetInSec,
+pkg/sdk/providers/commandcode/types.go:6:// UsagePercent 采用 float64 保留精度，ResetInSec 为重置剩余秒数，ResetDisplay 为格式化后的紧凑时间展示。
+pkg/sdk/providers/commandcode/types.go:10:	ResetInSec   int     `json:"reset_in_sec"`
+pkg/sdk/providers/kimi/parser.go:105:		ResetInSec:   int(time.Until(resetAt).Seconds()),
+pkg/sdk/providers/kimi/parser.go:127:		ResetInSec:   int(time.Until(resetAt).Seconds()),
+pkg/sdk/providers/kimi/types.go:36:	ResetInSec   int       `json:"reset_in_sec"`
+pkg/sdk/providers/kimi/types.go:45:	ResetInSec   int       `json:"reset_in_sec"`
+pkg/sdk/providers/opencode/parser_test.go:19:	wantRolling = QuotaUsage{Status: "ok", UsagePercent: 42, ResetInSec: 300, ResetDisplay: "5m"}
+pkg/sdk/providers/opencode/parser_test.go:20:	wantWeekly  = QuotaUsage{Status: "ok", UsagePercent: 80, ResetInSec: 604800, ResetDisplay: "7d"}
+pkg/sdk/providers/opencode/parser_test.go:21:	wantMonthly = QuotaUsage{Status: "ok", UsagePercent: 55, ResetInSec: 2592000, ResetDisplay: "30d"}
+pkg/sdk/providers/opencode/parser_test.go:215:	if got.Rolling.ResetInSec != 8296 {
+pkg/sdk/providers/opencode/parser_test.go:216:		t.Fatalf("rolling resetInSec = %d, want 8296", got.Rolling.ResetInSec)
+pkg/sdk/providers/opencode/parser_test.go:254:	if got.Rolling.ResetInSec != 0 {
+pkg/sdk/providers/opencode/parser_test.go:255:		t.Fatalf("exhausted rolling resetInSec = %d, want 0", got.Rolling.ResetInSec)
+pkg/sdk/providers/opencode/parser_console.go:114:	resetInSec, err := consoleResetInSec(meter.ResetsAt, label, allowNullResets, now)
+pkg/sdk/providers/opencode/parser_console.go:118:	usage := QuotaUsage{ResetInSec: resetInSec, ResetDisplay: formatDurationCompact(resetInSec)}
+pkg/sdk/providers/opencode/parser_console.go:129:// consoleResetInSec 计算距重置的剩余秒数：已过期或未开始计时一律归零，
+pkg/sdk/providers/opencode/parser_console.go:131:func consoleResetInSec(resetsAt *string, label string, allowNull bool, now time.Time) (int, error) {
+pkg/sdk/providers/opencode/parser.go:262:		ResetInSec:   resetInSec,
+pkg/sdk/providers/opencode/parser_console_test.go:57:// 断言只取与当前时间无关的事实：固定时间戳下 ResetInSec 会随时间衰减到 0。
+pkg/sdk/providers/opencode/parser_console_test.go:109:		if usage.ResetInSec < 0 || usage.ResetDisplay == "" {
+pkg/sdk/providers/opencode/parser_console_test.go:110:			t.Fatalf("%s reset = %d/%q, want a non-negative countdown", name, usage.ResetInSec, usage.ResetDisplay)
+pkg/sdk/providers/opencode/parser_console_test.go:139:	assertResetWithin(t, "rolling", got.Rolling.ResetInSec, 330)
+pkg/sdk/providers/opencode/parser_console_test.go:146:	assertResetWithin(t, "weekly", got.Weekly.ResetInSec, 7*24*3600+90)
+pkg/sdk/providers/opencode/parser_console_test.go:162:		t.Fatalf("%s ResetInSec = %d, want within [%d,%d]", window, got, want-5, want)
+pkg/sdk/providers/opencode/parser_console_test.go:177:	if got.Rolling.ResetInSec != 0 || got.Rolling.ResetDisplay != "0s" {
+pkg/sdk/providers/opencode/parser_console_test.go:200:	if got.Rolling.ResetInSec != 0 || got.Rolling.ResetDisplay != "0s" {
+pkg/sdk/providers/opencode/parser_console_test.go:267:			if got.Rolling.ResetDisplay != "0s" || got.Weekly.ResetInSec != 0 {
+pkg/sdk/providers/opencode/types.go:7:// ResetInSec 为重置剩余秒数，ResetDisplay 为格式化后的紧凑时间展示（如 "12m"、"3h"）。
+pkg/sdk/providers/opencode/types.go:11:	ResetInSec   int     `json:"reset_in_sec"`
+pkg/sdk/providers/ollama/parser.go:153:		ResetInSec:   seconds,
+pkg/sdk/providers/ollama/ollama_test.go:36:	if got := q.Rolling.ResetInSec; got < want-1 || got > want+1 {
+pkg/sdk/providers/ollama/ollama_test.go:37:		t.Fatalf("Session ResetInSec = %d, want approximately %d", got, want)
+pkg/sdk/providers/ollama/types.go:6:// UsagePercent 采用 float64 保留精度，ResetInSec 为重置剩余秒数，ResetDisplay 为格式化后的紧凑时间展示。
+pkg/sdk/providers/ollama/types.go:10:	ResetInSec   int     `json:"reset_in_sec"`
+---
+client.go
+client_test.go
+parser_console.go
+parser_console_test.go
+parser.go
+parser_test.go
+types.go

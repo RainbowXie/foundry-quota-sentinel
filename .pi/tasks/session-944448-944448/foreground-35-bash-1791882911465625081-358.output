@@ -1,0 +1,4 @@
+     0x6200004 "foundry-quota-sentinel - Google Chrome for Testing": ("chromium-browser (/home/ethan/.cache/chrome-devtools-mcp/chrome-profile)" "Chromium-browser")  3840x2119+0+0  +0+0
+        0x5a00003 "foundry-quota-sentinel": ("foundry-quota-sentinel" "Foundry-quota-sentinel")  543x1714+10+40  +3297+230
+     0x5a00090 "foundry-quota-sentinel": ()  10x10+-100+-100  +-100+-100
+     0x5a00001 "foundry-quota-sentinel": ("foundry-quota-sentinel" "Foundry-quota-sentinel")  10x10+10+10  +10+10

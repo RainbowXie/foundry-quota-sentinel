@@ -1,0 +1,1 @@
+MATCH on Chromium Safe Storage {'application': 'chromium', 'xdg:schema': 'chrome_libsecret_os_crypt_password_v2'}

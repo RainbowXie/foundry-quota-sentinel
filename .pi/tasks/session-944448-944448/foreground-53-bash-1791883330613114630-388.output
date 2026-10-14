@@ -1,0 +1,130 @@
+正在打开 OpenCode Go 登录窗口，请登录后进入 Go 订阅用量页（/console/go）…
+2026/10/13 17:22:11 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:11 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:11 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:11 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:11 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:11 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:11 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:11 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:11 opencode: CDP 连接成功（耗时 778ms，5 次尝试）
+2026/10/13 17:22:12 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:12 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:12 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:12 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:12 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:12 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 opencode: CDP 连接成功（耗时 4ms，1 次尝试）
+2026/10/13 17:22:12 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:12 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:12 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:12 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:12 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:12 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:12 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:12 opencode: CDP 连接成功（耗时 4ms，1 次尝试）
+2026/10/13 17:22:13 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:13 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:13 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:13 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:13 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:13 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:13 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:13 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:13 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:13 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:13 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:14 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:14 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:14 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:14 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:14 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:14 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:14 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:14 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:14 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:14 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:14 opencode: CDP 连接成功（耗时 3ms，1 次尝试）
+2026/10/13 17:22:15 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:15 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:15 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:15 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:15 opencode: CDP 连接成功（耗时 4ms，1 次尝试）
+2026/10/13 17:22:15 browserauth: DevTools 版本信息 browser=Edg/152.0.4191.66
+2026/10/13 17:22:15 browserauth: DevTools 目标[0] type=background_page url=chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[1] type=background_page url=chrome-extension://ncbjelpjchkpbikbpkcchkhkblodoama/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[2] type=background_page url=chrome-extension://fikbjbembnmfhppjfnmfkahdhfohhjmg/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[3] type=background_page url=chrome-extension://ihmafllikibpmigkcoadcmckbfhibefp/_generated_background_page.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[4] type=background_page url=chrome-extension://nkeimhogjdpnpccoofpliimaahmaaome/background.html
+2026/10/13 17:22:15 browserauth: DevTools 目标[5] type=page url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:15 browserauth: DevTools 目标[6] type=service_worker url=chrome-extension://ndcpkimcihhghdcddljkfmmjccdmcmof/background.rollup.js
+2026/10/13 17:22:15 browserauth: 选中页面目标 url=https://opencode.ai/console/login?next=%2Fconsole%2Fgo
+2026/10/13 17:22:15 opencode: CDP 连接成功（耗时 4ms，1 次尝试）

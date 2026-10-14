@@ -1,0 +1,25 @@
+v0.11.2
+v0.11.1
+v0.11.0
+v0.10.5
+v0.10.4
+v0.10.3
+v0.10.2
+v0.10.1
+v0.10.0
+v0.9.0
+--- describe ---
+v0.11.2-11-g4d30bc6
+--- version var ---
+14:var version = "0.11.1"
+--- gh cli ---
+/usr/bin/gh
+github.com
+  ✓ Logged in to github.com account RainbowXie (keyring)
+  - Active account: true
+  - Git operations protocol: https
+--- release workflow ---
+总计 16
+drwxrwxr-x 2 ethan ethan 4096  6月 30 14:37 .
+drwxrwxr-x 3 ethan ethan 4096  6月 23 19:28 ..
+-rw-rw-r-- 1 ethan ethan 4349  6月 30 14:37 build.yml

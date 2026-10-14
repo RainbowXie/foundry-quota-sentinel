@@ -1,0 +1,42 @@
+commit 5c14714540c9f3f22866d1bdcd57611d436f884e
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Mon Sep 7 09:14:21 2026 +0800
+
+    refactor: decouple provider types, split card test suites, and add export script
+
+commit e0673ba5393ab9831faa6582881f5ebebb053208
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Mon Aug 24 22:13:51 2026 +0800
+
+    fix(quota): render exhausted/lapsed quota states instead of failing cards
+    
+    实测（Chrome DevTools + 真实账户，2026-08-19）驱动：
+    - commandcode 真实 credits 响应 fiveHour.resetAt=0（空窗口无重置点）此前
+      被误判为"重置时间戳非法"→ 改为合法：显示 reset 0m
+    - commandcode weekly 超额 exceeded:"weekly" + used>cap → percent 正确 clamp 100%
+    - opencode 订阅失效时配额 RPC（server-fn:3）返回 null（整个响应无 usage
+      对象 → "failed to parse rollingUsage"）→ 改为显式标记 QuotaData.Lapsed，
+      前端卡片显示"订阅已失效"，不再让整卡消失（决策：失效≠耗尽，独立文案）
+    - opencode 耗尽态缺 resetInSec（status 非 ok/unlimited）→ 合法，reset 0m；
+      ok/unlimited 缺 resetInSec 仍 fail-closed（畸形）
+    - 空串/无 null 哨兵的畸形响应仍走 fail-closed 报错（保守）
+    
+    测试：命令 code 真实 fixture 校准、opencode 真实 null 响应 fixture、
+    lapsed 卡片渲染 Node-VM 测试；go test 6 包全绿；真实 CLI 验证通过。
+
+commit ab4ad8ea4eceaca3ca3a1e893822e790e2759385
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Sat Aug 1 11:38:03 2026 +0800
+
+    feat(sidebar): unify quota-card template for allowance providers
+    
+    - Shared renderQuotaCard/renderQuotaRow foundation with typed extension slots
+    - formatDurationCompact matching Go FormatDurationCompact (s/m/h/d)
+    - opencode/ollama/kimi adapters; Kimi resets from reset_in_sec (5h/2d/23d),
+      percentages preserved, Kimi/Code Monthly detail via row slot
+    - Data-driven quotaProviders registry: Add Account options, step-two label,
+      default name, login dispatch, delete confirm label, per-provider refresh
+    - Delete flow snapshots provider/name before async, refreshes only the
+      deleted provider's container (incl. fk for Kimi)
+    - Shared .qact action styling (keyboard-focusable buttons)
+    - RED tests + delete-flow DOM regression tests (evidence.md)

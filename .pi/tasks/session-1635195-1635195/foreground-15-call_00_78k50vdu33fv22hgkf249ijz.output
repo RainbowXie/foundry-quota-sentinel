@@ -1,0 +1,17 @@
+done
+
+echo "=== 正在校验独立导出的 SDK ==="
+(
+    cd "$TARGET_DIR"
+    go mod tidy
+    CGO_ENABLED=0 go test ./...
+)
+
+echo "=== SDK 成功导出至 $TARGET_DIR 且独立测试全绿 ==="
+=== ls build ===
+foundry-quota-sentinel
+fqs-cli
+fqs-cli-v0.11.2
+quota-sdk-go
+=== Makefile ===
+build.bat

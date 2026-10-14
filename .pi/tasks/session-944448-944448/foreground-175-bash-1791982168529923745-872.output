@@ -1,0 +1,10 @@
+用法： gitnexus analyze [options] [path]
+
+索引仓库（完整分析）
+
+选项：
+  -f, --force                         即使已是最新也强制完整重建索引
+  --repair-fts                        修复/重建搜索 FTS 索引，不执行完整重新分析
+  --embeddings [limit]                启用语义搜索的嵌入生成（默认关闭）。可选 [limit] 覆盖 50,000
+                                      节点安全上限；传 0 可完全禁用上限。
+  --drop-embeddings                   重建时删除现有嵌入。默认情况下，未传 `--embeddings` 的

@@ -1,0 +1,27 @@
+internal/web/kimi_card_test.go:363:	if !strings.Contains(errOut, "kimiLogin") {
+internal/web/kimi_card_test.go:364:		t.Fatalf("error-state card must keep its kimiLogin re-login affordance; got:\n%s", errOut)
+internal/web/kimi_card_test.go:476:	// kimiCards delegated listener acts on .kimiLogin, so the affordance
+internal/web/kimi_card_test.go:479:	rel := regexp.MustCompile(`<(button|span)[^>]*kimiLogin[^>]*data-name="broken-account"[^>]*>`)
+internal/web/kimi_card_test.go:481:		t.Fatalf("error card must keep a working kimiLogin re-login affordance for the account; got:\n%s", out)
+internal/web/quota_card_dialog_test.go:31:// delegation is keyed by declarative action classes (olLogin/kimiLogin)
+internal/web/quota_card_dialog_test.go:40:		{"kimiLogin", "kimiDoLogin"},
+internal/web/quota_card_structure_test.go:229:			"class": "kimiLogin",
+internal/web/quota_card_structure_test.go:263:			"class": "kimiLogin",
+internal/web/quota_card_structure_test.go:272:	if !strings.Contains(result, `<button type="button" class="qact kimiLogin"`) {
+internal/web/quota_card_structure_test.go:278:	if strings.Contains(result, `<span class="kimiLogin"`) {
+internal/web/quota_card_structure_test.go:295:	for _, hook := range []string{".kimiLogin,", ".olLogin"} {
+internal/web/sidebar_test.go:144:	if !strings.Contains(s, "kimiLoginPoll") {
+internal/web/sidebar_test.go:145:		t.Fatal("Kimi login must use kimiLoginPoll to observe config completion")
+internal/web/static/sidebar.html:553:               (.kimiLogin/.olLogin) remain for event delegation; the
+internal/web/static/sidebar.html:576:            .kimiLogin,
+internal/web/static/sidebar.html:1371:                    // kimiLogin/olLogin) is retained for per-container
+internal/web/static/sidebar.html:1522:                    view.errorAction = { label: "重新登录", class: "kimiLogin" };
+internal/web/static/sidebar.html:1983:                                kimiLoginPoll(name, pre.gen);
+internal/web/static/sidebar.html:1987:            function kimiLoginPoll(name, preGen) {
+internal/web/static/sidebar.html:2496:                    if (t.classList.contains("kimiLogin"))
+pkg/sdk/auth/kimi_login.go:18:	browser, err := launchKimiBrowser(ctx, kimiLoginURL)
+pkg/sdk/auth/kimi_login.go:25:func runKimiLogin(ctx context.Context, browser kimiLoginBrowser, validate func(string) bool) (envelope kimi.KimiAuthEnvelope, err error) {
+pkg/sdk/auth/kimi_page.go:40:func runKimiPage(ctx context.Context, browser kimiLoginBrowser, pageURL string, env *kimi.KimiAuthEnvelope) error {
+pkg/sdk/auth/kimi_types.go:17:	kimiLoginURL            = "https://www.kimi.com/code/console"
+pkg/sdk/auth/kimi_types.go:55:type kimiLoginBrowser interface {
+pkg/sdk/auth/kimi_types.go:62:var launchKimiBrowser = func(ctx context.Context, pageURL string) (kimiLoginBrowser, error) {

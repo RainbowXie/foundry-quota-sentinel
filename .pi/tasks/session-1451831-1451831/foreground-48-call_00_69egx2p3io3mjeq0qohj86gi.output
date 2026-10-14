@@ -1,0 +1,50 @@
+ M cmd_page.go
+ M pkg/sdk/auth/opencode.go
+ M pkg/sdk/auth/opencode_test.go
+ M pkg/sdk/providers/opencode/client.go
+ M pkg/sdk/providers/opencode/client_test.go
+ M pkg/sdk/providers/opencode/parser.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+?? pkg/sdk/providers/opencode/parser_console.go
+?? pkg/sdk/providers/opencode/parser_console_test.go
+===
+# Binary
+*.exe
+*.exe~
+foundry-quota-sentinel
+foundry-quota-sentinel-macos
+foundry-quota-sentinel-linux
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+go.work
+go.work.sum
+
+# Build output
+build/
+dist/
+.playwright-mcp/
+.worktrees/
+
+# Workflow artifacts (local-only, not part of the release)
+openspec/
+docs/superpowers/
+===
+.gitignore:23:build/	build/fqs-cli
+.gitignore:23:build/	build/foundry-quota-sentinel
+.gitignore:23:build/	build/quota-sdk-go

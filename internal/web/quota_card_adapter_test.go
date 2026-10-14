@@ -46,6 +46,36 @@ func TestOpenCodeGoLapsedSubscriptionRendersNotice(t *testing.T) {
 	}
 }
 
+// TestOpenCodeGoErrorWithReLogin proves OpenCode Go error cards render with the
+// "重新登录" action using the shared error action slot (ocLogin).
+func TestOpenCodeGoErrorWithReLogin(t *testing.T) {
+	dto := map[string]any{
+		"name":    "opencode-broken",
+		"success": false,
+		"error":   "opencode API returned HTTP 401",
+	}
+
+	result := runQuotaCardTest(t, map[string]any{
+		"type":    "adapter",
+		"adapter": "opencode",
+		"dto":     dto,
+	})
+
+	if !strings.Contains(result, `class="qerr"`) {
+		t.Error("OpenCode error card must have .qerr element")
+	}
+	if !strings.Contains(result, "opencode API returned HTTP 401") {
+		t.Error("OpenCode error card must display error message")
+	}
+
+	if !strings.Contains(result, "ocLogin") {
+		t.Error("OpenCode error card must have ocLogin action button")
+	}
+	if !strings.Contains(result, "重新登录") {
+		t.Error("OpenCode error card must have '重新登录' button text")
+	}
+}
+
 // TestOpenCodeGoCardStructure proves the OpenCode Go card uses the shared
 // foundation structure with Rolling, Weekly, and optional Monthly rows.
 func TestOpenCodeGoCardStructure(t *testing.T) {

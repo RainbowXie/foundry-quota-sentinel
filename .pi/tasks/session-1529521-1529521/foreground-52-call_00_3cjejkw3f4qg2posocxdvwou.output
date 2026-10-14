@@ -1,0 +1,5 @@
+cli-build-ok
+build/fqs-cli:                ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=Z0XXqZT0sU2Uhz01Fu3Q/etsI12cnlWpKonQ6JhAQ/UCV0JKBr1iYHk326gjKq/K5NKY5370aUDDVPfOqDD, BuildID[sha1]=dcdca8436ea2fe75bdb5e6217ce691393791b348, stripped
+build/foundry-quota-sentinel: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=491d0b4ed202f04e2e61eb1fcc00bf8cadca5441, for GNU/Linux 3.2.0, stripped
+-rwxrwxr-x 1 ethan ethan 11655432 10月  9 11:39 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 11526306 10月  9 11:39 build/fqs-cli

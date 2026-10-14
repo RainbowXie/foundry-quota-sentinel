@@ -1,0 +1,12 @@
+pkg/sdk/auth/commandcode_test.go
+pkg/sdk/auth/opencode_test.go
+pkg/sdk/providers/commandcode/client.go
+pkg/sdk/providers/opencode/types.go
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.611s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.087s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.013s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.006s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.011s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.057s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.017s
+ok  	foundry-quota-sentinel/pkg/sdk/store	21.538s

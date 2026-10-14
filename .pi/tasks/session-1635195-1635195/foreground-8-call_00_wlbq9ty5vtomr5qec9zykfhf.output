@@ -1,0 +1,5 @@
+package math // import "math"
+
+const (
+	MaxInt    = 1<<(intSize-1) - 1  // MaxInt32 or MaxInt64 depending on intSize.
+	MinInt    = -1 << (intSize - 1) // MinInt32 or MinInt64 depending on intSize.

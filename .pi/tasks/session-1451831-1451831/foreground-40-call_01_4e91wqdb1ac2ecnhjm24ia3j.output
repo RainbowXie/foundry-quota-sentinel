@@ -1,0 +1,8 @@
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.312s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.097s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.017s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.005s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.012s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.056s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.018s
+ok  	foundry-quota-sentinel/pkg/sdk/store	0.042s

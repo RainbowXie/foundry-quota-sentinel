@@ -1,0 +1,27 @@
+{"level":40,"time":1791520760155,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+变更：5 个文件，9 个符号
+受影响流程：10
+风险等级：high
+
+已变更符号：
+  Symbol cmdOpenPage → cmd_page.go
+  Symbol validateOpenCodePageURL → pkg/sdk/auth/opencode.go
+  Symbol TestValidateOpenCodePageURL → pkg/sdk/auth/opencode_test.go
+  Symbol Cookie → pkg/sdk/providers/opencode/client.go
+  Symbol WorkspaceID → pkg/sdk/providers/opencode/client.go
+  Symbol Client → pkg/sdk/providers/opencode/client.go
+  Symbol OpenCodeQuerier → pkg/sdk/providers/opencode/client.go
+  Symbol openCodeOrgIDRe → pkg/sdk/providers/opencode/client.go
+  Symbol TestFetchDefaultOrgIDReturnsFirstOrgID → pkg/sdk/providers/opencode/client_test.go
+
+受影响执行流程：
+  • CmdOpenPage → Lp (9 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → CookieDomainMatches (5 步) — 已变更：validateOpenCodePageURL, cmdOpenPage
+  • CmdOpenPage → Cookie (4 步) — 已变更：cmdOpenPage
+  • CmdOpenPage → OpenHandshakePath (3 步) — 已变更：cmdOpenPage

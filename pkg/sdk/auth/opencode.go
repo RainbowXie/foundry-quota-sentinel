@@ -180,6 +180,9 @@ func RunOpenCodeLogin(validate func(cookie, wsid string) bool) (string, string, 
 	return runOpenCodeLogin(ctx, browser, validate)
 }
 
+// OpenCodePageSyncSave 是 OpenCode 账户页登录态变更持久化回调钩子。
+var OpenCodePageSyncSave func(cookie, wsid string) error
+
 // RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
 func RunOpenCodePage(pageURL, cookie string) error {
 	if err := validateOpenCodePageURL(pageURL); err != nil {
@@ -300,6 +303,45 @@ func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL 
 	}
 	log.Printf("opencode: 账户页导航已发送")
 	SignalOpenPageReady()
+
+	if OpenCodePageSyncSave != nil {
+		stopPoll := make(chan struct{})
+		defer close(stopPoll)
+		go func() {
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopPoll:
+					return
+				case <-ticker.C:
+					conn, err := browser.CDP(context.Background())
+					if err != nil {
+						continue
+					}
+					pageURL, _ := conn.PageURL(context.Background(), openCodeHost)
+					curWS := openCodeWorkspaceID(pageURL)
+					cookieList, _ := conn.BrowserCookies(context.Background())
+					curHeader := openCodeCookieHeader(cookieList)
+					_ = conn.Close()
+
+					if curHeader != "" && openCodeConsoleURL(pageURL) {
+						if curWS == "" {
+							if res, rerr := resolveOpenCodeOrgID(curHeader); rerr == nil {
+								curWS = res
+							}
+						}
+						if curWS != "" && (curHeader != openCodeCookieHeader(cookies) || curWS != openCodeWorkspaceID(pageURL)) {
+							if serr := OpenCodePageSyncSave(curHeader, curWS); serr == nil {
+								log.Printf("opencode: 账户页凭证变更已自动同步更新 (workspace %s)", curWS)
+							}
+						}
+					}
+				}
+			}
+		}()
+	}
+
 	if err := browser.Wait(); err != nil {
 		return fmt.Errorf("OpenCode 账户页浏览器异常退出: %w", err)
 	}

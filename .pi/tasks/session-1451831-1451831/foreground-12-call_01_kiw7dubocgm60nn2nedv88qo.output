@@ -1,0 +1,60 @@
+{"level":40,"time":1791515433779,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "status": "ambiguous",
+  "message": "Found 4 symbols matching 'FetchQuota'. Blast radius differs per candidate (max 10 impacted at risk UNKNOWN; LOW among the candidates that resolved, and at least one could not be walked). Disambiguate with target_uid (or file_path/kind) for a single authoritative result.",
+  "target": {
+    "name": "FetchQuota"
+  },
+  "direction": "upstream",
+  "totalCandidates": 4,
+  "impactedCount": null,
+  "risk": "UNKNOWN",
+  "maxImpactedCount": 10,
+  "maxRisk": "UNKNOWN",
+  "knownMaxRisk": "LOW",
+  "candidates": [
+    {
+      "uid": "Method:internal/quota/kimi_web.go:KimiQuerier.FetchQuota#1",
+      "name": "FetchQuota",
+      "kind": "Method",
+      "filePath": "internal/quota/kimi_web.go",
+      "line": 140,
+      "score": 0.54,
+      "impactedCount": 10,
+      "risk": "LOW",
+      "direct": 2
+    },
+    {
+      "uid": "Method:internal/quota/opencode.go:OpenCodeGoQuerier.FetchQuota#0",
+      "name": "FetchQuota",
+      "kind": "Method",
+      "filePath": "internal/quota/opencode.go",
+      "line": 42,
+      "score": 0.54,
+      "impactedCount": 10,
+      "risk": "LOW",
+      "direct": 4
+    },
+    {
+      "uid": "Method:internal/quota/commandcode.go:CommandCodeQuerier.FetchQuota#0",
+      "name": "FetchQuota",
+      "kind": "Method",
+      "filePath": "internal/quota/commandcode.go",
+      "line": 79,
+      "score": 0.54,
+      "impactedCount": 7,
+      "risk": "LOW",
+      "direct": 2
+    },
+    {
+      "uid": "Method:internal/quota/ollama.go:OllamaQuerier.FetchQuota#0",
+      "name": "FetchQuota",
+      "kind": "Method",
+      "filePath": "internal/quota/ollama.go",
+      "line": 50,
+      "score": 0.54,
+      "impactedCount": 0,
+      "risk": "UNKNOWN",
+      "direct": 0,
+      "riskNote": "No callers resolved. Absence of edges is not evidence the symbol is unused: a caller reaching it through a reference class this index does not record — plain-object property access, a bare-identifier read of a module-scope const — produces no edge to find. Confirm with a text search before treating the change as safe."
+    }

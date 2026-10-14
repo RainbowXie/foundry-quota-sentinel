@@ -1,0 +1,18 @@
+=== HEAD ===
+d2c0530 fix(opencode): guard account-page URL with workspace id whitelist
+ cmd_page.go                               |  6 ++++++
+ pkg/sdk/auth/opencode.go                  |  6 ++++++
+ pkg/sdk/auth/opencode_test.go             | 30 +++++++++++++++++++++++++++---
+ pkg/sdk/providers/opencode/client.go      | 12 +++++++++---
+ pkg/sdk/providers/opencode/client_test.go | 22 ++++++++++++++++++++++
+ 5 files changed, 70 insertions(+), 6 deletions(-)
+=== focused tests ===
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.608s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+=== staged check ===
+(empty above = nothing staged)
+=== build artifacts ===
+-rwxrwxr-x 1 ethan ethan 11655432 10-09 12:38 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 11530402 10-09 12:38 build/fqs-cli
+-rw-rw-r-- 1 ethan ethan     5287 10-09 12:39 build/quota-sdk-go/providers/opencode/client.go

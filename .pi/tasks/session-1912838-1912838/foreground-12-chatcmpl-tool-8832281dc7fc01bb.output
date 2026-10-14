@@ -1,0 +1,4 @@
+=== RUN   TestParseQuotaResponseConsoleExpiredResetsAtClampsToZero
+--- PASS: TestParseQuotaResponseConsoleExpiredResetsAtClampsToZero (0.00s)
+PASS
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.004s

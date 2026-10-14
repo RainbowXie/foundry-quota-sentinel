@@ -1,0 +1,25 @@
+staged: []
+48ba08d feat(opencode): migrate to Console v2 quota API and console login flow
+ cmd_page.go                                       |   2 +-
+ pkg/sdk/auth/opencode.go                          |  50 +++-
+ pkg/sdk/auth/opencode_test.go                     | 185 +++++++++++++-
+ pkg/sdk/providers/opencode/client.go              |  80 ++++--
+ pkg/sdk/providers/opencode/client_test.go         | 134 +++++++++-
+ pkg/sdk/providers/opencode/parser.go              |  31 ++-
+ pkg/sdk/providers/opencode/parser_console.go      | 172 +++++++++++++
+ pkg/sdk/providers/opencode/parser_console_test.go | 282 ++++++++++++++++++++++
+ 8 files changed, 891 insertions(+), 45 deletions(-)
+ok  	foundry-quota-sentinel/internal/config	(cached)
+?   	foundry-quota-sentinel/internal/formatter	[no test files]
+?   	foundry-quota-sentinel/internal/sidebar	[no test files]
+?   	foundry-quota-sentinel/internal/state	[no test files]
+?   	foundry-quota-sentinel/internal/storage	[no test files]
+ok  	foundry-quota-sentinel/internal/web	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)

@@ -1,0 +1,5 @@
+main_locktest_gui_test.go:1://go:build !nogui
+main_locktest_nogui_test.go:1://go:build nogui
+=== docker ===
+/usr/bin/docker
+docker-ok

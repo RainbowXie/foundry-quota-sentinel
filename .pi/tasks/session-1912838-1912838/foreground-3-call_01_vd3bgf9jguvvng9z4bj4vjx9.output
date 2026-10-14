@@ -1,0 +1,16 @@
+cmd_quota.go:15:func makeQuotaQuerier() *opencode.OpenCodeQuerier {
+cmd_quota.go:30:func makeDeepSeekQuerier() *deepseek.DeepSeekQuerier {
+cmd_quota.go:40:func cmdQuota() {
+cmd_quota.go:51:func cmdBalance() {
+cmd_quota.go:62:func cmdHistory() {
+cmd_quota.go:111:func cmdWatch() {
+cmd_config.go:18:func showConfigHint() {
+cmd_config.go:37:func readLineDefault(label, defaultVal string) string {
+cmd_config.go:53:func cmdConfigMain() {
+cmd_config.go:78:func cmdConfigShow() {
+cmd_config.go:129:func cmdConfigList() {
+cmd_config.go:172:func cmdConfigInit() {
+cmd_config.go:214:func cmdConfigAdd() {
+cmd_config.go:262:func cmdConfigUse() {
+cmd_config.go:289:func cmdConfigDelete() {
+cmd_config.go:318:func cmdLockTest() {

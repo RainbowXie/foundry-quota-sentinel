@@ -1,0 +1,17 @@
+./docs/superpowers/plans/2026-07-18-unified-browser-auth.md:615:rtk env PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim CGO_ENABLED=1 go build -ldflags='-s -w' -o build/foundry-quota-sentinel-unified-browser-auth .
+./.claude/settings.local.json:14:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go vet ./...)",
+./.claude/settings.local.json:15:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go build -o build/foundry-quota-sentinel-unified-browser-auth .)",
+./.claude/settings.local.json:31:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go build -o /tmp/diag-deepseek ./cmd/diag-deepseek/)",
+./.claude/settings.local.json:32:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go build -o /tmp/diag-deepseek2 ./cmd/diag-deepseek2/)",
+./.claude/settings.local.json:34:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go test ./internal/sidebar/ -run 'TestRunDeepSeekPageReappliesStorageAfterSPAOverwrite|TestRunDeepSeekPageErrorDoesNotCloseBrowser' -count=1 -v)",
+./.claude/settings.local.json:42:      "Bash(PKG_CONFIG_PATH=/tmp/fqs-webkit41-pcshim rtk go build -o /tmp/diag-events ./cmd/diag-events/)",
+./.github/workflows/build.yml:88:            mkdir -p /tmp/pcshim
+./.github/workflows/build.yml:89:            printf 'Name: webkit2gtk-4.0\nDescription: shim->4.1\nVersion: 2.44.0\nRequires: webkit2gtk-4.1\n' > /tmp/pcshim/webkit2gtk-4.0.pc
+./.github/workflows/build.yml:90:            export PKG_CONFIG_PATH=/tmp/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+./scripts/build-linux.sh:61:  SHIM_SETUP='mkdir -p /tmp/pcshim; printf "Name: webkit2gtk-4.0\nDescription: shim->4.1\nVersion: 2.44.0\nRequires: webkit2gtk-4.1\n" > /tmp/pcshim/webkit2gtk-4.0.pc; export PKG_CONFIG_PATH=/tmp/pcshim:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig;'
+--- pkg-config:
+/usr/bin/pkg-config
+4.1 OK
+4.0 missing
+--- go:
+go version go1.26.8 linux/amd64

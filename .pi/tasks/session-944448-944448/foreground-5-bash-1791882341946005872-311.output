@@ -1,0 +1,83 @@
+2414-                    });
+2415-                }
+2416-                tick();
+2417-            }
+2418-            // shellFetchForPoll fetches the provider shell list, renders the
+2419-            // shells, and resolves true when the named account is present.
+2420-            function shellFetchForPoll(shellUrl, containerId, provider, providerLabel, name) {
+2421-                return fetch(shellUrl)
+2422-                    .then(function (r) { return r.json(); })
+2423-                    .then(function (r) {
+2424-                        if (!r || !r.success) return false;
+2425-                        var arr = r.data || [];
+2426-                        renderProviderShells(containerId, provider, providerLabel, arr);
+2427-                        for (var i = 0; i < arr.length; i++) {
+2428-                            if (arr[i] && arr[i].name === name) return true;
+2429-                        }
+2430-                        return false;
+2431-                    })
+2432-                    .catch(function () { return false; });
+2433-            }
+2434:            function ocDoLogin(name) {
+2435-                fetch(
+2436-                    "/api/opencode/login" +
+2437-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2438-                )
+2439-                    .then(function () {
+2440-                        // card-shell-first-async-load: render the new
+2441-                        // account's shell the moment it lands in config (no
+2442-                        // quota request), then the fill replaces it. Poll
+2443-                        // until the account appears so no ghost card shows
+2444-                        // on a failed login. The fill is fq() — the
+2445-                        // scheduleProviderRefresh wrapper — so it joins any
+2446-                        // in-flight periodic refresh (single-flight) and
+2447-                        // rearms the 30s deadline from its settlement.
+2448-                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+2449-                        return loginShellPoll(
+2450-                            function () {
+2451-                                return shellFetchForPoll(
+2452-                                    "/api/opencode/accounts",
+2453-                                    "accountCards", "opencode", "OpenCode Go", name);
+2454-                            },
+--
+2494-                .addEventListener("click", function (e) {
+2495-                    var t = e.target;
+2496-                    if (t.classList.contains("kimiLogin"))
+2497-                        kimiDoLogin(t.getAttribute("data-name"));
+2498-                });
+2499-            document
+2500-                .getElementById("commandCodeCards")
+2501-                .addEventListener("click", function (e) {
+2502-                    var t = e.target;
+2503-                    if (t.classList.contains("ccLogin"))
+2504-                        ccDoLogin(t.getAttribute("data-name"));
+2505-                });
+2506-            /* Provider registry — single source of truth for the Add Account
+2507-               dialog AND account actions. A future provider is a one-line
+2508-               data entry here: step-one options, the step-two provider
+2509-               label, the default account name, the login dispatch, and the
+2510-               card-refresh handler are all derived from this table. Unknown
+2511-               types error explicitly instead of silently mapping to a
+2512-               provider. */
+2513-            var quotaProviders = [
+2514:                { type: "opencode", label: "OpenCode Go", defaultName: "OpenCode", login: "ocDoLogin", refresh: "fq" },
+2515-                { type: "deepseek", label: "DeepSeek", defaultName: "DeepSeek", login: "dsDoLogin", refresh: "fd" },
+2516-                { type: "ollama", label: "Ollama", defaultName: "Ollama", login: "olDoLogin", refresh: "fo" },
+2517-                { type: "kimi", label: "Kimi Code", defaultName: "Kimi", login: "kimiDoLogin", refresh: "fk" },
+2518-                { type: "commandcode", label: "CommandCode", defaultName: "CommandCode", login: "ccDoLogin", refresh: "fc" }
+2519-            ];
+2520-            function quotaProviderByType(type) {
+2521-                for (var i = 0; i < quotaProviders.length; i++) {
+2522-                    if (quotaProviders[i].type === type) return quotaProviders[i];
+2523-                }
+2524-                return null;
+2525-            }
+2526-            (function () {
+2527-                var modal = document.getElementById("addModal");
+2528-                var s1 = document.getElementById("modalStep1");
+2529-                var s2 = document.getElementById("modalStep2");
+2530-                var nameIn = document.getElementById("modalName");
+2531-                var provLabel = document.getElementById("modalProvLabel");
+2532-                var provHost = document.getElementById("modalProviders");
+2533-                var curType = "";
+2534-                function openModal() {

@@ -1,0 +1,17 @@
+./pkg/sdk/providers/opencode/client.go:37:		WorkspaceID: os.Getenv("OPENCODE_GO_WORKSPACE_ID"),
+./pkg/sdk/providers/opencode/client.go:125:	if q.WorkspaceID == "" {
+./pkg/sdk/providers/opencode/client_test.go:58:	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "wrk_synthetic123"}
+./pkg/sdk/providers/opencode/client_test.go:65:	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "org_01JXYZ", Client: &http.Client{Transport: tr}}
+./pkg/sdk/providers/opencode/client_test.go:120:	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "wrk_synthetic123"}
+./cmd_serve.go:37:			accs = append(accs, web.Account{Name: name, Cookie: p.Cookie, WorkspaceID: p.WorkspaceID})
+./cmd_serve.go:43:			accs = append(accs, web.Account{Name: "默认", Cookie: ck, WorkspaceID: wks})
+./cmd_page.go:132:		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
+./cmd_config.go:195:	p.WorkspaceID = readLineDefault("Workspace ID（wrk_xxx）", p.WorkspaceID)
+./cmd_config.go:246:	p.WorkspaceID = strings.TrimSpace(inputReader.Text())
+./cmd_quota.go:17:	if q.Cookie == "" || q.WorkspaceID == "" {
+./cmd_quota.go:22:			if q.WorkspaceID == "" {
+./cmd_login.go:25:		q := &opencode.OpenCodeQuerier{Cookie: cookie, WorkspaceID: wsid}
+./cmd_login.go:38:		c.AddProfile(name, config.Profile{Cookie: cookie, WorkspaceID: wsid})
+./internal/web/routes_opencode.go:21:		q := &opencode.OpenCodeQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
+./internal/web/routes_opencode.go:42:				q := &opencode.OpenCodeQuerier{Cookie: a.Cookie, WorkspaceID: a.WorkspaceID}
+./internal/web/server_test.go:502:		return []Account{{Name: "home", Cookie: "c", WorkspaceID: "w"}}

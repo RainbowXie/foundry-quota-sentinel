@@ -1,0 +1,5 @@
+commit bd14585a9c268d182afb2cf8a9cae7da73394a04
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Tue Oct 13 21:09:45 2026 +0800
+
+    fix(auth): add helium to Linux system browser candidates

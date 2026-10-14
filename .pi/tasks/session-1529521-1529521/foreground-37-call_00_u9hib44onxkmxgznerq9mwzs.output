@@ -1,0 +1,9 @@
+pkg/sdk/providers/opencode/types.go
+internal/formatter/format.go
+gofmt-exit=0
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)

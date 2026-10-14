@@ -1,0 +1,35 @@
+{"level":40,"time":1791516145362,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+变更：6 个文件，41 个符号
+受影响流程：42
+风险等级：critical
+
+已变更符号：
+  Symbol cmdOpenPage → cmd_page.go
+  Symbol sharedOpenCodeBrowser → pkg/sdk/auth/opencode.go
+  Symbol openCodeCookieHeader → pkg/sdk/auth/opencode.go
+  Symbol launchOpenCodeBrowser → pkg/sdk/auth/opencode.go
+  Symbol runOpenCodeLogin → pkg/sdk/auth/opencode.go
+  Symbol runOpenCodePage → pkg/sdk/auth/opencode.go
+  Symbol openCodeLoginBrowser → pkg/sdk/auth/opencode.go
+  Symbol Wait → pkg/sdk/auth/opencode.go
+  Symbol CDP → pkg/sdk/auth/opencode.go
+  Symbol openCodeAuthHost → pkg/sdk/auth/opencode.go
+  Symbol newFakeOpenCodeBrowser → pkg/sdk/auth/opencode_test.go
+  Symbol TestOpenCodeCookieHeaderKeepsOnlyMainDomain → pkg/sdk/auth/opencode_test.go
+  Symbol TestOpenCodeWorkspaceIDFromURL → pkg/sdk/auth/opencode_test.go
+  Symbol TestOpenCodeWorkspaceIDIgnoresAuthSubdomain → pkg/sdk/auth/opencode_test.go
+  Symbol TestRunOpenCodeLoginValidatesAfterClose → pkg/sdk/auth/opencode_test.go
+... 以及另外 26 个
+
+受影响执行流程：
+  • CmdOpenPage → Lp (9 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → Lp (9 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → St (8 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • CmdOpenPage → WindowsCommandCandidates (8 步) — 已变更：launchOpenCodeBrowser, cmdOpenPage
+  • Main → SkipSpace (8 步) — 已变更：FetchQuota, extractUsageWindow, ParseQuotaResponse
+  • CmdQuota → ExtractBoundedObject (6 步) — 已变更：FetchQuota, extractUsageWindow, ParseQuotaResponse
+... 以及另外 32 个

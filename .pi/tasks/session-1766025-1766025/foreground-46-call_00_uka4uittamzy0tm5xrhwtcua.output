@@ -1,0 +1,12 @@
+总计 32
+drwxrwxr-x  2 ethan ethan  4096  6月 23 17:22 .
+drwxrwxr-x 20 ethan ethan  4096  9月  7 19:59 ..
+-rw-rw-r--  1 ethan ethan 20858  6月 23 17:22 ocgt-monitor.md
+741ba01 fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+ internal/web/static/help.html |   8 +--
+ pkg/sdk/README.md             |   2 +-
+ pkg/sdk/auth/opencode.go      |  68 ++++++++++++++++--------
+ pkg/sdk/auth/opencode_test.go | 117 +++++++++++++++++++++++++++++++++++++++++-
+ 4 files changed, 166 insertions(+), 29 deletions(-)
+=== any openspec/devlog tracked? ===
+devlog/ocgt-monitor.md

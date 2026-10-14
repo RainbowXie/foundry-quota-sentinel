@@ -1,0 +1,8 @@
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.607s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.012s
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)

@@ -1,0 +1,4 @@
+错误: http request: Get "https://opencode.ai/console/api/go/status": net/http: TLS handshake timeout
+
+---
+配置文件已有凭证，但查询失败，请检查值是否有效。

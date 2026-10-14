@@ -1,0 +1,3 @@
+pkg/sdk/auth/browserauth/process.go:30:// browserCandidates is the lookup order used to find a system browser on the
+pkg/sdk/auth/browserauth/process.go:33:var browserCandidates = []string{
+pkg/sdk/auth/browserauth/process.go:161:	for _, name := range browserCandidates {

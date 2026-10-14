@@ -1,0 +1,25 @@
+  374 pkg/sdk/auth/opencode.go
+  432 pkg/sdk/auth/opencode_test.go
+  806 总计
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.610s
+ok  	foundry-quota-sentinel/internal/web	5.964s
+--- PASS: TestOllamaSessionCookieHeaderKeepsSessionWhenAncillaryCookieIsDuplicated (0.00s)
+=== RUN   TestOpenCodeCookieHeaderKeepsOnlyMainDomain
+--- PASS: TestOpenCodeCookieHeaderKeepsOnlyMainDomain (0.00s)
+=== RUN   TestOpenCodeCookieHeaderKeepsHostPrefixedSessionCookie
+--- PASS: TestOpenCodeCookieHeaderKeepsHostPrefixedSessionCookie (0.00s)
+=== RUN   TestOpenCodeCookieHeaderDropsUnsafeCookies
+--- PASS: TestOpenCodeCookieHeaderDropsUnsafeCookies (0.00s)
+=== RUN   TestShouldResolveOpenCodeOrgID
+--- PASS: TestShouldResolveOpenCodeOrgID (0.00s)
+=== RUN   TestRunOpenCodeLoginRateLimitsOrgIDResolve
+2026/10/09 12:21:12 opencode: 解析默认组织失败，继续等待页面跳转: orgs api unavailable
+--- PASS: TestRunOpenCodeLoginRateLimitsOrgIDResolve (0.30s)
+=== RUN   TestRunOpenCodeLoginReportsLastProbeError
+=== RUN   TestRunOpenCodeLoginReportsLastProbeError/page_url_probe
+=== RUN   TestRunOpenCodeLoginReportsLastProbeError/cookie_probe
+--- PASS: TestRunOpenCodeLoginReportsLastProbeError (0.00s)
+    --- PASS: TestRunOpenCodeLoginReportsLastProbeError/page_url_probe (0.00s)
+    --- PASS: TestRunOpenCodeLoginReportsLastProbeError/cookie_probe (0.00s)
+PASS
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.307s

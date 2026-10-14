@@ -1,0 +1,10 @@
+    PID TTY          TIME CMD
+1373562 pts/0    00:00:02 zsh
+1373602 pts/0    00:00:00 zsh
+1373999 pts/0    00:00:00 zsh
+1374000 pts/0    00:00:03 zsh
+1374002 pts/0    00:00:32 gitstatusd-linu
+2160166 pts/0    00:00:04 foundry-quota-s
+2160181 pts/0    00:00:00 WebKitNetworkPr
+2160183 pts/0    00:00:10 WebKitWebProces
+2161308 pts/0    00:00:00 foundry-quota-s

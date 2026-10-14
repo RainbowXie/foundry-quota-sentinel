@@ -1,0 +1,71 @@
+func RunOpenCodeLogin(validate func(cookie, wsid string) bool) (string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	browser, err := launchOpenCodeBrowser(ctx, openCodeAuthURL)
+	if err != nil {
+		return "", "", err
+	}
+	return runOpenCodeLogin(ctx, browser, validate)
+}
+
+// RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+func RunOpenCodePage(pageURL, cookie string) error {
+	if err := validateOpenCodePageURL(pageURL); err != nil {
+		return err
+	}
+	cookies, err := openCodeSavedCookies(cookie)
+	if err != nil {
+		return err
+	}
+	browser, err := launchOpenCodeBrowser(context.Background(), "about:blank")
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return runOpenCodePage(ctx, browser, pageURL, cookies)
+}
+
+func runOpenCodeLogin(ctx context.Context, browser openCodeLoginBrowser, validate func(string, string) bool) (cookie, wsid string, err error) {
+	defer func() {
+		if closeErr := browser.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("关闭 OpenCode 登录浏览器失败: %w", closeErr)
+		}
+	}()
+
+	var capturedCookie, capturedWS string
+	orgResolveLogged := false
+	for {
+		cdp, cdpErr := browser.CDP(ctx)
+		if cdpErr != nil {
+			return "", "", fmt.Errorf("连接 OpenCode 登录浏览器失败: %w", cdpErr)
+		}
+		pageURL, urlErr := cdp.PageURL(ctx, openCodeHost)
+		wsid := openCodeWorkspaceID(pageURL)
+		cookies, cookieErr := cdp.BrowserCookies(ctx)
+		header := openCodeCookieHeader(filterOpenCodeCookies(cookies))
+		_ = cdp.Close()
+		// Console v2 登录后前端路由可能停在 /console 或 /console/go 而不带 org/wrk 路径段，
+		// 此时用已到手的会话 Cookie 反查默认组织，避免用户被迫手动跳到工作区页面。
+		if urlErr == nil && cookieErr == nil && header != "" && wsid == "" && openCodeConsoleURL(pageURL) {
+			resolved, resolveErr := resolveOpenCodeOrgID(header)
+			if resolveErr != nil {
+				// 轮询间隔 300ms，失败只提示一次，避免日志淹没有价值的诊断信息。
+				if !orgResolveLogged {
+					log.Printf("opencode: 解析默认组织失败，继续等待页面跳转: %v", resolveErr)
+					orgResolveLogged = true
+				}
+			} else {
+				wsid = resolved
+			}
+		}
+		if urlErr == nil && cookieErr == nil && wsid != "" && header != "" {
+			capturedCookie, capturedWS = header, wsid
+			break
+		}
+		if browser.Exited() {
+			return "", "", fmt.Errorf("未捕获到有效凭证（窗口已关闭）")
+		}
+		select {
+		case <-ctx.Done():
+			return "", "", fmt.Errorf("未捕获到有效凭证（登录超时或已取消）")

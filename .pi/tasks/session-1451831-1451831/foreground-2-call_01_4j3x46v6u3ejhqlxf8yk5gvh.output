@@ -1,0 +1,12 @@
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+b883a78 fix(store): remove unsafe pseudo-reentrancy and restore strict mutex contract
+11a171a fix(sdk): fix store deadlocks, remove legacy quota shims, and clarify docs
+5c14714 refactor: decouple provider types, split card test suites, and add export script
+1eec455 feat(sdk): split provider sdk and decouple standalone display client
+98eb1b6 fix(commandcode): use apex domain for injected account cookies

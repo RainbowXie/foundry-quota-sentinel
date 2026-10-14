@@ -1,0 +1,2 @@
+176:		"loginShellPoll(",
+181:			t.Fatalf("login fill must use loginShellPoll + fq/fo, missing %q", want)

@@ -1,0 +1,129 @@
+1934-                return scheduleProviderRefresh("commandcode", function () {
+1935-                    return fetchCommandCodeShells().then(fetchCommandCodeCards);
+1936-                });
+1937-            }
+1938-            function ccDoLogin(name) {
+1939-                fetch(
+1940-                    "/api/commandcode/login" +
+1941-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+1942-                )
+1943-                    .then(function () {
+1944-                        // Same shell-first + fill pattern as OpenCode;
+1945-                        // fill is fc() (single-flight wrapper) so the
+1946-                        // account-appear fill joins a busy periodic
+1947-                        // refresh instead of duplicating it.
+1948-                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+1949:                        return loginShellPoll(
+1950-                            function () {
+1951-                                return shellFetchForPoll(
+1952-                                    "/api/commandcode/accounts",
+1953-                                    "commandCodeCards", "commandcode", "CommandCode", name);
+1954-                            },
+1955-                            fc, name, 1000, 250);
+1956-                    })
+1957-                    .catch(function () {});
+1958-            }
+1959-            function kimiDoLogin(name) {
+1960-                fetch(
+1961-                    "/api/kimi/accounts" +
+1962-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+1963-                )
+1964-                    .then(function (r) { return r.json(); })
+--
+2373-                var h = "";
+2374-                arr.forEach(function (c) {
+2375-                    h +=
+2376-                        '<div class=bc data-prov=deepseek data-name="' +
+2377-                        qesc(c.name) +
+2378-                        '">';
+2379-                    h +=
+2380-                        "<div class=bc-r><span class=ctype>DeepSeek</span><span class=cname>" +
+2381-                        qesc(c.name) +
+2382-                        "</span></div>";
+2383-                    h += '<div class=emp>加载中…</div>';
+2384-                    h += "</div>";
+2385-                });
+2386-                box.innerHTML = h;
+2387-            }
+2388:            // loginShellPoll polls a provider's shell endpoint until the
+2389-            // named account appears (name-presence; OpenCode/Ollama have no
+2390-            // generation counter), then renders all shells immediately and
+2391-            // triggers the single-flight fill (fillFn is the provider's
+2392-            // fq/fo wrapper). A cancelled/failed login never writes the
+2393-            // account, so no ghost shell can appear. The shell fetch itself
+2394-            // is a local config read (no quota request); only the fill fires
+2395-            // once the account is confirmed present. The poll is BOUNDED
+2396-            // (maxTries × interval, ~5min at 1s, aligned with DeepSeek's
+2397-            // dsLoginPoll): a login browser can stay open for minutes, but
+2398-            // if the user abandons the login the recursive setTimeout must
+2399-            // stop — otherwise it polls every second forever (resource
+2400-            // leak). After the window expires, the periodic 30s refresh
+2401-            // picks up the account if it eventually lands.
+2402:            function loginShellPoll(shellFn, fillFn, name, interval, maxTries) {
+2403-                var tries = 0;
+2404-                function tick() {
+2405-                    shellFn().then(function (present) {
+2406-                        if (present) {
+2407-                            return fillFn();
+2408-                        }
+2409-                        if (tries++ < maxTries) setTimeout(tick, interval);
+2410-                    }).catch(function () {
+2411-                        // Transient shell fetch error: keep polling within
+2412-                        // the bound.
+2413-                        if (tries++ < maxTries) setTimeout(tick, interval);
+2414-                    });
+2415-                }
+2416-                tick();
+2417-            }
+--
+2434-            function ocDoLogin(name) {
+2435-                fetch(
+2436-                    "/api/opencode/login" +
+2437-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2438-                )
+2439-                    .then(function () {
+2440-                        // card-shell-first-async-load: render the new
+2441-                        // account's shell the moment it lands in config (no
+2442-                        // quota request), then the fill replaces it. Poll
+2443-                        // until the account appears so no ghost card shows
+2444-                        // on a failed login. The fill is fq() — the
+2445-                        // scheduleProviderRefresh wrapper — so it joins any
+2446-                        // in-flight periodic refresh (single-flight) and
+2447-                        // rearms the 30s deadline from its settlement.
+2448-                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+2449:                        return loginShellPoll(
+2450-                            function () {
+2451-                                return shellFetchForPoll(
+2452-                                    "/api/opencode/accounts",
+2453-                                    "accountCards", "opencode", "OpenCode Go", name);
+2454-                            },
+2455-                            fq, name, 1000, 250);
+2456-                    })
+2457-                    .catch(function () {});
+2458-            }
+2459-            function olDoLogin(name) {
+2460-                fetch(
+2461-                    "/api/ollama/login" +
+2462-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2463-                ).then(function () {
+2464-                    // Same shell-first + fill pattern as OpenCode; fill is
+2465-                    // fo() (single-flight wrapper), so the account-appear
+2466-                    // fill joins a busy periodic refresh instead of
+2467-                    // duplicating it. 250×1s ≈ 5min, aligned with
+2468-                    // dsLoginPoll.
+2469:                    return loginShellPoll(
+2470-                        function () {
+2471-                            return shellFetchForPoll(
+2472-                                "/api/ollama/accounts",
+2473-                                "ollamaCards", "ollama", "Ollama", name);
+2474-                        },
+2475-                        fo, name, 1000, 250);
+2476-                });
+2477-            }
+2478-            document
+2479-                .getElementById("dsCards")
+2480-                .addEventListener("click", function (e) {
+2481-                    var t = e.target;
+2482-                    if (t.classList.contains("dsLogin"))
+2483-                        dsDoLogin(t.getAttribute("data-name"));
+2484-                });

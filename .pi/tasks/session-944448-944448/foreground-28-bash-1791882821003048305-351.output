@@ -1,0 +1,98 @@
+commit a2029580b402a17147fad6d58a6755ffbce0a66c
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 14:57:30 2026 +0800
+
+    chore(release): bump version to 0.11.3
+
+commit 4d30bc663dfe0c64b8d8f8a0fffcec1c9d446f6d
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 13:22:34 2026 +0800
+
+    fix(opencode): close Console v2 review findings (export manifest drift, CJK spacing, clamp test)
+    
+    - scripts/export-sdk.sh: generate require block from manifest .dependencies via jq,
+      read go_version from manifest, fail closed when dependencies empty
+    - pkg/sdk/export-manifest.json: correct go_version 1.23.0 -> 1.26.0 to match root go.mod
+    - cmd_quota.go / cmd_config.go: add space between CJK and latin in user-facing strings
+    - parser_console_test.go: add deterministic expired resetsAt clamp test (ResetInSec 0, ResetDisplay 0s)
+    - client_test.go: drop unused opencodeFakeTransport.bodyErr field
+
+commit bac718b7630acbb92b4b2c0f1a241e8a9469f731
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 12:56:26 2026 +0800
+
+    fix(opencode): render lapsed notice in CLI table and watch views
+
+commit d2c0530df3b3ee911809f4e9435a2df362f3258d
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 12:40:27 2026 +0800
+
+    fix(opencode): guard account-page URL with workspace id whitelist
+    
+    修复第四轮审查提出的 2 个 P2 问题（审查结论为无 P0/P1）：
+    
+    - cmd_page.go 账户页 URL 未过白名单：open-page 把配置里的 WorkspaceID 原样拼进
+      https://opencode.ai/console/<WorkspaceID>/go，而 validateOpenCodePageURL 只校验
+      scheme/host，导致误存的完整 URL（如 https://opencode.ai/console/org_01JXYZ/go）
+      被拼成 https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go
+      并被静默交给浏览器，同一取值在 quota 命令却会明确报错。现导出
+      opencode.ValidWorkspaceID，并在 pkg/sdk/auth（公开 RunOpenCodePage 边界）与
+      cmd_page.go（用户可读诊断）两处复用同一白名单：账户页 URL 的首个 /console/
+      路径段必须匹配 org_/wrk_ + 字母数字。
+      新增 TestValidWorkspaceIDMatchesConsoleIdentifiers、
+      TestRunOpenCodePageRejectsMalformedWorkspaceURL；扩展 TestValidateOpenCodePageURL
+      覆盖粘贴完整 URL、裸 ID、org_ 空主体、连字符与 /console 裸根等形态。
+    - openspec 增量与实现不一致：update-opencode-console-v2 的
+      opencode-quota-response-parsing delta 只声明 ADDED Requirements，而 proposal 将其
+      列入 Modified Capabilities；base spec 的 Purpose 仍称响应是
+      "a seroval-like serialization rather than plain JSON"。现补 MODIFIED Requirements
+      （旧 Seroval 需求降级为有界兼容分支、Console v2 JSON 为主契约），直接修正 base
+      spec 的 Purpose（openspec 归档不会为既有能力搬运 delta Purpose，工具明确提示直接
+      编辑目标 spec），并删除 proposal 里 "…或全面切换至新 JSON 契约" 的二选一措辞。
+      openspec validate --strict 对 change 与 spec 均通过。
+    
+    验证：gofmt -l（改动文件无输出）、go vet（auth/opencode/main 无输出）、
+    go test -tags nogui ./...、CGO_ENABLED=0 go test ./pkg/sdk/... 全绿；
+    ./scripts/export-sdk.sh 独立模块测试全绿；build/fqs-cli（nogui）与
+    build/foundry-quota-sentinel（CGO + webkit2gtk-4.1 shim）均重新构建。
+    GitNexus impact：validateOpenCodePageURL LOW；detect-changes 报 high 由 cmdOpenPage
+    的高扇出驱动，本次仅为该分支新增前置校验，行为变更为非法 WorkspaceID 由静默导航
+    改为显式报错，无跨模块影响。
+
+commit 741ba01411662784abad352ee5aeb99f0358130a
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 12:24:16 2026 +0800
+
+    fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+    
+    修复第三轮审查提出的 5 个 P2 问题（审查结论为无 P0/P1）：
+    
+    - /console/api/orgs 反查热循环：300ms 轮询原本每轮都重发，上游持续 401/429
+      或会话 Cookie 尚未生效时会形成 ~3 req/s 的请求压力并可能自我延续限流。
+      现由 shouldResolveOpenCodeOrgID 统一约束：最小重试间隔 5s，单次登录最多 5 次；
+      超过上限后只继续等待页面自身跳到 /console/<id>/go，不再向上游施压。
+      新增 TestShouldResolveOpenCodeOrgID 覆盖间隔与上限边界，
+      TestRunOpenCodeLoginRateLimitsOrgIDResolve 守住「两次轮询只反查一次」的回归。
+    - CDP 探针错误被静默丢弃：urlErr/cookieErr 既不记录也不并入最终错误，持续失败时
+      用户只看到笼统的「未捕获到有效凭证」。现保留最后一次探针错误，经 openCodeCaptureErr
+      并入窗口关闭与登录超时的失败信息（%w 包装，可用 errors.Is 判定）。
+      新增 TestRunOpenCodeLoginReportsLastProbeError，覆盖页面地址与 Cookie 两条分支。
+    - Cookie 过滤重复实现：filterOpenCodeCookies 与 openCodeCookieHeader 的三项判据
+      （域名匹配 / 排除 auth 子域 / 值安全）逐字相同，且前者无其他调用点也无单测。
+      现删除 filterOpenCodeCookies，过滤只保留在 openCodeCookieHeader 内，并补充
+      TestOpenCodeCookieHeaderDropsUnsafeCookies 继续守住三项判据。
+    - internal/web/static/help.html:348 架构数据来源仍写已退役的
+      OpenCode Go RPC (/_server)，改为 OpenCode Console API (/console/api/go/status)；
+      同文件 156 行的「OpenCode Go 的 RPC 接口」一并改为 Console 接口说明。
+    - pkg/sdk/README.md 包结构说明仍写「OpenCode 原生配额 RPC 获取与 Seroval 解析器」，
+      改为「Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支」
+      （该 README 随 export-sdk.sh 交付给 SDK 使用者）。
+    
+    验证：gofmt -l pkg/sdk cmd_page.go（本次改动文件均无输出，仅剩 HEAD 既存的 3 个
+    Go 1.19+ 对齐漂移文件）、go vet -tags nogui ./...、go test -tags nogui ./...、
+    CGO_ENABLED=0 go test ./pkg/sdk/...、GOARCH=386 go test
+    ./pkg/sdk/{auth,providers/opencode}/... 全绿；./scripts/export-sdk.sh 独立模块测试全绿；
+    build/fqs-cli（nogui）与 build/foundry-quota-sentinel（CGO + webkit2gtk-4.1 shim）
+    均重新构建。GitNexus impact：runOpenCodeLogin / openCodeCookieHeader /
+    filterOpenCodeCookies 均 LOW；detect-changes 为 medium（集中在登录流程符号，未波及
+    配额卡片等其他执行流程）。

@@ -1,0 +1,13 @@
+- Loading change status...
+Change: update-opencode-console-v2
+Schema: spec-driven
+Change root: /mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2
+Progress: 4/4 artifacts complete
+
+[x] proposal
+[x] specs
+[x] design
+[x] tasks
+
+All planning artifacts complete!
+Next: openspec instructions apply --change "update-opencode-console-v2" --json

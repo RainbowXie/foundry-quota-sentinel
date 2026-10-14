@@ -1,0 +1,33 @@
+变更：9 个文件，15 个符号
+受影响流程：30
+风险等级：critical
+
+已变更符号：
+  Symbol cmdConfigInit → cmd_config.go
+  Symbol cmdConfigAdd → cmd_config.go
+  Symbol cmdLoginOpenCode → cmd_login.go
+  Symbol validate → cmd_login.go
+  Symbol cmdWatch → cmd_quota.go
+  Symbol FormatOpenCodeTable → internal/formatter/table.go
+  Symbol ParseQuotaResponse → pkg/sdk/providers/opencode/parser.go
+  Symbol additionalPropsBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol canonicalBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol inlineBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol monthlyAbsentBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol monthlyUnlimitedBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol referenceDriftBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol reorderedFieldsBody → pkg/sdk/providers/opencode/parser_test.go
+  Symbol whitespaceBody → pkg/sdk/providers/opencode/parser_test.go
+
+受影响执行流程：
+  • Main → SkipSpace (8 步) — 已变更：ParseQuotaResponse
+  • CmdConfigMain → ConfigDir (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → LockFileFD (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → FileLock (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → MigrateLegacyConfig (6 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → Config (6 步) — 已变更：cmdConfigInit
+  • CmdQuota → ExtractBoundedObject (6 步) — 已变更：ParseQuotaResponse
+  • CmdQuota → ParseSerovalString (6 步) — 已变更：ParseQuotaResponse
+  • CmdQuota → SplitTopLevelFields (6 步) — 已变更：ParseQuotaResponse
+  • CmdQuota → SplitTopLevelKV (6 步) — 已变更：ParseQuotaResponse
+... 以及另外 20 个

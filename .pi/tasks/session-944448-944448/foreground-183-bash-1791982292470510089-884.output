@@ -1,0 +1,22 @@
+pkg/sdk/auth/commandcode.go:95:// RunCommandCodeLogin 启动 CDP 浏览器引导用户登录 CommandCode，捕获 Cookie 与 GitHub 用户名。
+pkg/sdk/auth/commandcode.go:96:func RunCommandCodeLogin(validate func(cookie, userName string) bool) (string, string, error) {
+pkg/sdk/auth/opencode_test.go:279:func TestRunOpenCodeLoginValidatesAfterClose(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:301:func TestRunOpenCodeLoginResolvesDefaultOrgID(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:324:func TestRunOpenCodeLoginSkipsOrgIDResolveOnLoginPage(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:337:// TestRunOpenCodeLoginRateLimitsOrgIDResolve 守住热循环回归：
+pkg/sdk/auth/opencode_test.go:339:func TestRunOpenCodeLoginRateLimitsOrgIDResolve(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:359:// TestRunOpenCodeLoginReportsLastProbeError 守住静默吞错回归：
+pkg/sdk/auth/opencode_test.go:361:func TestRunOpenCodeLoginReportsLastProbeError(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:401:func TestRunOpenCodeLoginKeepsPollingWhenOrgIDResolveFails(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:419:func TestRunOpenCodeLoginRejectsEmptyCredentials(t *testing.T) {
+pkg/sdk/auth/commandcode_test.go:110:func TestRunCommandCodeLoginHappyPath(t *testing.T) {
+pkg/sdk/auth/deepseek_login.go:14:// RunDeepSeekLogin 启动 CDP 浏览器引导用户登录 DeepSeek，监听 Network 与 Storage，捕获 Bearer Token 及 WebStore 快照。
+pkg/sdk/auth/deepseek_login.go:15:func RunDeepSeekLogin(validate func(string) bool) (string, string, error) {
+pkg/sdk/auth/kimi_login.go:14:// RunKimiLogin 启动 CDP 浏览器引导用户完成 Kimi 登录，并捕获 Bearer Token、RefreshToken 与 Cookies 构建完整信封。
+pkg/sdk/auth/kimi_login.go:15:func RunKimiLogin(validate func(accessToken string) bool) (kimi.KimiAuthEnvelope, error) {
+pkg/sdk/auth/opencode.go:172:// RunOpenCodeLogin 启动 CDP 浏览器引导用户登录 OpenCode，并轮询捕获 Cookie 与 WorkspaceID。
+pkg/sdk/auth/opencode.go:173:func RunOpenCodeLogin(validate func(cookie, wsid string) bool) (string, string, error) {
+pkg/sdk/auth/ollama.go:114:// RunOllamaLogin 启动 CDP 浏览器引导用户登录 Ollama 并捕获凭据。
+pkg/sdk/auth/ollama.go:115:func RunOllamaLogin() (OllamaLoginCredentials, error) {
+pkg/sdk/auth/ollama_test.go:79:func TestRunOllamaLoginReturnsCapturedCredentialsWithoutValidationCallback(t *testing.T) {
+pkg/sdk/auth/ollama_test.go:96:func TestRunOllamaLoginReconnectsAfterEmptyCookieSnapshot(t *testing.T) {

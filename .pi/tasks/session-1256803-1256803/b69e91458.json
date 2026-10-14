@@ -1,0 +1,20 @@
+{
+  "id": "b69e91458",
+  "name": "等待 v0.11.3 发布",
+  "command": "gh run watch 37896321229 --exit-status --interval 15 2>&1; echo \"=== exit=$? ===\"; gh run view 37896321229 --json status,conclusion,url,displayTitle 2>&1",
+  "description": "等待 GitHub Actions v0.11.3 发布工作流完成并输出结果",
+  "status": "completed",
+  "outputPath": ".pi/tasks/session-1256803-1256803/b69e91458.output",
+  "cwd": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+  "startTime": 1791529091462,
+  "endTime": 1791529356831,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 2236170,
+  "bytesWritten": 44996,
+  "isAgent": true,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 1800
+}

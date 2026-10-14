@@ -1,0 +1,16 @@
+internal/config/config.go
+internal/formatter/format.go
+internal/storage/reader.go
+internal/web/kimi_test.go
+internal/web/quota_card_adapter_test.go
+internal/web/routes_commandcode.go
+internal/web/routes_deepseek.go
+internal/web/routes_kimi.go
+internal/web/routes_ollama.go
+internal/web/routes_opencode.go
+internal/web/server.go
+pkg/sdk/auth/commandcode_test.go
+pkg/sdk/auth/opencode_test.go
+pkg/sdk/providers/commandcode/client.go
+pkg/sdk/providers/opencode/types.go
+== exit: 0 ==

@@ -1,0 +1,7 @@
+./pkg/sdk/providers/opencode/client.go:21:// openCodeOrgIDRe 白名单校验 Console 返回的组织/工作区标识：org_ 或 wrk_ 前缀加字母数字主体。
+./pkg/sdk/providers/opencode/client.go:23:var openCodeOrgIDRe = regexp.MustCompile(`^(?:org|wrk)_[a-zA-Z0-9]+$`)
+./pkg/sdk/providers/opencode/client.go:78:		if !openCodeOrgIDRe.MatchString(org.ID) {
+./pkg/sdk/providers/opencode/client.go:130:	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
+./pkg/sdk/providers/opencode/parser.go:18:	return parseSerovalQuotaResponse(text)
+./pkg/sdk/providers/opencode/parser.go:21:// parseSerovalQuotaResponse 解析旧版 Seroval 序列化文本（如 `{rollingUsage:$R[1]={...}}`）。
+./pkg/sdk/providers/opencode/parser.go:22:func parseSerovalQuotaResponse(text string) (*QuotaData, error) {

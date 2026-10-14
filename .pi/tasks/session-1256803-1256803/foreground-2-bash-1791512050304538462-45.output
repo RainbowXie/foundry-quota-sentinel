@@ -1,0 +1,11 @@
+暂无配置。请运行 foundry-quota-sentinel config init 添加。
+/home/ethan/.foundry-quota-sentinel:
+总计 1172
+drwx------   2 ethan ethan    4096 10月  9 10:12 .
+drwxr-x--- 182 ethan ethan   12288 10月  9 10:10 ..
+-rw-------   1 ethan ethan   15788 10月  9 10:12 config.json
+-rw-------   1 ethan ethan       0  7月 30 11:49 config.lock
+-rw-------   1 ethan ethan       0  9月  4 00:33 kimi-refresh-17375833063.lock
+-rw-------   1 ethan ethan       0  8月 25 21:02 kimi-refresh-17608004729.lock
+-rw-------   1 ethan ethan       0  7月 30 11:49 kimi-refresh-18011662812.lock
+-rw-------   1 ethan ethan 1166236  7月 17 12:38 ollama-login-debug.log

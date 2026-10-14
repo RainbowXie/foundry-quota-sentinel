@@ -1,0 +1,25 @@
+internal/web/static/sidebar.html:1440:                    // RPC returns null → backend marks QuotaData.lapsed.
+internal/web/static/help.html:156:<p>foundry-quota-sentinel 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Go 的 RPC 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+internal/web/static/help.html:348:OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
+====
+
+// FetchQuota 请求 Console v2 的 Go 订阅状态接口并解析出 OpenCode 原生 QuotaData。
+// OpenCode 已将旧版 /_server Seroval RPC 替换为 Console REST API，旧接口会 302 到鉴权页，
+// 因此这里必须走 /console/api/go/status 并用 x-org-id 指定工作区。
+func (q *OpenCodeQuerier) FetchQuota() (*QuotaData, error) {
+	if err := q.validate(); err != nil {
+		return nil, err
+	}
+	body, err := openCodeConsoleGET(q.Cookie, q.WorkspaceID, "/go/status", q.Client)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQuotaResponse(string(body))
+}
+
+// FetchDefaultOrgID 用已捕获的会话 Cookie 查询 Console 组织列表，返回首个非空组织 ID。
+// 新版登录页落地在 /console/login?next=/console/go，前端路由可能停留在 /console 或 /console/go
+// 而不带 org/wrk 路径段，此时该接口是唯一可确定工作区标识的来源。
+func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
+	if cookie == "" {
+		return "", fmt.Errorf("OpenCode 登录状态无效")

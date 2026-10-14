@@ -1,0 +1,20 @@
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+c11b8aa fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+b883a78 fix(store): remove unsafe pseudo-reentrancy and restore strict mutex contract
+11a171a fix(sdk): fix store deadlocks, remove legacy quota shims, and clarify docs
+5c14714 refactor: decouple provider types, split card test suites, and add export script
+1eec455 feat(sdk): split provider sdk and decouple standalone display client
+98eb1b6 fix(commandcode): use apex domain for injected account cookies
+8bbcec3 fix(quota): keep fractional usagePercent decimals (opencode upstream now sends 19.3)
+  172 pkg/sdk/providers/opencode/parser_console.go
+  340 pkg/sdk/auth/opencode.go
+  286 pkg/sdk/auth/opencode_test.go
+  342 pkg/sdk/providers/opencode/parser_console_test.go
+ 1140 总计

@@ -1,0 +1,21 @@
+2424-                        if (!r || !r.success) return false;
+2425-                        var arr = r.data || [];
+2426-                        renderProviderShells(containerId, provider, providerLabel, arr);
+2427-                        for (var i = 0; i < arr.length; i++) {
+2428-                            if (arr[i] && arr[i].name === name) return true;
+2429-                        }
+2430-                        return false;
+2431-                    })
+2432-                    .catch(function () { return false; });
+2433-            }
+2434:            function ocDoLogin(name) {
+2435-                fetch(
+2436-                    "/api/opencode/login" +
+2437-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2438-                )
+2439-                    .then(function () {
+2440-                        // card-shell-first-async-load: render the new
+2441-                        // account's shell the moment it lands in config (no
+2442-                        // quota request), then the fill replaces it. Poll
+2443-                        // until the account appears so no ghost card shows
+2444-                        // on a failed login. The fill is fq() — the

@@ -1,0 +1,17 @@
+[ {
+   "description": "",
+   "devtoolsFrontendUrl": "https://chrome-devtools-frontend.8pp2p8t.qjz9zk/serve_rev/@d04cdb24d67b081f6cf80200ffc5233f44b61109/inspector.html?ws=127.0.0.1:9333/devtools/page/0CD215D26B38194F167CE1082BD6A823",
+   "id": "0CD215D26B38194F167CE1082BD6A823",
+   "title": "about:blank",
+   "type": "page",
+   "url": "about:blank",
+   "webSocketDebuggerUrl": "ws://127.0.0.1:9333/devtools/page/0CD215D26B38194F167CE1082BD6A823"
+}, {
+   "description": "",
+   "devtoolsFrontendUrl": "https://chrome-devtools-frontend.8pp2p8t.qjz9zk/serve_rev/@d04cdb24d67b081f6cf80200ffc5233f44b61109/inspector.html?ws=127.0.0.1:9333/devtools/page/4A98382BCC546CDDF384ADED6FDB5F17",
+   "id": "4A98382BCC546CDDF384ADED6FDB5F17",
+   "title": "uBlock Origin",
+   "type": "background_page",
+   "url": "chrome-extension://blockjmkbacgjkknlgpkjjiijinjdanf/background.html",
+   "webSocketDebuggerUrl": "ws://127.0.0.1:9333/devtools/page/4A98382BCC546CDDF384ADED6FDB5F17"
+} ]

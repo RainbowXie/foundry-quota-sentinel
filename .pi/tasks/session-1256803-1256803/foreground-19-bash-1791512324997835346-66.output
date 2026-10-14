@@ -1,0 +1,29 @@
+HTTP/2 200 
+date: Fri, 09 Oct 2026 02:18:45 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: frame-ancestors 'none';
+x-frame-options: DENY
+server: cloudflare
+cf-ray: a479e5847c464e43-LAX
+
+=== /workspace/wrk_test/go ===
+HTTP/2 302 
+date: Fri, 09 Oct 2026 02:18:46 GMT
+content-type: text/html
+location: /auth/authorize
+set-cookie: auth=Fe26.2**d0cb638e8e2dbd76a307bbecdae35ed5e211a6add8947afe0c621003e6c5d396*AJme2r5i1sOuh5apNXfjaQ*6Zp0dFgCDz1cu0ePherxWSSREpbL0GaUYrfaZfE-eMGSyqto2fKw2wDaD5eowaMzIVdwS89heGcnhvllmHM_3UZn_q99zKxrtqEy8Keq-B9nUFXxKi8hC4s3pdDgoiDd*1823048326591*86bc2e4881c44f89b62f00fe60ab905dd937cf5a1e81d53ffed6cc1538e8f1fe*bw1_CzS1CIlKQ1Ya5SiClLRfTKfx9SrkHhajeiwouww; Path=/; Expires=Sat, 09 Oct 2027 02:18:46 GMT; HttpOnly
+cf-placement: remote-ORD
+server: cloudflare
+cf-ray: a479e5891970819b-DEN
+
+=== /console ===
+HTTP/2 307 
+date: Fri, 09 Oct 2026 02:18:47 GMT
+location: /console/
+content-security-policy: frame-ancestors 'none';
+x-frame-options: DENY
+server: cloudflare
+cf-ray: a479e58d7c8ff8cf-LAX
+

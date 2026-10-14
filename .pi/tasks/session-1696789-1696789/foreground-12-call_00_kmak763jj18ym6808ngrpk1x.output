@@ -1,0 +1,23 @@
+1eec455 feat(sdk): split provider sdk and decouple standalone display client
+====
+====
+commit c11b8aab7777f35f93c43dac54f203792f65b836
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 11:41:22 2026 +0800
+
+    fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+    
+    修复第二轮审查发现的 4 个问题：
+    
+    - P1 用户指引仍指向已退役的 /workspace/<id>/usage 路由与 wrk_ 单一前缀：
+      cmd_config.go（向导与 config add）、cmd_login.go、help.html 统一改为
+      /console/<orgId|wrkId>/go 与 org_/wrk_ 双前缀说明。
+    - P2 非 Seroval 响应体只要含 "null" 就被推断为订阅失效（静默误报）：
+      parseSerovalQuotaResponse 现在要求 `$R` 引用表标记与 "null" 同时存在，
+      截断响应、BOM 前缀、HTML 拦截页一律 fail-closed。新增
+      TestParseQuotaResponseNonSerovalNullIsNotLapsed 覆盖三种非 Seroval 输入。
+    - P2 文档声明的 org_/wrk_ 白名单未覆盖配额路径：validate() 现在校验
+      WorkspaceID 格式，手工粘贴的 URL 不再被当作 x-org-id 发往上游。
+      新增 TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID 覆盖 7 种非法 ID。
+    - P2 Monthly 缺失被渲染成“无限额度”这一正向断言：CLI 表格与 watch 视图
+      改为“未提供/无月窗口”，并新增 internal/formatter/table_test.go 守住口径。

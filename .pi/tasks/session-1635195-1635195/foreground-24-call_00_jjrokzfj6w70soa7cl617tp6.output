@@ -1,0 +1,63 @@
+=== impact consoleResetInSec ===
+{"level":40,"time":1791518728402,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "error": "Target 'consoleResetInSec' not found",
+  "target": {
+    "name": "consoleResetInSec"
+  },
+  "direction": "upstream",
+  "impactedCount": 0,
+  "risk": "UNKNOWN"
+}
+=== impact openCodeWorkspaceID ===
+        "id": "Function:pkg/sdk/auth/opencode.go:RunOpenCodeLogin",
+        "name": "RunOpenCodeLogin",
+        "filePath": "pkg/sdk/auth/opencode.go",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ],
+    "3": [
+      {
+        "depth": 3,
+        "id": "Function:cmd_login.go:cmdLoginOpenCode",
+        "name": "cmdLoginOpenCode",
+        "filePath": "cmd_login.go",
+        "relationType": "CALLS",
+        "confidence": 0.85,
+        "processes": []
+      }
+    ]
+  },
+  "staleness": {
+    "commitsBehind": 2,
+    "hint": "⚠️ Index is 2 commits behind HEAD. Run analyze tool to update."
+  }
+}
+=== impact validateOpenCodePageURL ===
+            "label": "Main → MigrateLegacyConfig",
+            "processType": "intra_community",
+            "step": 1
+          },
+          {
+            "id": "proc_103_main",
+            "label": "Main → Client",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_8_main",
+            "label": "Main → SkipSpace",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ]
+  },
+  "staleness": {
+    "commitsBehind": 2,
+    "hint": "⚠️ Index is 2 commits behind HEAD. Run analyze tool to update."
+  }
+}

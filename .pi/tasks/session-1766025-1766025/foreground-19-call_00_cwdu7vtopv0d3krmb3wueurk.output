@@ -1,0 +1,40 @@
+dist/core/archive.js:96:    // seeing them - a stray `### Requirements` under Purpose captures its section
+dist/core/archive.js:1052:                // No mainSpecsDir here on purpose: the scenario-loss check standalone
+dist/core/archive.js:1328:                                    // purpose: the marker is only ever named when adding it would
+dist/core/archive.js:1337:                                            'Move it into `## Purpose` or a canonical requirement, or delete the spec by hand, then rerun.' +
+dist/core/archive.js:1357:                                            'Move it into `## Purpose` or a canonical requirement, or delete the spec by hand.'
+dist/core/archive.js:1490:                                // spec-merge divergence is. Purpose always goes with the file, so it
+dist/core/archive.js:1493:                                const lost = ['Purpose'];
+dist/core/archive.js:1526:                                // Conditional on purpose, too: whether the file is in `HEAD` is not
+dist/core/specs-apply.js:231:    const deltaPurpose = extractPurposeSection(changeContent);
+dist/core/specs-apply.js:237:        // A delta Purpose only seeds a spec that does not exist yet. Say so rather
+dist/core/specs-apply.js:240:        // Only when the spec really does have a different Purpose: claiming it
+dist/core/specs-apply.js:243:        if (deltaPurpose) {
+dist/core/specs-apply.js:244:            const existingPurpose = extractPurposeSection(targetContent);
+dist/core/specs-apply.js:245:            if (existingPurpose && existingPurpose !== deltaPurpose) {
+dist/core/specs-apply.js:246:                warn(`${specName} - delta Purpose ignored; ${specName} already has one. ` +
+dist/core/specs-apply.js:267:        targetContent = buildSpecSkeleton(specName, changeName, deltaPurpose);
+dist/core/specs-apply.js:268:        const overview = deltaPurpose ? readableOverview(targetContent, specName) : null;
+dist/core/specs-apply.js:269:        if (deltaPurpose && !overview) {
+dist/core/specs-apply.js:271:            // deltas archived cleanly before the Purpose carry-over existed.
+dist/core/specs-apply.js:273:            warn(`${specName} - delta Purpose ignored (it would leave the new spec unreadable); wrote the placeholder Purpose instead.`);
+dist/core/specs-apply.js:276:            // The placeholder always cleared this threshold, so a carried Purpose is
+dist/core/specs-apply.js:279:            warn(`${specName} - carried Purpose is under ${MIN_PURPOSE_LENGTH} characters; ` +
+dist/core/specs-apply.js:472:    // glued the heading to the Purpose paragraph and the first requirement, so
+dist/core/specs-apply.js:504: * Approximate on purpose, and only ever used to WARN. A `#` line inside a
+dist/core/specs-apply.js:596: * to name: the title, the `## Purpose` section, the `## Requirements` header,
+dist/core/specs-apply.js:605:    // Above the requirements section: the title and the Purpose section are
+dist/core/specs-apply.js:609:    let inPurpose = false;
+dist/core/specs-apply.js:621:                inPurpose = /^purpose$/i.test(section[1].trim());
+dist/core/specs-apply.js:622:                if (!inPurpose)
+dist/core/specs-apply.js:629:            // reader sees a sibling of `## Purpose`, not more of its body. Treating
+dist/core/specs-apply.js:630:            // everything up to the next ATX `##` as Purpose swallowed those whole and
+dist/core/specs-apply.js:631:            // deleted them, reported as nothing but "Purpose".
+dist/core/specs-apply.js:632:            const setext = inPurpose && previousLine.trim() && /^ {0,3}(=+|-+)\s*$/.test(line);
+dist/core/specs-apply.js:636:                inPurpose = false;
+dist/core/specs-apply.js:641:                if (!titleSeen && !inPurpose) {
+dist/core/specs-apply.js:646:                    inPurpose = false;
+dist/core/specs-apply.js:653:        if (inPurpose)
+dist/core/specs-apply.js:1088:        // `## Purpose` left the commented-out header looking real (#1413).
+dist/core/specs-apply.js:1096: * Read the body of a `## Purpose` section, ignoring markdown that only appears
+dist/core/specs-apply.js:1100:function extractPurposeSection(content) {

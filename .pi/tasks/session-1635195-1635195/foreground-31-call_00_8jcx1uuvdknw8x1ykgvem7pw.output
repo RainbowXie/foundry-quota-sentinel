@@ -1,0 +1,21 @@
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+--- staged ---
+--- log ---
+549e481 fix(opencode): close Console v2 audit findings (32-bit clamp, auth host, anchored workspace id)
+c11b8aa fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+--- show stat ---
+    独立模块测试全绿；build/fqs-cli（nogui）与 build/foundry-quota-sentinel（CGO + webkit2gtk-4.1）
+    均重新构建。
+
+ pkg/sdk/auth/opencode.go                          | 18 ++++++++++---
+ pkg/sdk/auth/opencode_test.go                     | 33 +++++++++++++++++++++++
+ pkg/sdk/providers/opencode/parser_console.go      |  9 +++++--
+ pkg/sdk/providers/opencode/parser_console_test.go | 22 +++++++++++++++
+ 4 files changed, 76 insertions(+), 6 deletions(-)

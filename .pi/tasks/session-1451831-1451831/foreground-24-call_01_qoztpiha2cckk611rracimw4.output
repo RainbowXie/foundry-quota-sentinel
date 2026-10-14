@@ -1,0 +1,20 @@
+./main_locktest_nogui_test.go:6:// `_locktest` subprocess build. Running `go test -tags nogui .` builds the
+./main_locktest_nogui_test.go:9:// on CI/dev machines without webkit2gtk).
+./main_locktest_nogui_test.go:10:const locktestBinaryTags = "-tags nogui"
+./docs/superpowers/specs/2026-06-23-deepseek-rich-cards-design.md:159:- `CGO_ENABLED=0 go build -tags nogui .` 通过、`go vet -tags nogui ./...` 通过（后端逻辑与编译本机可验证）。
+./docs/superpowers/specs/2026-06-23-multi-account-cards-design.md:73:- `CGO_ENABLED=0 go build -tags nogui .` 通过；`go vet -tags nogui ./...` 通过（本机可验证编译与后端逻辑）。
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:69:- Linux：GTK3 开发库 + webkit2gtk 开发库。
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:71:Linux 关键约束：`webview_go` 的 cgo 链接行硬编码 `pkg-config: gtk+-3.0 webkit2gtk-4.0`，编译期必须能找到 `webkit2gtk-4.0` 的 `.pc`。`ubuntu-24.04`（即当前 `ubuntu-latest`）已移除 `libwebkit2gtk-4.0-dev`，因此 Linux 构建固定使用 **`ubuntu-22.04`** runner，安装 `libgtk-3-dev libwebkit2gtk-4.0-dev`。
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:85:  - `ubuntu-22.04`：先 `apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev`，再 `go build -ldflags="-s -w" -o ocgt-monitor .`。
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:91:CGO_ENABLED=0 go build -tags nogui -o ocgt-monitor .
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:98:- macOS / Linux 的使用方式与构建依赖（webkit2gtk）。
+./docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:108:  - 本机：`CGO_ENABLED=0 go build -tags nogui .` 成功，产出可运行的 CLI 二进制 —— 证明拆分后跨平台地基打通。
+./docs/superpowers/specs/2026-07-18-unified-browser-auth-design.md:235:- `CGO_ENABLED=0 go test -tags nogui ./...`;
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:11:**关于验证方式：** 本变更是构建系统/平台隔离改造，没有可做单元测试的纯逻辑，验证手段是「特定 build tag 下能否编译 + 运行二进制冒烟」。本机（Linux，无 webkit/mingw）只能编译 `nogui` 变体；`windows`/`unix` 路径由 CI（Task 4）编译验证。这是该类改动的诚实验证方式，并非遗漏测试。
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:90://   - any platform with -tags nogui, or
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:149:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui .`
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:164:Run: `CGO_ENABLED=0 go vet -tags nogui ./...`
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:181:> 本机无 webkit2gtk 开发库，无法在本地编译此文件；编译验证由 CI（Task 4）完成。本任务仅做语法/格式检查。
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:226:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui .`
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:283:          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+./docs/superpowers/plans/2026-06-23-cross-platform-build.md:316:> 说明：Windows runner 自带 MinGW（gcc），CGO 直接可用；若 CI 报 gcc 未找到，再在 Windows job 前加一步 `egor-tensin/setup-mingw@v2`。Linux 固定 `ubuntu-22.04` 是因为 24.04 已移除 `libwebkit2gtk-4.0-dev`，而 `webview_go` 编译期硬依赖 `webkit2gtk-4.0`。

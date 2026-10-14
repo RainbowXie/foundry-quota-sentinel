@@ -1,0 +1,106 @@
+{
+  "changeName": "update-opencode-console-v2",
+  "schemaName": "spec-driven",
+  "planningHome": {
+    "kind": "repo",
+    "root": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+    "changesDir": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes",
+    "defaultSchema": "spec-driven"
+  },
+  "changeRoot": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2",
+  "artifactPaths": {
+    "proposal": {
+      "outputPath": "proposal.md",
+      "resolvedOutputPath": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2/proposal.md",
+      "existingOutputPaths": []
+    },
+    "specs": {
+      "outputPath": "specs/**/*.md",
+      "resolvedOutputPath": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2/specs/**/*.md",
+      "existingOutputPaths": []
+    },
+    "design": {
+      "outputPath": "design.md",
+      "resolvedOutputPath": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2/design.md",
+      "existingOutputPaths": []
+    },
+    "tasks": {
+      "outputPath": "tasks.md",
+      "resolvedOutputPath": "/mnt/data/Work/Projects/foundry-quota-sentinel/openspec/changes/update-opencode-console-v2/tasks.md",
+      "existingOutputPaths": []
+    }
+  },
+  "isPlanningComplete": false,
+  "isComplete": false,
+  "applyRequires": [
+    "tasks"
+  ],
+  "nextSteps": [
+    "Run openspec instructions proposal --change \"update-opencode-console-v2\" --json before writing that artifact."
+  ],
+  "actionContext": {
+    "mode": "repo-local",
+    "sourceOfTruth": "repo",
+    "planningArtifacts": [
+      "proposal",
+      "specs",
+      "design",
+      "tasks"
+    ],
+    "linkedContext": [],
+    "allowedEditRoots": [
+      "/mnt/data/Work/Projects/foundry-quota-sentinel"
+    ],
+    "requiresAffectedAreaSelection": false,
+    "constraints": [
+      "Repo-local change artifacts and implementation edits are scoped to this project."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "proposal",
+      "outputPath": "proposal.md",
+      "status": "ready",
+      "requires": []
+    },
+    {
+      "id": "specs",
+      "outputPath": "specs/**/*.md",
+      "status": "blocked",
+      "requires": [
+        "proposal"
+      ],
+      "missingDeps": [
+        "proposal"
+      ]
+    },
+    {
+      "id": "design",
+      "outputPath": "design.md",
+      "status": "blocked",
+      "requires": [
+        "proposal"
+      ],
+      "missingDeps": [
+        "proposal"
+      ]
+    },
+    {
+      "id": "tasks",
+      "outputPath": "tasks.md",
+      "status": "blocked",
+      "requires": [
+        "specs",
+        "design"
+      ],
+      "missingDeps": [
+        "specs",
+        "design"
+      ]
+    }
+  ],
+  "root": {
+    "path": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+    "source": "nearest"
+  }
+}

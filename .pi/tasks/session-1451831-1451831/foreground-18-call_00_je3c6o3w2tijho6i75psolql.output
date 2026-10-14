@@ -1,0 +1,6 @@
+pkg/sdk/providers/kimi/client.go FetchQuota LOW 10
+pkg/sdk/providers/opencode/client.go FetchQuota LOW 9
+pkg/sdk/providers/commandcode/client.go FetchQuota LOW 6
+pkg/sdk/providers/ollama/client.go FetchQuota UNKNOWN 0
+---
+61

@@ -1,0 +1,37 @@
+openspec/changes/update-opencode-console-v2/tasks.md
+openspec/changes/update-opencode-console-v2/specs/opencode-console-auth/spec.md
+openspec/changes/update-opencode-console-v2/specs/opencode-quota-response-parsing/spec.md
+openspec/changes/update-opencode-console-v2/design.md
+openspec/changes/update-opencode-console-v2/proposal.md
+openspec/changes/update-opencode-console-v2/.openspec.yaml
+---GITIGNORE---
+# Binary
+*.exe
+*.exe~
+foundry-quota-sentinel
+foundry-quota-sentinel-macos
+foundry-quota-sentinel-linux
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+go.work
+go.work.sum
+
+# Build output
+build/
+dist/
+.playwright-mcp/
+.worktrees/
+
+# Workflow artifacts (local-only, not part of the release)
+openspec/
+docs/superpowers/

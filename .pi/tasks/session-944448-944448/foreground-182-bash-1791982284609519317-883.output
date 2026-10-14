@@ -1,0 +1,41 @@
+pkg/sdk/auth/kimi_page.go-90-	log.Printf("kimi: 账户页已认证（membership 页，受保护接口 200，三 metric 有效）")
+pkg/sdk/auth/kimi_page.go-91-	SignalOpenPageReady()
+pkg/sdk/auth/kimi_page.go-92-
+pkg/sdk/auth/kimi_page.go-93-	watchCtx, cancelWatch := context.WithCancel(context.Background())
+pkg/sdk/auth/kimi_page.go-94-	stopWatch := make(chan struct{})
+pkg/sdk/auth/kimi_page.go-95-	var watcherWG sync.WaitGroup
+pkg/sdk/auth/kimi_page.go-96-	if KimiPageRotationSave != nil {
+pkg/sdk/auth/kimi_page.go-97-		watcherWG.Add(1)
+pkg/sdk/auth/kimi_page.go-98-		go func() {
+pkg/sdk/auth/kimi_page.go-99-			defer watcherWG.Done()
+pkg/sdk/auth/kimi_page.go:100:			kimiWatchInPageRotation(watchCtx, cdp, events, env.AccessToken(), env.RefreshToken(), stopWatch, KimiPageRotationSave)
+pkg/sdk/auth/kimi_page.go-101-		}()
+pkg/sdk/auth/kimi_page.go-102-	}
+pkg/sdk/auth/kimi_page.go-103-	waitErr := browser.Wait()
+pkg/sdk/auth/kimi_page.go-104-	close(stopWatch)
+pkg/sdk/auth/kimi_page.go-105-	watcherWG.Wait()
+pkg/sdk/auth/kimi_page.go-106-	cancelWatch()
+pkg/sdk/auth/kimi_page.go-107-	if waitErr != nil {
+pkg/sdk/auth/kimi_page.go-108-		return fmt.Errorf("Kimi 账户页浏览器异常退出: %w", waitErr)
+pkg/sdk/auth/kimi_page.go-109-	}
+pkg/sdk/auth/kimi_page.go-110-	return nil
+pkg/sdk/auth/kimi_page.go-111-}
+pkg/sdk/auth/kimi_page.go-112-
+pkg/sdk/auth/kimi_page.go-113-type kimiRequestFacts struct {
+pkg/sdk/auth/kimi_page.go-114-	url      string
+pkg/sdk/auth/kimi_page.go-115-	token    string
+pkg/sdk/auth/kimi_page.go-116-	status   int
+pkg/sdk/auth/kimi_page.go-117-	finalURL string
+pkg/sdk/auth/kimi_page.go-118-}
+pkg/sdk/auth/kimi_page.go-119-
+pkg/sdk/auth/kimi_page.go:120:func kimiWatchInPageRotation(ctx context.Context, cdp kimiCDP, events <-chan browserauth.Event, initAccess, initRefresh string, stop <-chan struct{}, save func(prevAccess, prevRefresh, newAccess, newRefresh string) (bool, error)) {
+pkg/sdk/auth/kimi_page.go-121-	facts := map[string]*kimiRequestFacts{}
+pkg/sdk/auth/kimi_page.go-122-	lastAccess, lastRefresh := initAccess, initRefresh
+pkg/sdk/auth/kimi_page.go-123-	fact := func(rid string) *kimiRequestFacts {
+pkg/sdk/auth/kimi_page.go-124-		f, ok := facts[rid]
+pkg/sdk/auth/kimi_page.go-125-		if !ok {
+pkg/sdk/auth/kimi_page.go-126-			f = &kimiRequestFacts{}
+pkg/sdk/auth/kimi_page.go-127-			facts[rid] = f
+pkg/sdk/auth/kimi_page.go-128-		}
+pkg/sdk/auth/kimi_page.go-129-		return f
+pkg/sdk/auth/kimi_page.go-130-	}

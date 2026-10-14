@@ -1,0 +1,27 @@
+变更：4 个文件，29 个符号
+受影响流程：4
+风险等级：medium
+
+已变更符号：
+  Symbol quota-sdk-go → pkg/sdk/README.md
+  Symbol 包结构 → pkg/sdk/README.md
+  Symbol openCodeOrgResolveInterval → pkg/sdk/auth/opencode.go
+  Symbol openCodeOrgResolveMaxAttempts → pkg/sdk/auth/opencode.go
+  Symbol shouldResolveOpenCodeOrgID → pkg/sdk/auth/opencode.go
+  Symbol openCodeCookieHeader → pkg/sdk/auth/opencode.go
+  Symbol runOpenCodeLogin → pkg/sdk/auth/opencode.go
+  Symbol openCodeCaptureErr → pkg/sdk/auth/opencode.go
+  Symbol runOpenCodePage → pkg/sdk/auth/opencode.go
+  Symbol fakeOpenCodeBrowser → pkg/sdk/auth/opencode_test.go
+  Symbol fakeOpenCodeCDP → pkg/sdk/auth/opencode_test.go
+  Symbol TestOpenCodeCookieHeaderDropsUnsafeCookies → pkg/sdk/auth/opencode_test.go
+  Symbol TestShouldResolveOpenCodeOrgID → pkg/sdk/auth/opencode_test.go
+  Symbol TestOpenCodeWorkspaceIDFromConsoleURL → pkg/sdk/auth/opencode_test.go
+  Symbol TestRunOpenCodeLoginRateLimitsOrgIDResolve → pkg/sdk/auth/opencode_test.go
+... 以及另外 14 个
+
+受影响执行流程：
+  • RunOpenCodeLogin → OnPoll (3 步) — 已变更：runOpenCodeLogin, CDP
+  • RunOpenCodeLogin → OnClose (3 步) — 已变更：runOpenCodeLogin
+  • RunOpenCodePage → OnPoll (3 步) — 已变更：runOpenCodePage, CDP
+  • RunOpenCodePage → OnClose (3 步) — 已变更：runOpenCodePage

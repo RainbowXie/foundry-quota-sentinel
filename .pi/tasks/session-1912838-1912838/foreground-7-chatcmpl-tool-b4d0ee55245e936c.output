@@ -1,0 +1,84 @@
+diff --git a/cmd_config.go b/cmd_config.go
+index 5518c04..0577c4b 100644
+--- a/cmd_config.go
++++ b/cmd_config.go
+@@ -28,8 +28,8 @@ func showConfigHint() {
+ 	}
+ 	fmt.Println("还没有配置凭证！请任选一种方式：")
+ 	fmt.Println("  方式一：设置环境变量")
+-	fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的cookie")
+-	fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区ID")
++	fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的 cookie")
++	fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区 ID")
+ 	fmt.Println("  方式二：交互式配置（推荐）")
+ 	fmt.Println("    foundry-quota-sentinel config init")
+ }
+@@ -190,7 +190,7 @@ func cmdConfigInit() {
+ 	fmt.Println()
+ 	fmt.Println("  [OpenCode Go 凭证]")
+ 	fmt.Println("  从浏览器登录 opencode.ai，F12 -> 应用 -> Cookie 复制完整值")
+-	p.Cookie = readLineDefault("Cookie（完整cookie字符串）", p.Cookie)
++	p.Cookie = readLineDefault("Cookie（完整 cookie 字符串）", p.Cookie)
+ 	fmt.Println("  从浏览器地址栏 /console/<orgId|wrkId>/go 获取")
+ 	p.WorkspaceID = readLineDefault("Workspace ID（org_xxx 或 wrk_xxx）", p.WorkspaceID)
+ 	fmt.Println()
+diff --git a/cmd_quota.go b/cmd_quota.go
+index 833112e..94d0600 100644
+--- a/cmd_quota.go
++++ b/cmd_quota.go
+@@ -141,12 +141,12 @@ func cmdWatch() {
+ 			daily := storage.CalculateDailyStats(logs, 1)
+ 			today := time.Now().Format("2006-01-02")
+ 			if stat, ok := daily[today]; ok {
+-				fmt.Printf("\n【今日消耗】输入:%-8s 输出:%-8s 总计:%-8s (请求%d次)\n", formatter.FormatNumber(stat.InputTokens), formatter.FormatNumber(stat.OutputTokens), formatter.FormatNumber(stat.TotalTokens), stat.RequestCount)
++				fmt.Printf("\n【今日消耗】输入:%-8s 输出:%-8s 总计:%-8s (请求 %d 次)\n", formatter.FormatNumber(stat.InputTokens), formatter.FormatNumber(stat.OutputTokens), formatter.FormatNumber(stat.TotalTokens), stat.RequestCount)
+ 			} else {
+ 				fmt.Printf("\n【今日消耗】暂无数据\n")
+ 			}
+ 		}
+-		fmt.Printf("\n--- 下次刷新: 60秒后 (Ctrl+C 退出) ---\n")
++		fmt.Printf("\n--- 下次刷新: 60 秒后 (Ctrl+C 退出) ---\n")
+ 		time.Sleep(60 * time.Second)
+ 	}
+ }
+diff --git a/pkg/sdk/export-manifest.json b/pkg/sdk/export-manifest.json
+index c03c431..2f9ed37 100644
+--- a/pkg/sdk/export-manifest.json
++++ b/pkg/sdk/export-manifest.json
+@@ -3,7 +3,7 @@
+   "version": "0.1.0",
+   "description": "Pure Go multi-provider quota retrieval, CDP browser authentication, and concurrency-locked token storage",
+   "module": "github.com/ethan/quota-sdk-go",
+-  "go_version": "1.23.0",
++  "go_version": "1.26.0",
+   "packages": [
+     "auth",
+     "auth/browserauth",
+diff --git a/scripts/export-sdk.sh b/scripts/export-sdk.sh
+index a67f0a3..01f6bc3 100755
+--- a/scripts/export-sdk.sh
++++ b/scripts/export-sdk.sh
+@@ -25,7 +25,13 @@ fi
+ 
+ TARGET_DIR="${1:-${EXPORT_DIR:-$REPO_ROOT/build/quota-sdk-go}}"
+ MODULE_NAME="$(jq -r '.module' "$MANIFEST")"
++# go 指令与 require 块都从 manifest 读取：脚本不再硬编码版本，避免与 manifest / 根 go.mod 漂移。
+ GO_VERSION="$(jq -r '.go_version' "$MANIFEST")"
++DEPENDENCIES="$(jq -r '.dependencies | to_entries[] | "\t\(.key) \(.value)"' "$MANIFEST")"
++if [ -z "$DEPENDENCIES" ]; then
++    echo "错误: manifest 的 dependencies 为空，无法生成独立 go.mod" >&2
++    exit 1
++fi
+ 
+ echo "=== 正在导出 SDK 到: $TARGET_DIR ==="
+ echo "Module:     $MODULE_NAME"
+@@ -45,8 +51,7 @@ module $MODULE_NAME
+ go $GO_VERSION
+ 
+ require (
+-	github.com/gorilla/websocket v1.5.3
+-	golang.org/x/sys v0.45.0
++$DEPENDENCIES
+ )
+ EOF
+ 

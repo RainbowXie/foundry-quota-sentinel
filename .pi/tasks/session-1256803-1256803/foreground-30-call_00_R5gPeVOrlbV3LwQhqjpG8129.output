@@ -1,0 +1,13 @@
+tag      : v0.11.3
+name     : v0.11.3
+url      : https://github.com/RainbowXie/foundry-quota-sentinel/releases/tag/v0.11.3
+published: 2026-10-09T07:02:14Z
+draft    : False  prerelease: False
+
+assets (6):
+  foundry-quota-sentinel-linux                              11.12 MB  downloads=0
+  foundry-quota-sentinel-linux-portable                     11.00 MB  downloads=0
+  foundry-quota-sentinel-macos                              10.55 MB  downloads=0
+  foundry-quota-sentinel.exe                                11.63 MB  downloads=0
+  foundry-quota-sentinel_0.11.3_amd64-webkit40.deb           4.16 MB  downloads=0
+  foundry-quota-sentinel_0.11.3_amd64-webkit41.deb           4.14 MB  downloads=0

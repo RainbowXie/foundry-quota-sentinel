@@ -139,6 +139,9 @@ func cmdOpenPage() {
 			pageErr(fmt.Sprintf("OpenCode 账户 %q 的工作区标识格式非法，请重新登录", name))
 		}
 		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
+		auth.OpenCodePageSyncSave = func(cookie, wsid string) error {
+			return config.SaveOpenCodeProfile(name, cookie, wsid)
+		}
 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {
 			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))
 		}

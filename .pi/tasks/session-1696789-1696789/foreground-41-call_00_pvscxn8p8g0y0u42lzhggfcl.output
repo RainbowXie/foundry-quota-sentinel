@@ -1,0 +1,17 @@
+.git/info/exclude:7:.gitnexus/	.gitnexus/lbug
+----
+
+[2K  Skipped 1 large files (>512KB, likely generated/vendored)
+[2K  - ocgt-monitor
+[2K  Set GITNEXUS_MAX_FILE_SIZE=<KB> to include files above the default cap.
+[2KIncremental: changed=13, added=3, deleted=0 (skipping wipe + 110 unchanged file rows preserved)
+[2KIncremental: +4 importer(s) added to writable set (BFS depth ≤ 4)
+[2KIncremental: the effective write set covers 80/126 files (63%) — switching to a full DB write (wipe + bulk COPY) for this run; file-level incremental bookkeeping is unaffected.
+[2KIncremental: building the replacement index alongside the live one and swapping it in at the end, so an interrupted rebuild leaves the current index intact.
+[2KParse cache: pruned 1 stale chunk entries
+
+  Repository indexed successfully (112.4s)
+
+  2,335 nodes | 6,693 edges | 113 clusters | 201 flows
+  /mnt/data/Work/Projects/foundry-quota-sentinel
+

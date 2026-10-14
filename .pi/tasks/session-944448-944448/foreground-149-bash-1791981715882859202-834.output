@@ -1,0 +1,111 @@
+541-            .qrd-kimi {
+542-                color: var(--text);
+543-            }
+544-            .qrd-code {
+545-                color: var(--accent);
+546-                margin-left: 8px;
+547-            }
+548-            /* Shared account action button (re-login etc., error state):
+549-               semantic button with themed idle, hover, active, and
+550-               keyboard-focus states. Applies to EVERY provider's action
+551:               (Ollama's olLogin included) so no provider falls back to the
+552-               browser-native gray button. Provider-specific classes
+553:               (.kimiLogin/.olLogin) remain for event delegation; the
+554-               shared .qact class owns the visual contract. */
+555-            .qact {
+556-                background: none;
+557-                border: none;
+558-                padding: 0;
+559-                font: inherit;
+560-                color: var(--text-sec);
+561-                cursor: pointer;
+562-            }
+563-            .qact:hover {
+--
+567-                opacity: 0.75;
+568-            }
+569-            .qact:focus-visible {
+570-                outline: 1px solid var(--accent);
+571-                outline-offset: 2px;
+572-                border-radius: 3px;
+573-            }
+574-            /* Provider-specific action classes: delegation hooks only; the
+575-               shared .qact styles apply to both. */
+576-            .kimiLogin,
+577:            .olLogin {
+578-                color: var(--text-sec);
+579-            }
+580-            .bc-d {
+581-                font-size: 8px;
+582-                color: var(--text-sec);
+583-                font-weight: 500;
+584-                display: flex;
+585-                gap: 14px;
+586-                justify-content: flex-end;
+587-                opacity: 0.7;
+--
+1361-
+1362-            // renderQuotaCard renders a complete quota card from the shared view model.
+1363-            // Task 2.2: Shared shell/header, error region, ordered rows, extension slots.
+1364-            function renderQuotaCard(view) {
+1365-                var body;
+1366-                if (!view.success) {
+1367-                    // Error state with optional action: rendered as a real
+1368-                    // <button> so the re-login affordance is keyboard-
+1369-                    // focusable (a span is not). The shared .qact class
+1370-                    // provides unified styling; the declared class (e.g.
+1371:                    // kimiLogin/olLogin) is retained for per-container
+1372-                    // delegated dispatch.
+1373-                    body = '<div class="qerr">' + qesc(view.error || "查询失败") + '</div>';
+1374-                    if (view.errorAction) {
+1375-                        body += '<div class="bc-d"><button type="button" class="qact ' + qesc(view.errorAction.class || "") +
+1376-                            '" data-action="relogin" data-name="' + qesc(view.accountName) + '">' +
+1377-                            qesc(view.errorAction.label) + '</button></div>';
+1378-                    }
+1379-                } else {
+1380-                    // Success state: render ordered rows
+1381-                    body = "";
+--
+1479-            function ollamaAdapter(a) {
+1480-                var view = {
+1481-                    provider: "ollama",
+1482-                    providerLabel: "Ollama",
+1483-                    accountName: a.name,
+1484-                    success: a.success,
+1485-                    error: a.error,
+1486-                    rows: []
+1487-                };
+1488-                if (!a.success) {
+1489:                    view.errorAction = { label: "重新登录", class: "olLogin" };
+1490-                } else if (a.quota) {
+1491-                    var d = a.quota;
+1492-                    if (d.rolling) view.rows.push({
+1493-                        label: "Session",
+1494-                        percent: d.rolling.usage_percent,
+1495-                        percentPrecision: 1,
+1496-                        resetInSec: d.rolling.reset_in_sec,
+1497-                        tone: "g1"
+1498-                    });
+1499-                    if (d.weekly) view.rows.push({
+--
+2479-                .getElementById("dsCards")
+2480-                .addEventListener("click", function (e) {
+2481-                    var t = e.target;
+2482-                    if (t.classList.contains("dsLogin"))
+2483-                        dsDoLogin(t.getAttribute("data-name"));
+2484-                });
+2485-            document
+2486-                .getElementById("ollamaCards")
+2487-                .addEventListener("click", function (e) {
+2488-                    var t = e.target;
+2489:                    if (t.classList.contains("olLogin"))
+2490-                        olDoLogin(t.getAttribute("data-name"));
+2491-                });
+2492-            document
+2493-                .getElementById("kimiCards")
+2494-                .addEventListener("click", function (e) {
+2495-                    var t = e.target;
+2496-                    if (t.classList.contains("kimiLogin"))
+2497-                        kimiDoLogin(t.getAttribute("data-name"));
+2498-                });
+2499-            document

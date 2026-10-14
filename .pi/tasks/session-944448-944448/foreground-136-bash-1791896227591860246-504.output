@@ -1,0 +1,21 @@
+pkg/sdk/auth/browserauth/network.go:1:package browserauth
+pkg/sdk/auth/browserauth/cdp_test.go:1:package browserauth
+pkg/sdk/auth/browserauth/cdp_test.go:18:// browserauth uses: a /json/version endpoint that returns a browser WebSocket
+pkg/sdk/auth/browserauth/process_platform_test.go:1:package browserauth
+pkg/sdk/auth/browserauth/process.go:1:// Package browserauth owns the private, one-shot system browser and its
+pkg/sdk/auth/browserauth/process.go:5:package browserauth
+pkg/sdk/auth/browserauth/process.go:261:	profileDir, err := os.MkdirTemp(profileParentDir(), "fqs-browserauth-*")
+pkg/sdk/auth/browserauth/page.go:1:package browserauth
+pkg/sdk/auth/browserauth/operations_test.go:1:package browserauth
+pkg/sdk/auth/browserauth/cdp_concurrency_test.go:1:package browserauth
+pkg/sdk/auth/browserauth/cookies.go:1:package browserauth
+pkg/sdk/auth/browserauth/cookies.go:151:	log.Printf("browserauth: Storage.setCookies 批量注入成功（%d 个，耗时 %s）", len(envelope), time.Since(start).Round(time.Millisecond))
+pkg/sdk/auth/browserauth/cookies.go:175:			log.Printf("browserauth: 跳过 cookie %q（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+pkg/sdk/auth/browserauth/cookies.go:183:			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d，耗时 %s）: %v", cookie.Name, len(cookie.Value), time.Since(start).Round(time.Millisecond), err)
+pkg/sdk/auth/browserauth/cookies.go:187:		log.Printf("browserauth: 注入 cookie %q 成功（耗时 %s）", cookie.Name, time.Since(start).Round(time.Millisecond))
+pkg/sdk/auth/browserauth/cdp.go:1:package browserauth
+pkg/sdk/auth/browserauth/cdp.go:207:	log.Printf("browserauth: DevTools 版本信息 browser=%s", version.Browser)
+pkg/sdk/auth/browserauth/cdp.go:240:		log.Printf("browserauth: DevTools 目标[%d] type=%s url=%s", i, target.Type, target.URL)
+pkg/sdk/auth/browserauth/cdp.go:246:		log.Printf("browserauth: 选中页面目标 url=%s", target.URL)
+pkg/sdk/auth/browserauth/process_test.go:1:package browserauth
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:1:package browserauth

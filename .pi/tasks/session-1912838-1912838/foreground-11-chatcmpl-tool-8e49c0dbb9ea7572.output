@@ -1,0 +1,11 @@
+=== CGO_ENABLED=0 go test ./pkg/sdk/... ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.011s
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)
+=== go vet -tags nogui ./... ===
+VET_DONE

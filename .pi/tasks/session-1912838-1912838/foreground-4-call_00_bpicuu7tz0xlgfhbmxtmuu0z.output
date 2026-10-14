@@ -1,0 +1,9 @@
+go version go1.26.8 linux/amd64
+jq-1.7
+--- grep self-check before ---
+cmd_quota.go:144:				fmt.Printf("\n【今日消耗】输入:%-8s 输出:%-8s 总计:%-8s (请求%d次)\n", formatter.FormatNumber(stat.InputTokens), formatter.FormatNumber(stat.OutputTokens), formatter.FormatNumber(stat.TotalTokens), stat.RequestCount)
+cmd_quota.go:149:		fmt.Printf("\n--- 下次刷新: 60秒后 (Ctrl+C 退出) ---\n")
+cmd_config.go:31:	fmt.Println("    set OPENCODE_GO_AUTH_COOKIE=你的cookie")
+cmd_config.go:32:	fmt.Println("    set OPENCODE_GO_WORKSPACE_ID=工作区ID")
+cmd_config.go:193:	p.Cookie = readLineDefault("Cookie（完整cookie字符串）", p.Cookie)
+cmd_config.go:204:		fmt.Fprintf(os.Stderr, "\n保存失败: %v\n", err)

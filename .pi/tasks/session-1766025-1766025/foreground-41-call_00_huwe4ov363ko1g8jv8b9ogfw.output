@@ -1,0 +1,151 @@
+ cmd_page.go                               |  6 ++++++
+ pkg/sdk/auth/opencode.go                  |  6 ++++++
+ pkg/sdk/auth/opencode_test.go             | 15 ++++++++++++---
+ pkg/sdk/providers/opencode/client.go      | 12 +++++++++---
+ pkg/sdk/providers/opencode/client_test.go | 22 ++++++++++++++++++++++
+ 5 files changed, 55 insertions(+), 6 deletions(-)
+=== DIFF ===
+diff --git a/cmd_page.go b/cmd_page.go
+index 96cc0bf..5ff820c 100644
+--- a/cmd_page.go
++++ b/cmd_page.go
+@@ -11,6 +11,7 @@ import (
+ 	"foundry-quota-sentinel/internal/web"
+ 	"foundry-quota-sentinel/pkg/sdk/auth"
+ 	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
++	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
+ )
+ 
+ func deleteAccountFromConfig(provider, name string) error {
+@@ -132,6 +133,11 @@ func cmdOpenPage() {
+ 		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
+ 			pageErr(fmt.Sprintf("OpenCode 账户 %q 不存在或缺少凭证", name))
+ 		}
++		// 与 `quota` 命令共用同一白名单：非法标识会拼出畸形账户页地址，
++		// 这里先给出可执行的提示，而不是让浏览器打开一个拼错的路径。
++		if !opencode.ValidWorkspaceID(p.WorkspaceID) {
++			pageErr(fmt.Sprintf("OpenCode 账户 %q 的工作区标识格式非法，请重新登录", name))
++		}
+ 		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
+ 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {
+ 			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))
+diff --git a/pkg/sdk/auth/opencode.go b/pkg/sdk/auth/opencode.go
+index 3089d91..6d81b7e 100644
+--- a/pkg/sdk/auth/opencode.go
++++ b/pkg/sdk/auth/opencode.go
+@@ -370,5 +370,11 @@ func validateOpenCodePageURL(rawURL string) error {
+ 	if browserauth.CookieDomainMatches(u.Hostname(), openCodeAuthHost) {
+ 		return fmt.Errorf("OpenCode 账户页地址无效")
+ 	}
++	// 工作区标识由配置原样拼进该 URL，必须与 x-org-id 请求头共用同一白名单：
++	// 只校验 scheme/host 会让误存的完整 URL 被拼成畸形路径且调用方毫无提示。
++	match := openCodeWorkspaceRe.FindStringSubmatch(u.Path)
++	if match == nil || !opencode.ValidWorkspaceID(match[1]) {
++		return fmt.Errorf("OpenCode 账户页地址无效")
++	}
+ 	return nil
+ }
+diff --git a/pkg/sdk/auth/opencode_test.go b/pkg/sdk/auth/opencode_test.go
+index 962a26a..58d6098 100644
+--- a/pkg/sdk/auth/opencode_test.go
++++ b/pkg/sdk/auth/opencode_test.go
+@@ -199,15 +199,24 @@ func TestOpenCodeWorkspaceIDIgnoresAuthSubdomain(t *testing.T) {
+ 
+ // TestValidateOpenCodePageURL 锁定账户页地址白名单：只接受 https + opencode.ai 主机，
+ // 且必须与 openCodeWorkspaceID/openCodeConsoleURL 一样排除 auth 子域，
+-// 避免同一升级里三处 host 策略不一致。
++// 并将工作区标识约束为 /console/<org_|wrk_> 段：配置里误存的完整 URL 拼出的畸形路径
++// 必须在这里失败，而不是被静默交给浏览器导航。
+ func TestValidateOpenCodePageURL(t *testing.T) {
+ 	tests := []struct {
+ 		name    string
+ 		url     string
+ 		wantErr bool
+ 	}{
+-		{name: "console workspace page", url: "https://opencode.ai/console/org_x/go"},
+-		{name: "console root page", url: "https://opencode.ai/console"},
++		{name: "console org page", url: "https://opencode.ai/console/org_x/go"},
++		{name: "console wrk page", url: "https://opencode.ai/console/wrk_abc123/go"},
++		{name: "console workspace route without go", url: "https://opencode.ai/console/org_01JXYZ"},
++		{name: "console root has no workspace", url: "https://opencode.ai/console", wantErr: true},
++		{name: "console go route has no workspace", url: "https://opencode.ai/console/go", wantErr: true},
++		{name: "pasted full url", url: "https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", wantErr: true},
++		{name: "bare identifier segment", url: "https://opencode.ai/console/01JXYZ/go", wantErr: true},
++		{name: "prefix without body", url: "https://opencode.ai/console/org_/go", wantErr: true},
++		{name: "hyphenated body", url: "https://opencode.ai/console/org_01-xyz/go", wantErr: true},
++		{name: "workspace token outside console route", url: "https://opencode.ai/docs/org_x/go", wantErr: true},
+ 		{name: "auth subdomain", url: "https://auth.opencode.ai/console/org_x/go", wantErr: true},
+ 		{name: "plain http", url: "http://opencode.ai/console/org_x/go", wantErr: true},
+ 		{name: "lookalike host", url: "https://evil-opencode.ai/console/org_x/go", wantErr: true},
+diff --git a/pkg/sdk/providers/opencode/client.go b/pkg/sdk/providers/opencode/client.go
+index b25e610..f7d96f4 100644
+--- a/pkg/sdk/providers/opencode/client.go
++++ b/pkg/sdk/providers/opencode/client.go
+@@ -19,9 +19,15 @@ const (
+ )
+ 
+ // openCodeOrgIDRe 白名单校验 Console 返回的组织/工作区标识：org_ 或 wrk_ 前缀加字母数字主体。
+-// 该值会被写进 x-org-id 请求头并持久化到配置，因此必须先过校验再使用。
++// 该值会被写进 x-org-id 请求头、持久化到配置并拼进账户页 URL，因此每个使用点都必须先过同一判定。
+ var openCodeOrgIDRe = regexp.MustCompile(`^(?:org|wrk)_[a-zA-Z0-9]+$`)
+ 
++// ValidWorkspaceID 判定标识是否为受支持的 Console 工作区/组织形式。
++// 请求头白名单与账户页 URL 拼接共用它，避免两处规则各自演进后出现白名单缺口。
++func ValidWorkspaceID(id string) bool {
++	return openCodeOrgIDRe.MatchString(id)
++}
++
+ // OpenCodeQuerier 负责与 opencode.ai 官方后端服务通信并获取原生配额数据。
+ type OpenCodeQuerier struct {
+ 	Cookie      string
+@@ -75,7 +81,7 @@ func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
+ 		}
+ 		// 只取首个非空 ID 并整体校验：若它格式非法，说明上游返回了意料外的数据，
+ 		// 此时宁可失败也不能改挑后面的组织，否则可能把配额查到另一个组织上。
+-		if !openCodeOrgIDRe.MatchString(org.ID) {
++		if !ValidWorkspaceID(org.ID) {
+ 			return "", fmt.Errorf("orgs response contains a malformed org id")
+ 		}
+ 		return org.ID, nil
+@@ -127,7 +133,7 @@ func (q *OpenCodeQuerier) validate() error {
+ 	}
+ 	// 配置/环境变量里的 ID 同样要走白名单：它会被写进 x-org-id 并拼进账户页 URL，
+ 	// 不能只校验 /console/api/orgs 的响应，否则手工粘贴的 URL 会被原样发往上游。
+-	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
++	if !ValidWorkspaceID(q.WorkspaceID) {
+ 		return fmt.Errorf("OPENCODE_GO_WORKSPACE_ID 格式非法：需要 org_ 或 wrk_ 前缀加字母数字")
+ 	}
+ 	return nil
+diff --git a/pkg/sdk/providers/opencode/client_test.go b/pkg/sdk/providers/opencode/client_test.go
+index b17bd6c..cb9a925 100644
+--- a/pkg/sdk/providers/opencode/client_test.go
++++ b/pkg/sdk/providers/opencode/client_test.go
+@@ -206,6 +206,28 @@ func TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID(t *testing.T) {
+ 	}
+ }
+ 
++func TestValidWorkspaceIDMatchesConsoleIdentifiers(t *testing.T) {
++	tests := []struct {
++		id   string
++		want bool
++	}{
++		{id: "org_01JXYZ", want: true},
++		{id: "wrk_abc123", want: true},
++		{id: "", want: false},
++		{id: "01JXYZ", want: false},
++		{id: "org_", want: false},
++		{id: "org_01-xyz", want: false},
++		{id: "acc_01JXYZ", want: false},
++		{id: " org_01JXYZ", want: false},
++		{id: "https://opencode.ai/console/org_01JXYZ/go", want: false},
++	}
++	for _, tt := range tests {
++		if got := ValidWorkspaceID(tt.id); got != tt.want {
++			t.Fatalf("ValidWorkspaceID(%q) = %v, want %v", tt.id, got, tt.want)
++		}
++	}
++}
++
+ func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
+ 	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal","avatarUrl":null},{"id":"org_SECOND","name":"Team"}]`}
+ 	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})

@@ -1,0 +1,9 @@
+  feature/deepseek-rich-cards  94176ed [origin/feature/deepseek-rich-cards: 丢失] [077] feat(ui): 面板重排为纯卡片 + 打包 UbuntuMono Nerd Font
+  feature/multi-account-cards  2a34c14 [origin/feature/multi-account-cards: 丢失] Merge branch 'master' into feature/multi-account-cards
+  feature/ollama-provider      6747124 [origin/feature/ollama-provider] chore(release): bump version to 0.8.0
+  feature/unified-browser-auth 989c626 chore(release): bump version to 0.9.0
+  gh-pages                     85b0799 [origin/gh-pages] docs: rewrite manual for foundry-quota-sentinel v0.10.1
+* master                       48ba08d feat(opencode): migrate to Console v2 quota API and console login flow
+fatal: 有歧义的参数 'origin/main'：未知的版本或路径不存在于工作区中。
+使用 '--' 来分隔版本和路径，例如：
+'git <命令> [<版本>...] -- [<文件>...]'

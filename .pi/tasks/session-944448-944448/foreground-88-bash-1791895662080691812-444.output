@@ -1,0 +1,19 @@
+xwd: unrecognized argument '-nobits'
+Usage: xwd [options] [-root| -id <wdid>| -name <wdname>] > mywddump
+       xwd [options] [-root| -id <wdid>| -name <wdname>] -out mywddump
+Options:
+  -help                    Print this message
+  -version                 Print the program version and exit
+  -debug                   Enable debug mode
+  -d, -display <host:dpy>  Specify server to connect
+  -nobdrs                  Exclude window borders
+  -out <file>              Specify an output file
+  -xy                      Select XY dumping format for color displays
+  -add <value>             Add a signed value to every pixel
+  -frame                   Include window manager frame
+  -root                    Select the root window
+  -id <wdid>               Select a window by its resource id
+  -name <wdname>           Select a window by its WM_NAME property
+  -icmap                   Use the first colormap of the screen
+  -screen                  Send the request against the root window
+  -silent                  Don't ring any bells

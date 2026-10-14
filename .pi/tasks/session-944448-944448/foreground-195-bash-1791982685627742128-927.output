@@ -1,0 +1,5 @@
+pkg/sdk/auth/kimi_page.go:96:	if KimiPageRotationSave != nil {
+pkg/sdk/auth/kimi_page.go:100:			kimiWatchInPageRotation(watchCtx, cdp, events, env.AccessToken(), env.RefreshToken(), stopWatch, KimiPageRotationSave)
+pkg/sdk/auth/kimi_types.go:28:// KimiPageRotationSave 是页面内 Token 自动轮换持久化回调钩子。
+pkg/sdk/auth/kimi_types.go:29:var KimiPageRotationSave func(prevAccess, prevRefresh, newAccess, newRefresh string) (persisted bool, err error)
+cmd_page.go:180:		auth.KimiPageRotationSave = kimiPageRotationSaver(name)

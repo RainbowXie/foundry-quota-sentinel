@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/ethan/miniforge3/lib/python3.12/site-packages/PIL/Image.py", line 3579, in open
+    raise UnidentifiedImageError(msg)
+PIL.UnidentifiedImageError: cannot identify image file '/tmp/sidebar.xwd'

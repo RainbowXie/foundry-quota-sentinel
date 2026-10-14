@@ -1,0 +1,80 @@
+package browserauth
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/url"
+	"strings"
+	"time"
+)
+
+// Cookie is the shared representation used by both capture and injection.
+// DevTools Cookies carry additional fields (expires, sameSite, ...) but the
+// shared package only needs the subset every provider consumes.
+type Cookie struct {
+	Name     string
+	Value    string
+	Domain   string
+	Path     string
+	Secure   bool
+	HTTPOnly bool
+}
+
+// cookieDomainMatches reports whether the given cookie's effective domain is
+// the same as or a subdomain of policyDomain. policyDomain must be a bare
+// hostname without a leading dot; an empty Domain means host-only.
+// CookieDomainMatches 检查给定的 cookieDomain 或 hostname 是否与 policyDomain 匹配（支持顶级域与子域名匹配）。
+func CookieDomainMatches(cookieDomain, policyDomain string) bool {
+	return cookieDomainMatches(cookieDomain, policyDomain)
+}
+
+func cookieDomainMatches(cookieDomain, policyDomain string) bool {
+	cookieDomain = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(cookieDomain)), ".")
+	policyDomain = strings.ToLower(strings.TrimSpace(policyDomain))
+	if cookieDomain == "" || policyDomain == "" {
+		return false
+	}
+	return cookieDomain == policyDomain || strings.HasSuffix(cookieDomain, "."+policyDomain)
+}
+
+// validateCookie rejects names, values, and domains that would let a
+// captured credential smuggle a control character into a header or
+// configuration. Empty names or values are also rejected.
+func validateCookie(cookie Cookie) error {
+	if cookie.Name == "" || cookie.Value == "" {
+		return fmt.Errorf("cookie 名称或值为空")
+	}
+	if strings.ContainsAny(cookie.Name, ";\r\n") || strings.ContainsAny(cookie.Value, ";\r\n") {
+		return fmt.Errorf("cookie 包含非法字符")
+	}
+	if cookie.Domain == "" {
+		return fmt.Errorf("cookie 域为空")
+	}
+	return nil
+}
+
+// cookieHeader serialises a list of cookies into a "name=value; name=value"
+// header value. The order is preserved so callers can keep deterministic
+// ordering when they care (e.g. the OpenCode Cookie field).
+func cookieHeader(cookies []Cookie) (string, error) {
+	parts := make([]string, 0, len(cookies))
+	for _, cookie := range cookies {
+		if err := validateCookie(cookie); err != nil {
+			return "", err
+		}
+		parts = append(parts, cookie.Name+"="+cookie.Value)
+	}
+	return strings.Join(parts, "; "), nil
+}
+
+// BrowserCookies calls Storage.getCookies on the browser endpoint and
+// returns the canonical Cookie list.
+func (c *Client) BrowserCookies(ctx context.Context) ([]Cookie, error) {
+	raw, err := c.Call(ctx, "Storage.getCookies", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Cookies []struct {

@@ -1,0 +1,11 @@
+XDG_DATA_DIRS=/usr/share/cinnamon:/home/ethan/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share:/usr/share
+XDG_RUNTIME_DIR=/run/user/1000
+DISPLAY=:0
+XDG_CONFIG_DIRS=/etc/xdg/xdg-cinnamon:/etc/xdg
+XDG_CURRENT_DESKTOP=X-Cinnamon
+XDG_GREETER_DATA_DIR=/var/lib/lightdm-data/ethan
+XDG_SEAT_PATH=/org/freedesktop/DisplayManager/Seat0
+XDG_SESSION_CLASS=user
+XDG_SESSION_DESKTOP=cinnamon
+XDG_SESSION_PATH=/org/freedesktop/DisplayManager/Session0
+XDG_SESSION_TYPE=x11

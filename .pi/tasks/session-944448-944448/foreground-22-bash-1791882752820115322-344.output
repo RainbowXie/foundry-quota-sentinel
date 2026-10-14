@@ -1,0 +1,103 @@
+==> /home/ethan/.zsh_history <==
+: 1791554830:0;z /mnt/data/Work/Projects/
+: 1791554831:0;ls
+: 1791554840:0;cd IntegritySDK
+: 1791554841:0;ls
+: 1791554843:0;cd play-core-native-sdk-1.16.0
+: 1791554844:0;ls
+: 1791554849:0;cd include
+: 1791554850:0;ls
+: 1791554852:0;cd play
+: 1791554852:0;ls
+: 1791554858:0;pwd
+: 1791687064:0;exit
+: 1791688133:0;z .pi
+: 1791688135:0;pi 
+: 1791762789:0;exit
+: 1791789069:0;z /mnt/data/Work/Projects/DroidGuard
+: 1791789096:0;tmux attach -t DroidGuard-Worker 
+: 1791789927:0;locate vmos
+: 1791789934:0;/opt/vmos/vmos-cloud-v1.1.3.appimage
+: 1791798892:0;conda activate base
+: 1791798896:0;clear
+: 1791799073:0;build/foundry-quota-sentinel
+: 1791805709:0;pi
+: 1791813924:0;tmux attach -t fond-monthly-rotation-system
+: 1791814484:0;ssh ethan@100.66.137.87
+: 1791814673:0;z Projects
+: 1791816611:0;/opt/vmos/vmos-cloud-v1.1.3.appimage
+: 1791816652:0;/home/ethan/七�载/vmos-cloud-v1.1.79.appimage
+: 1791816684:0;mv /home/ethan/七�载/vmos-cloud-v1.1.79.appimage /opt/vmos/
+: 1791816688:0;sudo mv /home/ethan/七�载/vmos-cloud-v1.1.79.appimage /opt/vmos/
+: 1791816699:0;/opt/vmos/vmos-cloud-v1.1.79.appimage
+: 1791817234:0;uuidgen
+: 1791819397:0;pi --session 01a0a2eb-ed65-71dc-8dc0-c720cfdd5b8d
+: 1791819430:0;pi update --extensions
+: 1791819443:0;pi --session 01a0a2eb-ed65-71dc-8dc0-c720cfdd5b8d
+: 1791820051:0;cd ./.pi/
+: 1791820083:0;cd ../.agents/
+: 1791820119:0;pi -r
+: 1791853544:0;z .pi
+: 1791853547:0;pi
+: 1791858939:0;z /mnt/data/Work/Projects/foundry-quota-sentinel
+: 1791858943:0;tmux attach -t foundry-quota-sentinel
+: 1791858990:0;pi -r
+: 1791860202:0;clear
+: 1791860229:0;z grpc
+: 1791860233:0;pi -r
+: 1791864795:0;conda activate base
+: 1791864797:0;clear
+: 1791865263:0;exit
+: 1791881721:0;build/foundry-quota-sentinel
+
+==> /home/ethan/.bash_history <==
+sudo mv icons/hicolor/* /usr/share/icons/hicolor/
+sudo cp icons/hicolor /usr/share/icons/hicolor
+sudo cp -r icons/hicolor /usr/share/icons/hicolor
+cd /usr/share/icons/hicolor/
+ls
+ls 1024x1024/
+cd /usr/local/
+ls
+cd share/
+ls
+rm -r applications
+sudo rm -r applications
+sudo rm -r icons
+ls
+/opt/zed.app/bin/zed 
+sudo mv ~/下载/UbuntuMonoNerdFont /usr/share/fonts/
+cd /usr/share/fonts/UbuntuMonoNerdFont/
+ls
+mkfontscale 
+mkfontdir 
+fc-cache
+curl -f https://zed.dev/install.sh | sh
+echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
+ls -l ~/.local/bin/zed
+ls -l /home/ethan/.local/zed.app/bin/zed
+cd /home/ethan/.local/zed.app/
+ls
+sudo rm -r /opt/zed.app
+cd ~
+htop
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. "$HOME/.cargo/env"
+cargo
+sh -c "$(curl -fsSL https://install.ohmyz.sh/)"
+sudo apt install zsh git curl -y
+sh -c "$(curl -fsSL https://install.ohmyz.sh/)"
+cat /sys/module/hid_apple/parameters/fnmode
+cat > /sys/module/hid_apple/parameters/fnmode << EOF
+2
+EOF
+
+sudo cat > /sys/module/hid_apple/parameters/fnmode << EOF
+2
+EOF
+
+sudo echo 2 > /sys/module/hid_apple/parameters/fnmode 
+echo 2 | sudo tee /sys/module/hid_apple/parameters/fnmode 
+cat /sys/module/hid_apple/parameters/fnmode 
+chsh -s $(which zsh)
+zsh

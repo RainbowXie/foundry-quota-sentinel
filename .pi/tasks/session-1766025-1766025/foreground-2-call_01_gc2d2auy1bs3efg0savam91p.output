@@ -1,0 +1,12 @@
+总计 20
+drwxrwxr-x  4 ethan ethan 4096  7月 31 09:26 .
+drwxrwxr-x 20 ethan ethan 4096  9月  7 19:59 ..
+drwxrwxr-x  5 ethan ethan 4096 10月  9 10:35 changes
+-rw-rw-r--  1 ethan ethan  573  7月 29 11:36 config.yaml
+drwxrwxr-x 11 ethan ethan 4096  8月 26 18:36 specs
+总计 20
+drwxrwxr-x  5 ethan ethan 4096 10月  9 10:35 .
+drwxrwxr-x  4 ethan ethan 4096  7月 31 09:26 ..
+drwxrwxr-x 13 ethan ethan 4096  9月  2 11:11 archive
+drwxrwxr-x  3 ethan ethan 4096  9月  6 20:51 split-sdk-and-display
+drwxrwxr-x  3 ethan ethan 4096 10月  9 10:38 update-opencode-console-v2

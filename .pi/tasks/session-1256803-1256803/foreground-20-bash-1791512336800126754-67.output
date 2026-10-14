@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/console/favicon.svg" />
+  <title>OpenCode Console</title>
+  <script type="module" crossorigin src="/console/assets/index-uKDgw8n6.js"></script>
+  <link rel="stylesheet" crossorigin href="/console/assets/index-DOy3u_uL.css">
+  <script>if (new RegExp("^/console/(org_|wrk_|internal(/|$))").test(location.pathname)) for (const href of ["/console/assets/app-pages-BQ1HKsuv.js","/console/assets/app-pages-CPVRXZRX.css","/console/assets/select-input-B5_iruf-.css","/console/assets/segmented-control-lzArlHMR.js","/console/assets/segmented-control-Bmytif_-.css","/console/assets/inline-message-Exq5XGgD.js","/console/assets/select-input--M-gqXQa.js","/console/assets/text-button-XiLbTUsp.js","/console/assets/session-guard-BKS25FI_.js","/console/assets/password-requirements-BjsIW9e5.js"]) { const link = document.createElement("link"); link.rel = href.endsWith(".css") ? "preload" : "modulepreload"; if (href.endsWith(".css")) link.as = "style"; link.href = href; document.head.append(link) }</script>
+</head>
+<body>
+  <script>
+    const savedColorScheme = localStorage.getItem("oc:color-scheme")
+    document.documentElement.dataset.colorScheme = savedColorScheme === "light" || savedColorScheme === "dark"
+      ? savedColorScheme
+      : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+      performance.now = performance.now.bind(performance)
+    }
+    if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+      crypto.getRandomValues = crypto.getRandomValues.bind(crypto)
+    }
+    if (typeof fetch === "function") {
+      globalThis.fetch = globalThis.fetch.bind(globalThis)
+    }
+    if (typeof setTimeout === "function") {
+      globalThis.setTimeout = globalThis.setTimeout.bind(globalThis)
+      globalThis.clearTimeout = globalThis.clearTimeout.bind(globalThis)
+    }
+    if (typeof setInterval === "function") {
+      globalThis.setInterval = globalThis.setInterval.bind(globalThis)
+      globalThis.clearInterval = globalThis.clearInterval.bind(globalThis)
+    }
+  </script>
+  <div id="app"></div>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/console/favicon.svg" />
+  <title>OpenCode Console</title>
+  <script type="module" crossorigin src="/console/assets/index-uKDgw8n6.js"></script>
+  <link rel="stylesheet" crossorigin href="/console/assets/index-DOy3u_uL.css">
+  <script>if (new RegExp("^/console/(org_|wrk_|internal(/|$))").test(location.pathname)) for (const href of ["/console/assets/app-pages-BQ1HKsuv.js","/console/assets/app-pages-CPVRXZRX.css","/console/assets/select-input-B5_iruf-.css","/console/assets/segmented-control-lzArlHMR.js","/console/assets/segmented-control-Bmytif_-.css","/console/assets/inline-message-Exq5XGgD.js","/console/assets/select-input--M-gqXQa.js","/console/assets/text-button-XiLbTUsp.js","/console/assets/session-guard-BKS25FI_.js","/console/assets/password-requirements-BjsIW9e5.js"]) { const link = document.createElement("link"); link.rel = href.endsWith(".css") ? "preload" : "modulepreload"; if (href.endsWith(".css")) link.as = "style"; link.href = href; document.head.append(link) }</script>
+</head>
+<body>
+  <script>
+    const savedColorScheme = localStorage.getItem("oc:color-scheme")
+    document.documentElement.dataset.colorScheme = savedColorScheme === "light" || savedColorScheme === "dark"
+      ? savedColorScheme
+      : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+      performance.now = performance.now.bind(performance)
+    }
+    if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+      crypto.getRandomValues = crypto.getRandomValues.bind(crypto)
+    }
+    if (typeof fetch === "function") {
+      globalThis.fetch = globalThis.fetch.bind(globalThis)
+    }
+    if (typeof setTimeout === "function") {
+      globalThis.setTimeout = globalThis.setTimeout.bind(globalThis)
+      globalThis.clearTimeout = globalThis.clearTimeout.bind(globalThis)
+    }
+    if (typeof setInterval === "function") {
+      globalThis.setInterval = globalThis.setInterval.bind(globalThis)
+      globalThis.clearInterval = globalThis.clearInterval.bind(globalThis)
+    }
+  </script>
+  <div id="app"></div>
+</body>
+</html>

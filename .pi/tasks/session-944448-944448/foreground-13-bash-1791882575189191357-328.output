@@ -1,0 +1,172 @@
+
+
+
+ read cmd_login.go:1-120
+
+
+
+ read internal/web/server.go:1-120
+
+
+
+ read internal/web/server.go:120-189
+
+
+
+ read cmd_serve.go:1-120
+
+
+
+ read cmd_serve.go:120-189
+
+
+
+ $ grep -rn -C 20 "ocDoLogin" internal/web/static/sidebar.html
+
+ ... (78 earlier lines, ctrl+o to expand)
+ 2530-                var nameIn = document.getElementById("modalName");
+ 2531-                var provLabel = document.getElementById("modalProvLabel");
+ 2532-                var provHost = document.getElementById("modalProviders");
+ 2533-                var curType = "";
+ 2534-                function openModal() {
+
+ Took 0.0s
+
+
+
+ read internal/web/static/sidebar.html:2430-2499
+
+
+
+ $ grep -rn -C 20 "loginShellPoll" internal/web/static/sidebar.html
+
+ ... (154 earlier lines, ctrl+o to expand)
+ 2485-            document
+ 2486-                .getElementById("ollamaCards")
+ 2487-                .addEventListener("click", function (e) {
+ 2488-                    var t = e.target;
+ 2489-                    if (t.classList.contains("olLogin"))
+
+ Took 0.0s
+
+
+
+ read internal/web/static/sidebar.html:2520-2589
+
+
+
+ read internal/web/static/sidebar.html:2580-2649
+
+
+
+ $ grep -rn -C 10 "function ocDoLogin" internal/web/static/sidebar.html
+
+ ... (16 earlier lines, ctrl+o to expand)
+ 2440-                        // card-shell-first-async-load: render the new
+ 2441-                        // account's shell the moment it lands in config (no
+ 2442-                        // quota request), then the fill replaces it. Poll
+ 2443-                        // until the account appears so no ghost card shows
+ 2444-                        // on a failed login. The fill is fq() — the
+
+ Took 0.0s
+
+
+
+ $ grep -rn "<script" internal/web/static/sidebar.html
+
+ 1158:        <script src="echarts.min.js"></script>
+ 1159:        <script>
+
+ Took 0.0s
+
+
+
+ read internal/web/static/sidebar.html:1780-1849
+
+
+
+ read main.go:1-120
+
+
+
+ read pkg/sdk/auth/opencode.go:1-120
+
+
+
+ read pkg/sdk/auth/opencode.go:121-240
+
+
+
+ read pkg/sdk/auth/opencode.go:241-360
+
+
+
+ $ grep -rn -C 20 "function renderProviderShells" internal/web/static/sidebar.html
+
+ ... (36 earlier lines, ctrl+o to expand)
+ 1751-
+ 1752-                if (!shells || !shells.length) {
+ 1753-                    // Empty account list: NEVER wipe existing cards, and
+ 1754-                    // keep a pure error state until the fill replaces it
+ 1755-                    // (the fill's overall replacement removes the qerr).
+
+ Took 0.0s
+
+
+
+ $ find ~ -name "*foundry*" -o -name "*sentinel*" -o -name "*opencode*" -o -name "config.json" 2>/dev/null
+
+ ... (465 earlier lines, ctrl+o to expand)
+ /home/ethan/.antigravity/extensions/sumneko.lua-3.17.1-linux-x64/server/meta/3rd/lfs/config.json
+ /home/ethan/.antigravity/extensions/sumneko.lua-3.17.1-linux-x64/server/meta/3rd/example/config.json
+ /home/ethan/.antigravity/extensions/sumneko.lua-3.17.1-linux-x64/server/meta/3rd/Jass/config.json
+ /home/ethan/.antigravity/extensions/sumneko.lua-3.17.1-linux-x64/server/meta/3rd/love2d/config.json
+ /home/ethan/.antigravity/extensions/sumneko.lua-3.17.1-linux-x64/server/meta/3rd/lovr/config.json
+
+ [Full output: .pi/tasks/session-944448-944448/foreground-10-bash-1791882460176813553-324.output. Truncated: 470 lines shown (50.0KB limit)]
+
+ Took 1m 31s
+
+
+ Command is still running. Press Ctrl+B to move it to the background.
+
+
+ read ~/.foundry-quota-sentinel/config.json:1-120
+
+
+
+ $ ps aux | grep -E "foundry|sentinel|8788"
+
+ ... (6 earlier lines, ctrl+o to expand)
+ --metrics-shmem-handle=4,i,7878859339044136828,1176249229078447407,2097152 --field-trial-handle=3,i,3016343255530360911,8214218064930849674,262144 --variations-seed-version --pseudonymization-salt-handle=7,i,5922443674546561097,17229273407562393159,4 --trace-process-track-uuid=3190744349334210905
+ ethan    2160166  0.4  0.2 76091844 192532 pts/0 Sl+  16:55   0:04 build/foundry-quota-sentinel
+ ethan    2161308  0.0  0.0      0     0 pts/0    Z+   16:55   0:00 [foundry-quota-s] <defunct>
+ ethan    2206334  0.0  0.0  13040  3696 ?        Ss   17:09   0:00 bash -c ps aux | grep -E "foundry|sentinel|8788"
+ ethan    2206336  0.0  0.0  12264  2440 ?        S    17:09   0:00 grep -E foundry|sentinel|8788
+
+ Took 0.1s
+
+
+
+ $ tmux list-sessions
+
+ ... (12 earlier lines, ctrl+o to expand)
+ fond-monthly-rotation-system: 1 windows (created Mon Oct  5 16:30:23 2026) (attached)
+ foundry-quota-sentinel: 1 windows (created Wed Sep 23 23:01:32 2026) (attached)
+ foundry-quota-sentinel-worker: 1 windows (created Wed Sep 23 23:01:33 2026)
+ protectkit: 1 windows (created Sat Sep 26 00:22:18 2026) (attached)
+ slice: 1 windows (created Sat Sep 26 00:18:59 2026) (attached)
+
+ Took 0.0s
+
+
+
+ $ tmux capture-pane -pt foundry-quota-sentinel -S -100
+
+
+── ⠋ Working ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/mnt/data/Work/Projects/foundry-quota-sentinel (master)
+↑165k ↓7.8k R1.8M CH97.7% $0.198 11.5%/1.0M (auto)                                                                                                                                                                                                                                                                                                                                              (cliproxyapi) gemini-3.8-flash-high • high
+🔌 MCP: 9 servers enabled

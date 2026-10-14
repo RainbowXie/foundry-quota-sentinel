@@ -1,0 +1,157 @@
+1640-            function markContainerData(provider, hasData) {
+1641-                containerHasData[provider] = !!hasData;
+1642-            }
+1643-
+1644-            function rearmProviderRefresh(provider) {
+1645-                var st = refreshState[provider];
+1646-                if (!st) return;
+1647-                st.busy = false;
+1648-                st.promise = null;
+1649-                st.timer = setTimeout(function () {
+1650:                    scheduleProviderRefresh(provider, st.fn);
+1651-                }, REFRESH_DELAY_MS);
+1652-            }
+1653-
+1654:            function scheduleProviderRefresh(provider, fn) {
+1655-                var st = refreshState[provider];
+1656-                if (!st) {
+1657-                    st = refreshState[provider] = {
+1658-                        busy: false,
+1659-                        promise: null,
+1660-                        timer: 0,
+1661-                        fn: fn
+1662-                    };
+1663-                }
+1664-                if (st.busy) {
+--
+1812-                    // stale-while-refresh: a failed refresh must NOT wipe
+1813-                    // visible data. Only when the container had no data yet
+1814-                    // (first load fill failed) does the error state render.
+1815-                    if (!containerHasData["opencode"]) {
+1816-                        document.getElementById("accountCards").innerHTML =
+1817-                            "<div class=qerr>" + qesc(e.message) + "</div>";
+1818-                    }
+1819-                }
+1820-            }
+1821-            function fq() {
+1822:                return scheduleProviderRefresh("opencode", function () {
+1823-                    // Shell first (local, no request), then single-flight fill.
+1824-                    return fetchOpenCodeShells().then(fetchOpenCodeCards);
+1825-                });
+1826-            }
+1827-            /* Ollama cards */
+1828-            function olcard(a) {
+1829-                // Use shared quota-card foundation via adapter (Task 2.4)
+1830-                return renderQuotaCard(ollamaAdapter(a));
+1831-            }
+1832-            async function fetchOllamaShells() {
+--
+1850-                    document.getElementById("ollamaCards").innerHTML = h;
+1851-                    markContainerData("ollama", (r.data || []).length > 0);
+1852-                } catch (e) {
+1853-                    if (!containerHasData["ollama"]) {
+1854-                        document.getElementById("ollamaCards").innerHTML =
+1855-                            "<div class=qerr>" + qesc(e.message) + "</div>";
+1856-                    }
+1857-                }
+1858-            }
+1859-            function fo() {
+1860:                return scheduleProviderRefresh("ollama", function () {
+1861-                    return fetchOllamaShells().then(fetchOllamaCards);
+1862-                });
+1863-            }
+1864-            /* kimi cards */
+1865-            function kcard(a) {
+1866-                // Use shared quota-card foundation via adapter (Task 2.5)
+1867-                return renderQuotaCard(kimiAdapter(a));
+1868-            }
+1869-            async function fetchKimiShells() {
+1870-                try {
+--
+1887-                    document.getElementById("kimiCards").innerHTML = h;
+1888-                    markContainerData("kimi", (r.data || []).length > 0);
+1889-                } catch (e) {
+1890-                    if (!containerHasData["kimi"]) {
+1891-                        document.getElementById("kimiCards").innerHTML =
+1892-                            "<div class=qerr>" + qesc(e.message) + "</div>";
+1893-                    }
+1894-                }
+1895-            }
+1896-            function fk() {
+1897:                return scheduleProviderRefresh("kimi", function () {
+1898-                    return fetchKimiShells().then(fetchKimiCards);
+1899-                });
+1900-            }
+1901-            /* commandcode cards */
+1902-            function ccard(a) {
+1903-                // Use shared quota-card foundation via adapter.
+1904-                return renderQuotaCard(commandcodeAdapter(a));
+1905-            }
+1906-            async function fetchCommandCodeShells() {
+1907-                try {
+--
+1924-                    document.getElementById("commandCodeCards").innerHTML = h;
+1925-                    markContainerData("commandcode", (r.data || []).length > 0);
+1926-                } catch (e) {
+1927-                    if (!containerHasData["commandcode"]) {
+1928-                        document.getElementById("commandCodeCards").innerHTML =
+1929-                            "<div class=qerr>" + qesc(e.message) + "</div>";
+1930-                    }
+1931-                }
+1932-            }
+1933-            function fc() {
+1934:                return scheduleProviderRefresh("commandcode", function () {
+1935-                    return fetchCommandCodeShells().then(fetchCommandCodeCards);
+1936-                });
+1937-            }
+1938-            function ccDoLogin(name) {
+1939-                fetch(
+1940-                    "/api/commandcode/login" +
+1941-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+1942-                )
+1943-                    .then(function () {
+1944-                        // Same shell-first + fill pattern as OpenCode;
+--
+2228-                        h += "</div>";
+2229-                    });
+2230-                    box.innerHTML = h;
+2231-                    dsRenderCharts(arr);
+2232-                } catch (e) {
+2233-                    document.getElementById("dsCards").innerHTML =
+2234-                        "<div class=er>" + qesc(e.message) + "</div>";
+2235-                }
+2236-            }
+2237-            function fd() {
+2238:                return scheduleProviderRefresh("deepseek", fetchDeepSeekCards);
+2239-            }
+2240-            function dsDoLogin(name) {
+2241-                // Capture the target account's pre-login GENERATION from
+2242-                // /api/deepseek/accounts BEFORE starting the login. A
+2243-                // token-derived signal cannot detect a same-token re-login
+2244-                // (DeepSeek may return the same long-lived token while
+2245-                // Cookie/WebStore is refreshed), so the poll would wait 5
+2246-                // minutes and never refresh. Generation bumps on every
+2247-                // successful login save regardless of the token value, and
+2248-                // is untouched by window-size / other-provider saves, so
+--
+2435-                fetch(
+2436-                    "/api/opencode/login" +
+2437-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+2438-                )
+2439-                    .then(function () {
+2440-                        // card-shell-first-async-load: render the new
+2441-                        // account's shell the moment it lands in config (no
+2442-                        // quota request), then the fill replaces it. Poll
+2443-                        // until the account appears so no ghost card shows
+2444-                        // on a failed login. The fill is fq() — the
+2445:                        // scheduleProviderRefresh wrapper — so it joins any
+2446-                        // in-flight periodic refresh (single-flight) and
+2447-                        // rearms the 30s deadline from its settlement.
+2448-                        // 250×1s ≈ 5min, aligned with dsLoginPoll.
+2449-                        return loginShellPoll(
+2450-                            function () {
+2451-                                return shellFetchForPoll(
+2452-                                    "/api/opencode/accounts",
+2453-                                    "accountCards", "opencode", "OpenCode Go", name);
+2454-                            },
+2455-                            fq, name, 1000, 250);

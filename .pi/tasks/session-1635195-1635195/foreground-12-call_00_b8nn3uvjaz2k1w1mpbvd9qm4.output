@@ -1,0 +1,3 @@
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.050s
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.307s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.085s

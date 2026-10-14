@@ -1,0 +1,4 @@
+pkg/sdk/providers/opencode/parser_test.go
+pkg/sdk/providers/opencode/types.go
+gofmt-exit=0
+build-exit=0

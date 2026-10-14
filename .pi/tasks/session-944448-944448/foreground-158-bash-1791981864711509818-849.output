@@ -1,0 +1,8 @@
+internal/config/config.go:204:	p, ok := c.Profiles[c.ActiveProfile]
+internal/config/config.go:209:	c.Profiles[name] = p
+internal/config/config.go:213:	if _, ok := c.Profiles[name]; !ok {
+internal/config/config.go:216:	delete(c.Profiles, name)
+internal/config/config.go:217:	if len(c.Profiles) == 0 {
+internal/config/config.go:222:		for k := range c.Profiles {
+internal/config/config.go:231:	names := make([]string, 0, len(c.Profiles))
+internal/config/config.go:232:	for k := range c.Profiles {

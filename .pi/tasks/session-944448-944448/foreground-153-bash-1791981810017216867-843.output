@@ -1,0 +1,44 @@
+pkg/sdk/auth/commandcode.go:190:	SignalOpenPageReady()
+pkg/sdk/auth/kimi_page.go:42:		SignalOpenPageErrorOnce(errMsg.Error())
+pkg/sdk/auth/kimi_page.go:91:	SignalOpenPageReady()
+pkg/sdk/auth/opencode.go:302:	SignalOpenPageReady()
+pkg/sdk/auth/ollama.go:212:	SignalOpenPageReady()
+pkg/sdk/auth/openpage.go:5:// OpenPageReady 在账户页面完成已认证导航并就绪时被调用（通知展示层或父进程解除加载等待）。
+pkg/sdk/auth/openpage.go:6:var OpenPageReady func()
+pkg/sdk/auth/openpage.go:8:// OpenPageError 在打开页面遇到无法恢复的认证/网络错误时被调用（至多触发一次）。
+pkg/sdk/auth/openpage.go:9:var OpenPageError func(msg string)
+pkg/sdk/auth/openpage.go:13:// ResetOpenPageHooks 重置错误单次触发守卫，供新的页面会话使用。
+pkg/sdk/auth/openpage.go:14:func ResetOpenPageHooks() {
+pkg/sdk/auth/openpage.go:18:// SignalOpenPageReady 安全调用 OpenPageReady 回调。
+pkg/sdk/auth/openpage.go:19:func SignalOpenPageReady() {
+pkg/sdk/auth/openpage.go:20:	if OpenPageReady != nil {
+pkg/sdk/auth/openpage.go:21:		OpenPageReady()
+pkg/sdk/auth/openpage.go:25:// SignalOpenPageErrorOnce 至多触发一次 OpenPageError 回调。
+pkg/sdk/auth/openpage.go:26:func SignalOpenPageErrorOnce(msg string) {
+pkg/sdk/auth/openpage.go:28:		if OpenPageError != nil {
+pkg/sdk/auth/openpage.go:29:			OpenPageError(msg)
+pkg/sdk/auth/deepseek_page.go:64:		SignalOpenPageErrorOnce(errMsg.Error())
+pkg/sdk/auth/deepseek_page.go:141:	SignalOpenPageReady()
+internal/web/routes_openpage.go:67:func (s *Server) registerOpenPageRoutes(mux *http.ServeMux) {
+internal/web/routes_openpage.go:76:		spawn := s.spawnOpenPage
+internal/web/commandcode_test.go:139:// TestOpenPageAcceptsCommandCodeProvider proves /api/open accepts the
+internal/web/commandcode_test.go:141:func TestOpenPageAcceptsCommandCodeProvider(t *testing.T) {
+internal/web/commandcode_test.go:143:	srv.spawnOpenPage = func(p, n, session string) (func() error, error) {
+internal/web/sidebar_test.go:76:// TestSidebarOpenPageHandlesResponse proves the "open account page"
+internal/web/sidebar_test.go:83:func TestSidebarOpenPageHandlesResponse(t *testing.T) {
+internal/web/server.go:87:	spawnOpenPage         func(provider, name, session string) (wait func() error, err error)
+internal/web/server.go:180:	s.registerOpenPageRoutes(mux)
+internal/web/kimi_test.go:218:	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
+internal/web/kimi_card_test.go:381:// TestOpenPageReachableFromGlobalScope (regression) proves openPage is
+internal/web/kimi_card_test.go:388:func TestOpenPageReachableFromGlobalScope(t *testing.T) {
+internal/web/kimi_secret_audit_test.go:72:	srv.spawnOpenPage = func(provider, name, session string) (func() error, error) {
+internal/web/server_test.go:269:	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
+internal/web/server_test.go:301:	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+internal/web/server_test.go:328:	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+internal/web/server_test.go:354:	srv.spawnOpenPage = func(_ string, _ string, session string) (func() error, error) {
+internal/web/server_test.go:413:	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
+internal/web/server_test.go:468:	srv.spawnOpenPage = func(string, string, string) (func() error, error) {
+cmd_page.go:108:func cmdOpenPage() {
+cmd_page.go:118:		auth.OpenPageReady = func() { web.WriteOpenHandshake(session, "ready", "") }
+cmd_page.go:119:		auth.OpenPageError = func(msg string) { web.WriteOpenHandshake(session, "error", msg) }
+cmd_page.go:125:			auth.SignalOpenPageErrorOnce(msg)

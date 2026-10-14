@@ -1,0 +1,54 @@
+VET OK
+=== delta final ===
+## ADDED Requirements
+
+### Requirement: OpenCode Console v2 JSON Quota Response Parsing
+The system SHALL parse the OpenCode Console v2 `GET /console/api/go/status` JSON response, extracting `fiveHour` (mapped to `Rolling`), `week` (mapped to `Weekly`), and `month` (mapped to `Monthly`) meters from `access.meters`. Each meter SHALL compute `UsagePercent` from `usedMicroCents` and `limitMicroCents`, and compute `ResetInSec` and `ResetDisplay` relative to `resetsAt`.
+
+#### Scenario: Active subscription with three usage meters
+- **WHEN** `/console/api/go/status` returns a JSON object with non-null `access` containing `meters.fiveHour`, `meters.week`, and `meters.month` with valid non-negative integer strings for `usedMicroCents` and positive integer strings for `limitMicroCents`
+- **THEN** the parser returns a `QuotaData` with `Rolling`, `Weekly`, and `Monthly` populated with accurate usage percentages and non-negative reset durations
+
+#### Scenario: Lapsed or unsubscribed account returns null payload or null access
+- **WHEN** `/console/api/go/status` returns literal `null` or a JSON object whose `access` field is `null`
+- **THEN** the parser returns a `QuotaData` with `Lapsed: true` and `unavailable` status on `Rolling` and `Weekly`
+
+#### Scenario: Five-hour rolling window has not started yet
+- **WHEN** `access.meters.fiveHour` has `resetsAt: null` and `usedMicroCents: "0"` (before first use in the 5-hour window)
+- **THEN** the parser accepts the meter with `ResetInSec: 0` and `UsagePercent: 0` without failing
+
+#### Scenario: Malformed or negative micro-cents values fail closed
+- **WHEN** `/console/api/go/status` returns negative `usedMicroCents`, zero or negative `limitMicroCents`, non-numeric strings, or missing required meter objects (`fiveHour` or `week`)
+- **THEN** parsing fails closed with a descriptive error and fabricates no quota metrics
+
+## MODIFIED Requirements
+
+### Requirement: OpenCode quota parsing tolerates supported seroval layout variation
+The system SHALL treat the Console v2 REST JSON payload from `GET /console/api/go/status` as the primary OpenCode Go quota contract, and SHALL retain the legacy Seroval serialization only as a bounded compatibility branch for historical responses and regression fixtures. In the Seroval branch it SHALL parse OpenCode Go rolling, weekly, and optional monthly quota objects without depending on seroval reference numbers, property order, insignificant whitespace, or unrelated additional properties. It MUST preserve each parsed status, reset duration, and usage percentage under the correct quota window.
+
+#### Scenario: Reference numbers and property order change
+- **WHEN** a sanitized valid response moves each `$R[n]` reference and reorders `status`, `resetInSec`, and `usagePercent`
+- **THEN** the parser returns the same rolling, weekly, and monthly values as the canonical response
+
+#### Scenario: Usage objects contain whitespace and additional properties
+- **WHEN** a valid usage object contains insignificant whitespace and unrelated primitive properties before, between, or after its required properties
+- **THEN** the parser ignores the unrelated properties and preserves all required quota values
+
+#### Scenario: Seroval object is inline
+- **WHEN** a valid quota field contains its object inline without a `$R[n]=` assignment
+- **THEN** the parser accepts the object and returns the same quota semantics as a referenced object
+=== base purpose ===
+# opencode-quota-response-parsing Specification
+
+## Purpose
+
+Structured, fail-closed parsing of the OpenCode Go quota response. The primary
+contract is the Console v2 REST JSON payload (`GET /console/api/go/status`);
+the legacy Seroval serialization remains a bounded compatibility branch for
+historical responses and regression fixtures. The parser accepts the
+evidence-backed layout variations in either form (reference-number drift,
+property order, whitespace, unrelated extra properties, inline objects) while
+rejecting missing, malformed, truncated, duplicated, negative, or unsupported
+data without fabricating values or substituting windows. All fixtures and
+diagnostics stay free of authentication and account material.
+

@@ -1,0 +1,6 @@
+build/quota-sdk-go/auth/opencode.go:376:	if match == nil || !opencode.ValidWorkspaceID(match[1]) {
+build/quota-sdk-go/providers/opencode/client.go:25:// ValidWorkspaceID 判定标识是否为受支持的 Console 工作区/组织形式。
+build/quota-sdk-go/providers/opencode/client.go:27:func ValidWorkspaceID(id string) bool {
+build/quota-sdk-go/providers/opencode/client.go:84:		if !ValidWorkspaceID(org.ID) {
+build/quota-sdk-go/providers/opencode/client.go:136:	if !ValidWorkspaceID(q.WorkspaceID) {
+14:	"github.com/ethan/quota-sdk-go/providers/opencode"

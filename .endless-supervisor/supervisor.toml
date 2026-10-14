@@ -1,0 +1,65 @@
+# Requires endless-supervisor 0.4.x: worker identity is explicit tmux session_name.
+# 同一份配置可被 Claude Stop hook 或 OpenCode session.idle 插件使用。
+# OpenCode 的 session.idle 是近似 turn end，不是严格 post-turn hook。
+# socket / startup_lock / daemon_log / verdict_dir 均由系统自动按本配置文件路径
+# 派生项目级路径，无需在此配置；不同项目不会互相串话。
+# 等待守护进程启动完成的超时时间（秒）
+startup_timeout_secs = 10
+# Stop/idle hook worker keepalive 的共享参数；这里不启用 keepalive。
+# 每个 worker 是否续命、是否使用 primary 模式和使用哪个提示词，
+# 由对应的 [worker.<name>.keepalive] 决定。
+[keepalive]
+# 一次性人工停止标志目录；留空则取 socket 同级目录下的 keepalive-stops。
+# 标志按 TMUX_PANE 区分，命中后该 worker 下一次 Stop hook 会获准停止。
+stop_dir = ""
+# 等待 supervisor verdict 时的轮询间隔（秒）；同时用于检查裁判 pane 是否仍存活。
+poll_secs = 2
+
+[[supervisor.foundry-quota-sentinel]]
+# supervisor 运行在 node session；这是裁判请求注入的 pane 目标。
+lead_pane = "foundry-quota-sentinel:0.0"
+# 规则 / 任务规格文件路径，监督者据此判定 worker
+rules = "/mnt/data/Work/Projects/foundry-quota-sentinel/.endless-supervisor/task-rules.md"
+# 每条按请求生成的监督提示词模板
+prompt_template = "templates/claude-supervisor-prompt.md"
+# 等待裁决的超时时间（秒）
+timeout_secs = 1200
+
+[[worker.foundry-quota-sentinel-worker]]
+# worker 的稳定身份是 tmux session_name，必须与实际 session 名完全一致。
+# Claude 可以动态改写 pane title；pane title 不参与身份匹配。
+session_name = "foundry-quota-sentinel-worker"
+# 绑定到上面的 supervisor 逻辑配置；真正的 pane 目标由 lead_pane 指定。
+supervisor = "foundry-quota-sentinel"
+
+[worker.foundry-quota-sentinel-worker.keepalive]
+# worker-specific Stop/idle 续命开关。true 时，lead pane 不可用、裁决超时或 daemon
+# 无法连接时返回 block + 下方提示词，让已匹配的 worker 继续。
+# session 未匹配、配置加载失败或 daemon 返回错误时始终 block 并保留诊断。
+enabled = true
+# true：主模式，hook 直接本地续命，完全跳过 supervisor 与 daemon。
+# false：正常先走 supervisor 裁判，仅在裁判不可用或超时时续命。
+primary = false
+# 续命时返回给 worker 的提示词；做决策时才读取，可随时编辑、无需重启 daemon。
+# 留空或文件不可读时使用内置默认提示词。
+keepalive_prompt_template = "templates/keepalive-prompt.md"
+
+[watchdog]
+# 独立的后台停滞监控，不参与 Stop/idle hook 裁决，也不读取 worker keepalive 开关。
+# 它定期检查指定 pane 的输出；发现 API 中断、长时间无变化或输入未提交时，
+# 主动向 pane 注入 recovery_prompt。
+enabled = false
+# 检查 pane 状态的间隔（秒）
+poll_secs = 20
+# 多久无更新视为停滞（秒）
+stale_secs = 600
+# 同一窗格两次恢复之间的冷却时间（秒）
+cooldown_secs = 300
+# 触发恢复时注入窗格的提示词；{{reason}} 会被替换为具体原因
+recovery_prompt = "从上一个稳定状态继续。上一条回复似乎被中断或停滞了（{{reason}}）；检查文件、对话记录和仓库状态，然后继续当前任务。"
+
+[[watchdog.panes]]
+# 被监控窗格的名称
+name = "foundry-quota-sentinel-worker"
+# 被监控窗格的 tmux 标识，格式同 lead_pane（session:window.pane）
+pane = "foundry-quota-sentinel-worker:0.0"

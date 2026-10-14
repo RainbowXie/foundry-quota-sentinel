@@ -1,0 +1,12 @@
+- Loading templates...
+Schema: spec-driven
+Source: package
+
+proposal:
+  /home/ethan/.nvm/versions/node/v24.6.0/lib/node_modules/@fission-ai/openspec/schemas/spec-driven/templates/proposal.md
+specs:
+  /home/ethan/.nvm/versions/node/v24.6.0/lib/node_modules/@fission-ai/openspec/schemas/spec-driven/templates/spec.md
+design:
+  /home/ethan/.nvm/versions/node/v24.6.0/lib/node_modules/@fission-ai/openspec/schemas/spec-driven/templates/design.md
+tasks:
+  /home/ethan/.nvm/versions/node/v24.6.0/lib/node_modules/@fission-ai/openspec/schemas/spec-driven/templates/tasks.md

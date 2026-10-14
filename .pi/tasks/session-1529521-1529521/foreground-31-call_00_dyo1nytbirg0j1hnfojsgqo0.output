@@ -1,0 +1,2 @@
+pkg/sdk/providers/opencode/parser_test.go
+gofmt-exit=0

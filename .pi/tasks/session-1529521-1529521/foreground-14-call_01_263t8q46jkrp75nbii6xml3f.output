@@ -1,0 +1,59 @@
+## 1. OpenCode Console v2 Quota Client & Parser
+
+- [x] 1.1 Update `pkg/sdk/providers/opencode/client.go` to request `GET https://opencode.ai/console/api/go/status` with `Accept: application/json` and `x-org-id: <WorkspaceID>`, plus add `FetchDefaultOrgID` helper for `/console/api/orgs`.
+- [x] 1.2 Extend `pkg/sdk/providers/opencode/parser.go` to parse the Console v2 JSON response (`access.meters.{fiveHour, week, month}` with `usedMicroCents`, `limitMicroCents`, and nullable `resetsAt`), handling `access: null` as `Lapsed: true` and failing closed on invalid/negative values.
+- [x] 1.3 Add unit tests in `pkg/sdk/providers/opencode/parser_test.go` and `client_test.go` covering Console v2 active meters, unstarted 5h window (`resetsAt: null`), lapsed subscription (`access: null`), malformed micro-cents, and HTTP header verification.
+
+## 2. OpenCode Console v2 Browser Auth & Account Page
+
+- [x] 2.1 Update `pkg/sdk/auth/opencode.go` login URL to `https://opencode.ai/console/login?next=%2Fconsole%2Fgo` and expand `openCodeWorkspaceID` regex to match both `org_[a-zA-Z0-9]+` and `wrk_[a-zA-Z0-9]+`.
+- [x] 2.2 Update `cmd_page.go` to open `https://opencode.ai/console/<workspaceID>/go` for OpenCode accounts.
+- [x] 2.3 Add unit tests in `pkg/sdk/auth/opencode_test.go` verifying `org_` and `wrk_` extraction from `/console/<id>/go` URLs and `__Host-console_session` cookie handling.
+
+## 3. Build, Export & Verification
+
+- [x] 3.1 Run `go test -tags nogui ./...` and `CGO_ENABLED=0 go test ./pkg/sdk/...` to verify all tests pass.
+- [x] 3.2 Re-export standalone SDK via `./scripts/export-sdk.sh` and rebuild both CLI (`build/fqs-cli`) and GUI (`build/foundry-quota-sentinel`) binaries.
+=== specs ===
+openspec/changes/update-opencode-console-v2/specs/opencode-console-auth/spec.md
+openspec/changes/update-opencode-console-v2/specs/opencode-quota-response-parsing/spec.md
+---
+## ADDED Requirements
+
+### Requirement: OpenCode Console v2 Browser Login Capture
+The system SHALL launch the browser to `https://opencode.ai/console/login?next=%2Fconsole%2Fgo` and capture both the `opencode.ai` session cookies (including `__Host-console_session`) and the active workspace/organization identifier (`org_[a-zA-Z0-9]+` or `wrk_[a-zA-Z0-9]+`).
+
+#### Scenario: Capturing org_ or wrk_ identifier from Console URL
+- **WHEN** user completes login and the browser navigates to `https://opencode.ai/console/org_01JXYZ/go` or `https://opencode.ai/console/wrk_01JXYZ/go`
+- **THEN** system extracts `org_01JXYZ` or `wrk_01JXYZ` as the WorkspaceID and captures the `opencode.ai` cookies
+
+#### Scenario: Resolving WorkspaceID via Console Orgs API when URL has no ID
+- **WHEN** user logs in and the browser stays on an authenticated `opencode.ai/console` page without an explicit `org_` or `wrk_` segment in the URL
+- **THEN** system queries `GET https://opencode.ai/console/api/orgs` using the captured session cookies to resolve the primary organization ID
+
+### Requirement: OpenCode Console v2 Account Page Restoration
+The system SHALL inject saved OpenCode cookies via CDP (preserving host-only semantics for `__Host-` prefixed cookies) and navigate the account browser to `https://opencode.ai/console/<workspaceID>/go`.
+
+#### Scenario: Opening OpenCode Console account page
+- **WHEN** user triggers `open-page opencode <name>` or clicks the account card in the sidebar
+- **THEN** system injects the saved cookies into the browser session and navigates to `https://opencode.ai/console/<workspaceID>/go`
+## ADDED Requirements
+
+### Requirement: OpenCode Console v2 JSON Quota Response Parsing
+The system SHALL parse the OpenCode Console v2 `GET /console/api/go/status` JSON response, extracting `fiveHour` (mapped to `Rolling`), `week` (mapped to `Weekly`), and `month` (mapped to `Monthly`) meters from `access.meters`. Each meter SHALL compute `UsagePercent` from `usedMicroCents` and `limitMicroCents`, and compute `ResetInSec` and `ResetDisplay` relative to `resetsAt`.
+
+#### Scenario: Active subscription with three usage meters
+- **WHEN** `/console/api/go/status` returns a JSON object with non-null `access` containing `meters.fiveHour`, `meters.week`, and `meters.month` with valid non-negative integer strings for `usedMicroCents` and positive integer strings for `limitMicroCents`
+- **THEN** the parser returns a `QuotaData` with `Rolling`, `Weekly`, and `Monthly` populated with accurate usage percentages and non-negative reset durations
+
+#### Scenario: Lapsed or unsubscribed account returns null payload or null access
+- **WHEN** `/console/api/go/status` returns literal `null` or a JSON object whose `access` field is `null`
+- **THEN** the parser returns a `QuotaData` with `Lapsed: true` and `unavailable` status on `Rolling` and `Weekly`
+
+#### Scenario: Five-hour rolling window has not started yet
+- **WHEN** `access.meters.fiveHour` has `resetsAt: null` and `usedMicroCents: "0"` (before first use in the 5-hour window)
+- **THEN** the parser accepts the meter with `ResetInSec: 0` and `UsagePercent: 0` without failing
+
+#### Scenario: Malformed or negative micro-cents values fail closed
+- **WHEN** `/console/api/go/status` returns negative `usedMicroCents`, zero or negative `limitMicroCents`, non-numeric strings, or missing required meter objects (`fiveHour` or `week`)
+- **THEN** parsing fails closed with a descriptive error and fabricates no quota metrics

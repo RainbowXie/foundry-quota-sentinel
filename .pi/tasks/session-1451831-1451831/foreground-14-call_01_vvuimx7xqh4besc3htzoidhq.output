@@ -1,0 +1,12 @@
+ls: 无法访问 'internal/quota': 没有那个文件或目录
+---
+{"level":40,"time":1791515439717,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "error": "Target 'OpenCodeQuerier.FetchQuota' not found",
+  "target": {
+    "name": "OpenCodeQuerier.FetchQuota"
+  },
+  "direction": "upstream",
+  "impactedCount": 0,
+  "risk": "UNKNOWN"
+}

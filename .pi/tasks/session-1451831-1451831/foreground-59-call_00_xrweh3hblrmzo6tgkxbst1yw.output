@@ -1,0 +1,3 @@
+-rwxrwxr-x 1 ethan ethan 11655432 11:22 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 11526306 11:21 build/fqs-cli
+pkg/sdk/providers/opencode/parser_console_test.go

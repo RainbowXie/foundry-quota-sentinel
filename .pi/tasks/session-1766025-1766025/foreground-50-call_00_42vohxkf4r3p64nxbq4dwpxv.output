@@ -1,0 +1,17 @@
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+=== detect-changes (compare main) ===
+{"level":40,"time":1791520834010,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+fatal: 有歧义的参数 'main'：未知的版本或路径不存在于工作区中。
+使用 '--' 来分隔版本和路径，例如：
+'git <命令> [<版本>...] -- [<文件>...]'
+错误：Git diff failed: Command failed: git diff --ignore-cr-at-eol main -U0
+fatal: 有歧义的参数 'main'：未知的版本或路径不存在于工作区中。
+使用 '--' 来分隔版本和路径，例如：
+'git <命令> [<版本>...] -- [<文件>...]'
+

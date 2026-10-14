@@ -1,0 +1,11 @@
+== build/fqs-cli
+1
+1
+1
+== build/foundry-quota-sentinel
+1
+1
+1
+== rebuild determinism ==
+08c0acaddc50175fcf377d87e04e4ee8  /tmp/fqs-cli-check
+08c0acaddc50175fcf377d87e04e4ee8  build/fqs-cli

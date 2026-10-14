@@ -1,0 +1,80 @@
+openspec/changes/archive/2026-08-25-opencode-exhausted-status/tasks.md
+openspec/changes/archive/2026-08-25-opencode-exhausted-status/specs/opencode-quota-response-parsing/spec.md
+openspec/changes/archive/2026-08-25-opencode-exhausted-status/design.md
+openspec/changes/archive/2026-08-25-opencode-exhausted-status/proposal.md
+openspec/changes/archive/2026-08-25-opencode-exhausted-status/.openspec.yaml
+===== proposal =====
+## Why
+
+OpenCode Go 账户额度耗尽后，`/api/accounts` 整体报错（实测日志：
+`failed to parse weeklyUsage: unsupported status value` 与
+`failed to parse monthlyUsage: unsupported status value`），整张卡片从
+侧边栏消失、只显示查询失败。但额度用尽是**合法且必须可见的状态**：
+web 用量页上额度耗尽时依然展示百分比与重置时间，侧边栏也应如此。
+当前 `supportedQuotaStatus` 白名单只含 `ok`/`unlimited`，任何第三种
+状态值都会让解析 fail-closed，导致卡片消失。
+
+## What Changes
+
+- `status` 解析从**枚举白名单**改为**宽松接受任意非空字符串**：
+  只要字段结构合法（`status`/`resetInSec`/`usagePercent` 存在且类型
+  正确），任何状态值（`ok`、`unlimited`、耗尽态、以及上游未来新增
+  的任何值）都解析通过并正常渲染
+- 保留结构级 fail-closed：字段缺失、重复、空 status、负值、
+  非数字、截断、仅嵌于无关字段等形态仍报错——"额度正常显示"不等于
+  放过损坏数据
+- 保留 `monthly` 的 `unlimited` 省略语义（`Status == "unlimited"` 的
+  精确判断不受宽松影响）
+- 前端零改动：卡片按 `usage_percent`/`reset_in_sec` 渲染，状态值
+  不参与 UI 决策
+- 移除临时诊断日志的需求（无需实证采集具体值）
+
+## Capabilities
+
+### New Capabilities
+
+（无）
+
+### Modified Capabilities
+
+- `opencode-quota-response-parsing`: `fails closed on unsupported data`
+  的语义收窄为"字段结构 fail-closed"；`status` 值不再作为 fail-closed
+  依据，任何非空枚举串均可解析渲染。其余需求不变
+
+## Impact
+
+- `internal/quota/opencode.go`：`parseUsageObject` 的 status 分支去掉
+  白名单检查（改非空校验）；`supportedQuotaStatus` 常量删除或降级为
+  注释说明
+- `internal/quota/opencode_test.go`：新增未知/耗尽状态解析通过用例，
+  保留字段结构失败用例
+- 前端、配置、API 契约不变（`QuotaData.Status` 本就透传）
+===== spec delta =====
+## MODIFIED Requirements
+
+### Requirement: OpenCode quota parsing fails closed on unsupported data
+Rolling and weekly usage objects SHALL be required. Every present usage object SHALL contain exactly one `status`, non-negative `resetInSec`, and non-negative `usagePercent`; the `status` value SHALL be a non-empty string and SHALL be accepted regardless of its enumerated content (a quota-exhausted or future status renders normally). The parser MUST return an error when required data is missing, duplicated, empty, malformed, truncated, or embedded only in an unrelated field, and MUST NOT fabricate zero values or substitute another window.
+
+#### Scenario: Rolling usage is missing
+- **WHEN** an otherwise parseable response omits the exact `rollingUsage` field
+- **THEN** parsing fails with a rolling-specific error and returns no quota result
+
+#### Scenario: Required value is malformed or duplicated
+- **WHEN** a usage object contains a negative, non-numeric, empty, or duplicate required property
+- **THEN** parsing fails and does not choose an arbitrary occurrence or coerce it to zero
+
+#### Scenario: Response is truncated or not a quota response
+- **WHEN** the body ends inside a usage object or contains quota-shaped text only under an unrelated field name
+- **THEN** parsing fails without returning partial rolling, weekly, or monthly data
+
+#### Scenario: Monthly usage is absent or unlimited
+- **WHEN** rolling and weekly are valid and monthly is absent or uses the `unlimited` status
+- **THEN** rolling and weekly are returned and monthly remains absent according to the existing model
+
+#### Scenario: Quota-exhausted status renders normally
+- **WHEN** a usage object carries a quota-exhausted status value with non-negative `resetInSec` and `usagePercent`
+- **THEN** parsing succeeds, the window is returned as normal data, and a card renders its percent and reset time
+
+#### Scenario: Unrecognized future status renders normally
+- **WHEN** a usage object carries a status value not previously observed upstream
+- **THEN** parsing succeeds and the window is returned as normal data rather than failing the whole account

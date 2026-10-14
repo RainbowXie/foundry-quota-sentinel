@@ -1,0 +1,219 @@
+commit 741ba01411662784abad352ee5aeb99f0358130a
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 12:24:16 2026 +0800
+
+    fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+    
+    修复第三轮审查提出的 5 个 P2 问题（审查结论为无 P0/P1）：
+    
+    - /console/api/orgs 反查热循环：300ms 轮询原本每轮都重发，上游持续 401/429
+      或会话 Cookie 尚未生效时会形成 ~3 req/s 的请求压力并可能自我延续限流。
+      现由 shouldResolveOpenCodeOrgID 统一约束：最小重试间隔 5s，单次登录最多 5 次；
+      超过上限后只继续等待页面自身跳到 /console/<id>/go，不再向上游施压。
+      新增 TestShouldResolveOpenCodeOrgID 覆盖间隔与上限边界，
+      TestRunOpenCodeLoginRateLimitsOrgIDResolve 守住「两次轮询只反查一次」的回归。
+    - CDP 探针错误被静默丢弃：urlErr/cookieErr 既不记录也不并入最终错误，持续失败时
+      用户只看到笼统的「未捕获到有效凭证」。现保留最后一次探针错误，经 openCodeCaptureErr
+      并入窗口关闭与登录超时的失败信息（%w 包装，可用 errors.Is 判定）。
+      新增 TestRunOpenCodeLoginReportsLastProbeError，覆盖页面地址与 Cookie 两条分支。
+    - Cookie 过滤重复实现：filterOpenCodeCookies 与 openCodeCookieHeader 的三项判据
+      （域名匹配 / 排除 auth 子域 / 值安全）逐字相同，且前者无其他调用点也无单测。
+      现删除 filterOpenCodeCookies，过滤只保留在 openCodeCookieHeader 内，并补充
+      TestOpenCodeCookieHeaderDropsUnsafeCookies 继续守住三项判据。
+    - internal/web/static/help.html:348 架构数据来源仍写已退役的
+      OpenCode Go RPC (/_server)，改为 OpenCode Console API (/console/api/go/status)；
+      同文件 156 行的「OpenCode Go 的 RPC 接口」一并改为 Console 接口说明。
+    - pkg/sdk/README.md 包结构说明仍写「OpenCode 原生配额 RPC 获取与 Seroval 解析器」，
+      改为「Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支」
+      （该 README 随 export-sdk.sh 交付给 SDK 使用者）。
+    
+    验证：gofmt -l pkg/sdk cmd_page.go（本次改动文件均无输出，仅剩 HEAD 既存的 3 个
+    Go 1.19+ 对齐漂移文件）、go vet -tags nogui ./...、go test -tags nogui ./...、
+    CGO_ENABLED=0 go test ./pkg/sdk/...、GOARCH=386 go test
+    ./pkg/sdk/{auth,providers/opencode}/... 全绿；./scripts/export-sdk.sh 独立模块测试全绿；
+    build/fqs-cli（nogui）与 build/foundry-quota-sentinel（CGO + webkit2gtk-4.1 shim）
+    均重新构建。GitNexus impact：runOpenCodeLogin / openCodeCookieHeader /
+    filterOpenCodeCookies 均 LOW；detect-changes 为 medium（集中在登录流程符号，未波及
+    配额卡片等其他执行流程）。
+
+commit 98eb1b69e2334906afbfc534927c34f13f845bb3
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Wed Sep 2 12:57:46 2026 +0800
+
+    fix(commandcode): use apex domain for injected account cookies
+    
+    Storage.setCookies without a leading dot sets a Host-Only cookie that
+    is not sent across subdomains, causing fetch calls from commandcode.ai
+    to api.commandcode.ai to return 401 Unauthorized.
+
+commit c53fd1e71ace19662f20eb0229f18b5f125c74bd
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Thu Jul 30 10:21:22 2026 +0800
+
+    fix(kimi): capture+persist the membership SPA's own in-page token rotation
+    
+    Round-7 credential-safety hardening of the open-page replay path.
+    
+    Gap: while open-page holds the membership page open past the access-token
+    expiry (~15min JWT), the Kimi SPA refreshes the token ITSELF and rotates
+    BOTH tokens in localStorage (OBSERVED: RefreshToken rotates both). The
+    on-disk envelope kept the old refresh token — invalidated by the page's
+    in-flight rotation — so the next CLI/Web run forced a re-login. The round-6
+    kimiReplayEnvelope only covers the pre-replay window, not the page session.
+    
+    Fix (evidence-verified localStorage capture + atomic persist):
+    
+    - sidebar: kimiWatchInPageRotation consumes CDP network events after the
+      auth decision. Evidence rule (no blind localStorage trust): a request on
+      the protected https://www.kimi.com/apiv2/ namespace carrying a Bearer
+      token != lastKnown, answered 2xx — the server accepted the new token.
+      Only then is the localStorage pair read, persisted ONLY when
+      access_token == the evidenced token and refresh_token non-empty. Runs on
+      its own context (the page ctx is a 20s setup deadline), stops cleanly on
+      browser close; supports multiple chained rotations per session.
+    - sidebar: KimiPageRotationSave package hook (nil = watcher disabled, no
+      behavioral change for other callers; RunKimiPage signature unchanged).
+    - main: kimiPageRotationSaver(name) — compare-and-swap under the
+      per-account cross-process lock: persists via config.SaveKimiTokens ONLY
+      when the on-disk access token still equals prevAccess (the token the
+      page rotated FROM); skips cleanly when a concurrent CLI/Web rotation
+      already moved disk ahead (never regresses disk to a revoked pair).
+    - cmdOpenPage installs the closure before RunKimiPage.
+    
+    RED→GREEN:
+    - TestRunKimiPageCapturesSpaRotationAfterProtectedEvidence: RED 'in-page
+      rotation was NOT captured'; GREEN: watcher persists the SPA-rotated pair.
+    - TestRunKimiPageChainsSequentialRotations: RED; GREEN: multiple rotations
+      chained (prev advances per successful save).
+    - TestRunKimiPageSkipsRotationWithoutProtectedEvidence: no capture on
+      non-protected URL, 401, or localStorage/evidence mismatch.
+    - TestKimiPageRotationSaverPersistsWhenDiskMatchesPrev / ...SkipsWhenDisk-
+      MovedAhead: CAS persists on match, skips (no regression) when disk moved.
+    
+    Tests: full suite + -race -tags nogui pass; vet clean.
+
+commit 3ffe8f7765351c04fe3057ab8832ba25cbd3af65
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Wed Jul 29 16:47:04 2026 +0800
+
+    feat(kimi): three-metric decimal model + membership/refresh evidence
+    
+    Replace the provisional two-integer-meter console model with the REAL
+    three-metric decimal contract captured from the membership quota page
+    (https://www.kimi.com/membership/subscription?tab=quota) and the live
+    auto-refresh flow. No fabricated field names remain.
+    
+    Real captured contract (GetSubscriptionStats 200 body, three metrics):
+    - ratelimitCode5h: { enabled, resetTime(ISO) }  // ratio ABSENT at 0%
+    - ratelimitCode7d: { ratio(0..1), enabled, resetTime(ISO) }
+    - subscriptionBalance: { amountUsedRatio(0..1), expireTime(ISO), ... }
+    
+    Field-to-label map (verified against the visible membership page):
+    - 总使用量 2.19% = subscriptionBalance.amountUsedRatio × 100; reset =
+      subscriptionBalance.expireTime (absolute, YYYY-MM-DD display)
+    - 5 小时用量 0% = ratelimitCode5h.ratio × 100 (absent => 0%); reset =
+      ratelimitCode5h.resetTime (absolute, MM-DD HH:mm display)
+    - 7 天用量 10.42% = ratelimitCode7d.ratio × 100; reset =
+      ratelimitCode7d.resetTime (absolute, MM-DD HH:mm display)
+    
+    Durable refresh contract (OBSERVED, the chain the querier must replay):
+    access token ~15min; durable session = refresh_token (607-char JWT) in
+    localStorage. On 401, SPA POSTs
+    auth.kimi.com/api/account.gateway.v1.AuthService/RefreshToken with body
+    {"refresh_token":"<jwt>"} (NO Bearer header) → returns
+    {"accessToken","refreshToken"} (BOTH rotate). Querier must call this on
+    expiry, persist rotated tokens, retry once.
+    
+    New model (internal/quota/kimi.go): KimiQuotaData{Total, FiveHour, SevenDay,
+    FetchedAt} with decimal KimiQuotaUsage{UsagePercent float64, ResetAt time.Time,
+    ResetInSec, ResetDisplay, Status}. ParseKimiQuota(body, now) binds the three
+    REAL metrics, preserves decimal percentages (ratio×100, NOT rounded to int),
+    rejects NaN/Infinity/out-of-range ratios (never clamped), requires all three
+    meters + future parseable absolute reset instants, formats total as
+    YYYY-MM-DD and 5h/7d as MM-DD HH:mm in Asia/Shanghai (the observed page TZ).
+    FormatKimiPercent trims trailing zeros (2.19%, 10.42%, 0%).
+    
+    Tests rewritten to the three-metric decimal contract: representative values
+    (2.19/0/10.42), reset-display formats (YYYY-MM-DD / MM-DD HH:mm), Connect-error
+    rejection, missing-metric rejection, NaN/out-of-range rejection, past/unparseable
+    reset rejection, FormatKimiPercent cases. Querier/web/secret-audit tests updated
+    to the three-metric shape. Sidebar page-test fixture updated to the real
+    three-metric body.
+    
+    Evidence.md rewritten: membership data page, three-metric field map, durable
+    refresh chain (endpoint + body + rotation), Go-HTTP replay verification,
+    SPA-replay requirement (localStorage access/refresh_token, not cookies-only).
+    
+    Verified: 207 default + 211 -race -tags nogui tests pass; default + nogui vet
+    clean; gofmt clean on Kimi files. detect_changes confirms Kimi-only scope.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 91b70a43d59b1801212962cc089c3cddede1a87f
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Wed Jul 29 15:56:21 2026 +0800
+
+    fix(kimi): rebuild parser/envelope/login on real captured evidence
+    
+    Replace the synthetic kimi_session + guessed meter placeholders with the
+    REAL contract captured from an authenticated Kimi session (task 1.2,
+    previously falsely marked complete). No fabricated field names remain.
+    
+    Real captured contract (GetSubscriptionStats 200 body):
+    - ratelimitCode7d: { ratio: 0..1, enabled: bool, resetTime: ISO-8601 abs }
+    - ratelimitCode5h: { ratio: 0..1 (absent at 0%), enabled, resetTime }
+    - subscriptionBalance: account metadata (ignored by the parser)
+    Weekly % = round(ratelimitCode7d.ratio*100); frequency % = round(
+    ratelimitCode5h.ratio*100) with absent ratio = 0%. resetTime is an
+    ABSOLUTE future timestamp (nanosecond ISO, e.g. 2026-08-04T15:58:03.138Z);
+    the reset countdown is resetTime − now in seconds. Verified against the
+    visible console: ratio 0.1042 → 10%, resetTime diff 548823s ≈ 6d 8h 25min.
+    
+    Parser (internal/quota/kimi.go): rewritten to bind ratelimitCode7d/
+    ratelimitCode5h + ratio + resetTime; rejects Connect error envelope (non-
+    empty "code"), missing meter, missing/past/unparseable resetTime. Removed
+    the synthetic weekly/rate_limit/usedPercent/reset_seconds/reset_display/
+    amountUsedRatio/reset_unix fields and the countdown-string parser.
+    
+    Envelope (internal/config/kimi.go): replaced the single kimi_session
+    cookie model with a multi-field, allowlist-closed header map
+    (accessToken + cookie + x_msh_device_id + x_traffic_id + x_msh_platform +
+    x_msh_version + x_language + r_timezone + user_agent) — the real replay
+    fields verified by a plain Go-HTTP probe returning 200. SetField/Field/
+    AccessToken API; CR/LF rejection; unknown fields rejected at capture and
+    dropped at load.
+    
+    Login (internal/sidebar/login_kimi.go): runKimiLogin now captures the
+    full envelope (Bearer token + cookie header + stable browser headers)
+    from the protected request's Network header event, not just the token;
+    returns config.KimiAuthEnvelope. kimiBuildEnvelope/kimiCookieHeader
+    helpers. Account-page cookie replay parses the saved cookie header.
+    
+    Querier (internal/quota/kimi_web.go): KimiQuerier gains a Headers field
+    replayed on the protected POST (cookie + x-msh-* + user-agent). main.go
+    kimiFromConfig/kimiEnvelopeHeaders wire the saved envelope into the
+    querier for CLI + web cards.
+    
+    Tests: RED parser tests rewritten to the real structure (synthetic
+    fixtures use real field names + absolute future resetTime); envelope
+    tests use the real allowlisted fields; login/querier/nogui tests updated.
+    All fixtures built at test time so resetTime is always future.
+    
+    Verified end-to-end (task 6.4): real login-kimi captured a fresh envelope
+    (9 fields) and saved an isolated account; quota-kimi against the live Kimi
+    server printed 本周用量 10% reset in 6d / 频率限制 0% reset in 4h, matching
+    the visible console. A stale-token probe correctly returned
+    ErrKimiAuthExpired (HTTP 401). Throwaway HOME shredded after acceptance;
+    no credentials committed.
+    
+    Diagnostics (task 1.5): cmd/diag-kimi and cmd/diag-kimi-replay removed;
+    captured response files + probe binaries shredded; no profiles/traces
+    retained.
+    
+    Verification: 207 default + 211 -race -tags nogui tests pass; default +
+    nogui vet clean; gofmt clean on all Kimi files. Canonical builds:
+    GUI build/foundry-quota-sentinel-kimi SHA256 79b1137a...; NOGUI
+    build/foundry-quota-sentinel-nogui-kimi SHA256 2b3fe2e8...; both print
+    v0.9.0. detect_changes confirms Kimi-only additive scope.
+    
+    Co-Authored-By: Claude <noreply@anthropic.com>

@@ -1,0 +1,16 @@
+diff pkg/sdk/auth/opencode_test.go.orig pkg/sdk/auth/opencode_test.go
+--- pkg/sdk/auth/opencode_test.go.orig
++++ pkg/sdk/auth/opencode_test.go
+@@ -33,7 +33,7 @@
+ 	}
+ 	return b.cdp, nil
+ }
+-func (b *fakeOpenCodeBrowser) Exited() bool                             { return b.exited }
++func (b *fakeOpenCodeBrowser) Exited() bool { return b.exited }
+ func (b *fakeOpenCodeBrowser) Wait() error {
+ 	b.operations = append(b.operations, "wait")
+ 	return nil
+=== pre-existing? ===
+pkg/sdk/auth/commandcode_test.go was ALREADY unformatted at HEAD
+pkg/sdk/providers/commandcode/client.go was ALREADY unformatted at HEAD
+pkg/sdk/providers/opencode/types.go was ALREADY unformatted at HEAD

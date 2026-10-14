@@ -1,0 +1,80 @@
+## Why
+
+OpenCode 官方 Web 端已完成 v2 架构重构：原有的 SolidStart Seroval RPC 接口（`https://opencode.ai/_server?id=c7389bd...`）与旧版路由（`/workspace/{wrk_...}/go`）已废弃并强制重定向至新版 `/console/go` 控制台。这导致当前基于旧 RPC 与 Seroval 文本解析的 OpenCode 配额获取与浏览器登录全部失效。需要立即适配新版 OpenCode Console v2 的 REST JSON 接口（`/console/api/go/status`）与新版登录/会话恢复机制。
+
+## What Changes
+
+- **BREAKING**: OpenCode 配额查询接口从旧版 `GET /_server?id=...`（Seroval 响应）切换为新版 Console REST API `GET https://opencode.ai/console/api/go/status`，并通过请求头 `x-org-id: <org_...|wrk_...>` 传递工作区/组织 ID。
+- **MODIFIED**: 重构 `pkg/sdk/providers/opencode` 解析器，将新版 Console JSON 响应当作主契约（`access.meters.{fiveHour, week, month}` 中的 `usedMicroCents`、`limitMicroCents`、`resetsAt`），计算百分比与重置倒计时秒数，并识别 `access: null` 或 `"null"` 的订阅失效（`Lapsed: true`）状态；旧版 Seroval 路径降级为有界兼容分支。
+- **NEW**: 新增 `opencode-console-auth` 能力规范，升级 `pkg/sdk/auth` 中的 OpenCode 浏览器 CDP 登录与账户页打开流程：
+  - 登录入口切换为 `https://opencode.ai/console/login?next=%2Fconsole%2Fgo`；
+  - 工作区/组织 ID 匹配规则扩展为同时支持 `org_[a-zA-Z0-9]+` 与 `wrk_[a-zA-Z0-9]+`（并支持当 URL 未显式携带 ID 时通过 `/console/api/orgs` 自动解析）；
+  - 账户页打开地址更新为 `https://opencode.ai/console/<workspaceID>/go`，确保 `__Host-console_session` 等宿主机级 Cookie 按 CDP 规范免 Domain 注入。
+
+## Capabilities
+
+### New Capabilities
+- `opencode-console-auth`: OpenCode Console v2 的浏览器 CDP 登录捕获（支持 `org_` 与 `wrk_` 标识符及 `__Host-console_session` 凭证）与账户页会话注入恢复能力。
+
+### Modified Capabilities
+- `opencode-quota-response-parsing`: 将 OpenCode Go 配额响应解析的主契约更新为新版 Console `/console/api/go/status` 标准 JSON 结构（基于 `usedMicroCents` / `limitMicroCents` 与 ISO-8601 `resetsAt` 的 fail-closed 解析），旧版 Seroval 格式仅保留为历史响应与回归测试的有界兼容分支。
+
+## Impact
+
+- **受影响代码**:
+  - `pkg/sdk/providers/opencode/client.go`: 请求 URL、Header（`x-org-id`）与可选自动解析 orgId。
+  - `pkg/sdk/providers/opencode/parser.go` 及 `parser_test.go`, `client_test.go`: 适配新版 `/console/api/go/status` JSON 响应解析。
+  - `pkg/sdk/auth/opencode.go` 及 `opencode_test.go`: 适配 `/console/login?next=%2Fconsole%2Fgo` 登录地址、`org_|wrk_` 提取以及 `/console/<id>/go` 账户页导航。
+  - `cmd_page.go`: OpenCode `open-page` 拼接的账户页 URL 更新为新版 `/console/<id>/go`。
+
+
+Specifications Changed (diffs)
+
+opencode-console-auth
+
+  ADDED: OpenCode Console v2 Browser Login Capture
+    ### Requirement: OpenCode Console v2 Browser Login Capture
+    The system SHALL launch the browser to `https://opencode.ai/console/login?next=%2Fconsole%2Fgo` and capture both the `opencode.ai` session cookies (including `__Host-console_session`) and the active workspace/organization identifier (`org_[a-zA-Z0-9]+` or `wrk_[a-zA-Z0-9]+`).
+    
+    #### Scenario: Capturing org_ or wrk_ identifier from Console URL
+    - **WHEN** user completes login and the browser navigates to `https://opencode.ai/console/org_01JXYZ/go` or `https://opencode.ai/console/wrk_01JXYZ/go`
+    - **THEN** system extracts `org_01JXYZ` or `wrk_01JXYZ` as the WorkspaceID and captures the `opencode.ai` cookies
+    
+    #### Scenario: Resolving WorkspaceID via Console Orgs API when URL has no ID
+    - **WHEN** user logs in and the browser stays on an authenticated `opencode.ai/console` page without an explicit `org_` or `wrk_` segment in the URL
+    - **THEN** system queries `GET https://opencode.ai/console/api/orgs` using the captured session cookies to resolve the primary organization ID
+
+  ADDED: OpenCode Console v2 Account Page Restoration
+    ### Requirement: OpenCode Console v2 Account Page Restoration
+    The system SHALL inject saved OpenCode cookies via CDP (preserving host-only semantics for `__Host-` prefixed cookies) and navigate the account browser to `https://opencode.ai/console/<workspaceID>/go`.
+    
+    #### Scenario: Opening OpenCode Console account page
+    - **WHEN** user triggers `open-page opencode <name>` or clicks the account card in the sidebar
+    - **THEN** system injects the saved cookies into the browser session and navigates to `https://opencode.ai/console/<workspaceID>/go`
+
+
+opencode-quota-response-parsing
+
+  ADDED: OpenCode Console v2 JSON Quota Response Parsing
+    ### Requirement: OpenCode Console v2 JSON Quota Response Parsing
+    The system SHALL parse the OpenCode Console v2 `GET /console/api/go/status` JSON response, extracting `fiveHour` (mapped to `Rolling`), `week` (mapped to `Weekly`), and `month` (mapped to `Monthly`) meters from `access.meters`. Each meter SHALL compute `UsagePercent` from `usedMicroCents` and `limitMicroCents`, and compute `ResetInSec` and `ResetDisplay` relative to `resetsAt`.
+    
+    #### Scenario: Active subscription with three usage meters
+    - **WHEN** `/console/api/go/status` returns a JSON object with non-null `access` containing `meters.fiveHour`, `meters.week`, and `meters.month` with valid non-negative integer strings for `usedMicroCents` and positive integer strings for `limitMicroCents`
+    - **THEN** the parser returns a `QuotaData` with `Rolling`, `Weekly`, and `Monthly` populated with accurate usage percentages and non-negative reset durations
+    
+    #### Scenario: Lapsed or unsubscribed account returns null payload or null access
+    - **WHEN** `/console/api/go/status` returns literal `null` or a JSON object whose `access` field is `null`
+    - **THEN** the parser returns a `QuotaData` with `Lapsed: true` and `unavailable` status on `Rolling` and `Weekly`
+    
+    #### Scenario: Five-hour rolling window has not started yet
+    - **WHEN** `access.meters.fiveHour` has `resetsAt: null` and `usedMicroCents: "0"` (before first use in the 5-hour window)
+    - **THEN** the parser accepts the meter with `ResetInSec: 0` and `UsagePercent: 0` without failing
+    
+    #### Scenario: Malformed or negative micro-cents values fail closed
+    - **WHEN** `/console/api/go/status` returns negative `usedMicroCents`, zero or negative `limitMicroCents`, non-numeric strings, or missing required meter objects (`fiveHour` or `week`)
+    - **THEN** parsing fails closed with a descriptive error and fabricates no quota metrics
+
+  MODIFIED: OpenCode quota parsing tolerates supported seroval layout variation
+    @@ -1,6 +1,6 @@
+     ### Requirement: OpenCode quota parsing tolerates supported seroval layout variation

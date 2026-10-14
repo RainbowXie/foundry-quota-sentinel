@@ -1,0 +1,13 @@
+M  pkg/sdk/auth/opencode.go
+M  pkg/sdk/auth/opencode_test.go
+M  pkg/sdk/providers/opencode/parser_console.go
+M  pkg/sdk/providers/opencode/parser_console_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+[master 549e481] fix(opencode): close Console v2 audit findings (32-bit clamp, auth host, anchored workspace id)
+ 4 files changed, 76 insertions(+), 6 deletions(-)

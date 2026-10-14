@@ -1,0 +1,30 @@
+README.md:76:go build -ldflags="-s -w" -o foundry-quota-sentinel .
+README.md:80:go build -tags nogui -o foundry-quota-sentinel .
+README_EN.md:70:go build -ldflags="-s -w" -o foundry-quota-sentinel .
+README_EN.md:74:go build -tags nogui -o foundry-quota-sentinel .
+docs/superpowers/specs/2026-06-23-deepseek-rich-cards-design.md:159:- `CGO_ENABLED=0 go build -tags nogui .` 通过、`go vet -tags nogui ./...` 通过（后端逻辑与编译本机可验证）。
+docs/superpowers/specs/2026-06-23-multi-account-cards-design.md:73:- `CGO_ENABLED=0 go build -tags nogui .` 通过；`go vet -tags nogui ./...` 通过（本机可验证编译与后端逻辑）。
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:83:  - `windows-latest`：自带 MinGW，`CGO_ENABLED=1`，`go build -ldflags="-s -w -H windowsgui" -o ocgt-monitor.exe .`。
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:84:  - `macos-latest`：`go build -ldflags="-s -w" -o ocgt-monitor .`。
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:85:  - `ubuntu-22.04`：先 `apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev`，再 `go build -ldflags="-s -w" -o ocgt-monitor .`。
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:91:CGO_ENABLED=0 go build -tags nogui -o ocgt-monitor .
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:106:- 改动前：`go build .` 失败于 `imports golang.org/x/sys/windows: build constraints exclude all Go files`（已实测）。
+docs/superpowers/specs/2026-06-23-cross-platform-build-design.md:108:  - 本机：`CGO_ENABLED=0 go build -tags nogui .` 成功，产出可运行的 CLI 二进制 —— 证明拆分后跨平台地基打通。
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:149:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui .`
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:226:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui .`
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:288:        run: go build -ldflags="${{ matrix.ldflags }}" -o ${{ matrix.artifact }} .
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:360:go build -ldflags="-s -w" -o ocgt-monitor .
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:366:CGO_ENABLED=0 go build -tags nogui -o ocgt-monitor .
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:398:echo "--- before: CGO_ENABLED=0 go build . ---"
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:399:CGO_ENABLED=0 go build -o /tmp/before . 2>&1 | head -5
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:400:echo "--- before: CGO_ENABLED=0 go build -tags nogui . ---"
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:401:CGO_ENABLED=0 go build -tags nogui -o /tmp/before . 2>&1 | head -5
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:412:echo "--- after: CGO_ENABLED=0 go build -tags nogui . ---"
+docs/superpowers/plans/2026-06-23-cross-platform-build.md:413:CGO_ENABLED=0 go build -tags nogui -o /tmp/after . && echo "BUILD OK" && /tmp/after version
+docs/superpowers/plans/2026-06-23-multi-account-cards.md:215:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui . && echo OK`
+docs/superpowers/plans/2026-06-23-multi-account-cards.md:312:Run: `CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgt-nogui . && echo OK`
+docs/superpowers/plans/2026-06-23-deepseek-rich-cards.md:13:**验证范式（全程沿用）：** 本仓库无单元测试文件，验证靠 `CGO_ENABLED=0 go build -tags nogui .`、`go vet -tags nogui ./...`、本机 `serve` + `curl`、GUI 手测、CI 三平台编译。涉及真实接口的步骤用环境变量 `DS_TOKEN`（一个有效网页 Bearer token）做只读验证；没有 token 时跳过该步并在 PR 说明里标注。
+docs/superpowers/plans/2026-06-23-deepseek-rich-cards.md:82:Run: `cd /mnt/data/Work/Projects/ocgt-monitor && CGO_ENABLED=0 go build -tags nogui . && go vet -tags nogui ./...`
+docs/superpowers/plans/2026-06-23-deepseek-rich-cards.md:327:Run: `cd /mnt/data/Work/Projects/ocgt-monitor && CGO_ENABLED=0 go build -tags nogui . && go vet -tags nogui ./...`
+docs/superpowers/plans/2026-06-23-deepseek-rich-cards.md:501:Run: `cd /mnt/data/Work/Projects/ocgt-monitor && CGO_ENABLED=0 go build -tags nogui . && go vet -tags nogui ./...`
+docs/superpowers/plans/2026-06-23-deepseek-rich-cards.md:510:CGO_ENABLED=0 go build -tags nogui -o /tmp/ocgtm . && OCGT_PORT=8799 /tmp/ocgtm serve &

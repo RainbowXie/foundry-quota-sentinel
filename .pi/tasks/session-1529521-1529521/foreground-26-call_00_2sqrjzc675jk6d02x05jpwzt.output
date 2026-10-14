@@ -1,0 +1,193 @@
+	if got.Monthly.Status != "active" || got.Monthly.UsagePercent != 25 {
+		t.Fatalf("monthly = %+v, want active 25%%", *got.Monthly)
+	}
+	if got.Monthly.ResetDisplay != "30d" {
+		t.Fatalf("monthly reset display = %q, want 30d", got.Monthly.ResetDisplay)
+	}
+}
+
+// assertResetWithin 只允许秒级误差：解析器自己取 now，测试无法与它共享同一时刻。
+func assertResetWithin(t *testing.T, window string, got, want int) {
+	t.Helper()
+	if got > want || got < want-5 {
+		t.Fatalf("%s ResetInSec = %d, want within [%d,%d]", window, got, want-5, want)
+	}
+}
+
+func TestParseQuotaResponseConsoleUnstartedFiveHourWindow(t *testing.T) {
+	now := time.Now()
+	body := consoleStatusFixture(consoleMetersFixture(
+		consoleMeterFixture(nil, "1200000000", "0"),
+		consoleMeterFixture(timePtr(now.Add(7*24*time.Hour)), "3000000000", "0"),
+		nil,
+	))
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("unstarted 5h window must parse: %v", err)
+	}
+	if got.Rolling.ResetInSec != 0 || got.Rolling.ResetDisplay != "0s" {
+		t.Fatalf("rolling = %+v, want reset 0s", got.Rolling)
+	}
+	if got.Rolling.UsagePercent != 0 || got.Rolling.Status != "active" {
+		t.Fatalf("rolling = %+v, want active 0%%", got.Rolling)
+	}
+	if got.Monthly != nil {
+		t.Fatalf("monthly must be omitted when meters.month is absent, got %+v", *got.Monthly)
+	}
+}
+
+func TestParseQuotaResponseConsoleMissingFiveHourResetsAtKey(t *testing.T) {
+	now := time.Now()
+	fiveHour := map[string]any{"limitMicroCents": "1200000000", "usedMicroCents": "0"}
+	body := consoleStatusFixture(consoleMetersFixture(
+		fiveHour,
+		consoleMeterFixture(timePtr(now.Add(7*24*time.Hour)), "3000000000", "0"),
+		nil,
+	))
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("absent fiveHour.resetsAt key must be treated as unstarted: %v", err)
+	}
+	if got.Rolling.ResetInSec != 0 || got.Rolling.ResetDisplay != "0s" {
+		t.Fatalf("rolling = %+v, want reset 0s", got.Rolling)
+	}
+}
+
+func TestParseQuotaResponseConsoleExhaustedMetersCapAt100(t *testing.T) {
+	now := time.Now()
+	body := consoleStatusFixture(consoleMetersFixture(
+		consoleMeterFixture(nil, "1200000000", "1500000000"),
+		consoleMeterFixture(timePtr(now.Add(7*24*time.Hour)), "3000000000", "0"),
+		nil,
+	))
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("used > limit must parse as exhausted, got: %v", err)
+	}
+	if got.Rolling.Status != "exhausted" || got.Rolling.UsagePercent != 100 {
+		t.Fatalf("rolling = %+v, want exhausted 100%%", got.Rolling)
+	}
+}
+
+func TestParseQuotaResponseConsolePercentPrecision(t *testing.T) {
+	week := `{"resetsAt":"2099-10-12T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"600000000"}`
+	tests := []struct {
+		name     string
+		fiveHour string
+		want     float64
+	}{
+		{name: "exact two decimals", fiveHour: `{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"231000000"}`, want: 19.25},
+		{name: "repeating decimal rounds to two decimals", fiveHour: `{"resetsAt":null,"limitMicroCents":"3","usedMicroCents":"1"}`, want: 33.33},
+		{name: "zero usage", fiveHour: `{"resetsAt":null,"limitMicroCents":"3","usedMicroCents":"0"}`, want: 0},
+		{name: "numeric micro-cents tokens", fiveHour: `{"resetsAt":null,"limitMicroCents":1200000000,"usedMicroCents":240000000}`, want: 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"product":"go","access":{"meters":{"fiveHour":` + tt.fiveHour + `,"week":` + week + `}}}`
+			got, err := ParseQuotaResponse(body)
+			if err != nil {
+				t.Fatalf("payload must parse: %v", err)
+			}
+			if got.Rolling.UsagePercent != tt.want {
+				t.Fatalf("rolling percent = %v, want %v", got.Rolling.UsagePercent, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseQuotaResponseConsoleLapsedSubscription(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "literal null payload", body: `null`},
+		{name: "null access with subscription envelope", body: consoleStatusFixture(nil)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseQuotaResponse(tt.body)
+			if err != nil {
+				t.Fatalf("lapsed subscription must not fail the account: %v", err)
+			}
+			if !got.Lapsed {
+				t.Fatal("lapsed subscription must mark QuotaData.Lapsed")
+			}
+			if got.Rolling.Status != "unavailable" || got.Weekly.Status != "unavailable" {
+				t.Fatalf("rolling/weekly = %+v / %+v, want unavailable", got.Rolling, got.Weekly)
+			}
+			if got.Rolling.ResetDisplay != "0s" || got.Weekly.ResetInSec != 0 {
+				t.Fatalf("lapsed reset fields = %+v / %+v, want 0s", got.Rolling, got.Weekly)
+			}
+			if got.Monthly != nil {
+				t.Fatalf("lapsed subscription must omit monthly, got %+v", *got.Monthly)
+			}
+		})
+	}
+}
+
+func TestParseQuotaResponseConsoleRejectsMalformed(t *testing.T) {
+	validWeek := `{"resetsAt":"2099-10-12T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"600000000"}`
+	validFiveHour := `{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"240000000"}`
+	wrap := func(fiveHour, week, month string) string {
+		monthField := ""
+		if month != "" {
+			monthField = `,"month":` + month
+		}
+		return `{"product":"go","access":{"meters":{"fiveHour":` + fiveHour + `,"week":` + week + monthField + `}}}`
+	}
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "access absent", body: `{"product":"go"}`},
+		{name: "fiveHour absent", body: wrap("null", validWeek, "")},
+		{name: "week absent", body: wrap(validFiveHour, "null", "")},
+		{name: "meters absent", body: `{"product":"go","access":{"startsAt":"2099-10-01T00:00:00.000Z"}}`},
+		{name: "access is a string", body: `{"product":"go","access":"go"}`},
+		{name: "access is an array", body: `{"product":"go","access":[]}`},
+		{name: "meters is a string", body: `{"product":"go","access":{"meters":"none"}}`},
+		{name: "zero limit", body: wrap(`{"resetsAt":null,"limitMicroCents":"0","usedMicroCents":"0"}`, validWeek, "")},
+		{name: "numeric zero limit", body: wrap(`{"resetsAt":null,"limitMicroCents":0,"usedMicroCents":0}`, validWeek, "")},
+		{name: "negative limit", body: wrap(`{"resetsAt":null,"limitMicroCents":"-1","usedMicroCents":"0"}`, validWeek, "")},
+		{name: "negative used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"-1"}`, validWeek, "")},
+		{name: "non numeric used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"abc"}`, validWeek, "")},
+		{name: "fractional used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"1.5"}`, validWeek, "")},
+		{name: "exponent used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"1e3"}`, validWeek, "")},
+		{name: "empty used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":""}`, validWeek, "")},
+		{name: "null used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":null}`, validWeek, "")},
+		{name: "used absent", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000"}`, validWeek, "")},
+		{name: "limit absent", body: wrap(`{"resetsAt":null,"usedMicroCents":"240000000"}`, validWeek, "")},
+		{name: "overflowing used", body: wrap(`{"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"18446744073709551616"}`, validWeek, "")},
+		{name: "fiveHour resetsAt not RFC3339", body: wrap(`{"resetsAt":"soon","limitMicroCents":"1200000000","usedMicroCents":"0"}`, validWeek, "")},
+		{name: "week resetsAt null", body: wrap(validFiveHour, `{"resetsAt":null,"limitMicroCents":"3000000000","usedMicroCents":"0"}`, "")},
+		{name: "week resetsAt absent", body: wrap(validFiveHour, `{"limitMicroCents":"3000000000","usedMicroCents":"0"}`, "")},
+		{name: "month resetsAt null", body: wrap(validFiveHour, validWeek, `{"resetsAt":null,"limitMicroCents":"6000000000","usedMicroCents":"0"}`)},
+		{name: "month resetsAt not RFC3339", body: wrap(validFiveHour, validWeek, `{"resetsAt":"2026-13-45T99:99:99Z","limitMicroCents":"6000000000","usedMicroCents":"0"}`)},
+		{name: "month zero limit", body: wrap(validFiveHour, validWeek, `{"resetsAt":"2099-11-01T00:00:00.000Z","limitMicroCents":"0","usedMicroCents":"0"}`)},
+		{name: "truncated access object", body: `{"product":"go","access":`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseQuotaResponse(tt.body)
+			if err == nil {
+				t.Fatalf("expected error for %s, got quota %+v", tt.name, got)
+			}
+			if got != nil {
+				t.Fatalf("parser must return nil quota on error for %s, got %+v", tt.name, got)
+			}
+		})
+	}
+}
+
+// TestParseQuotaResponseConsoleJSONDoesNotFallBackToSeroval 守住判别边界：
+// 形如 REST JSON 的输入即使字段不全也必须 fail-closed，不能退回 Seroval 解析而“碰巧成功”。
+func TestParseQuotaResponseConsoleJSONDoesNotFallBackToSeroval(t *testing.T) {
+	body := `{"rollingUsage":{"status":"ok","resetInSec":300,"usagePercent":42}}`
+	got, err := ParseQuotaResponse(body)
+	if err == nil {
+		t.Fatalf("JSON without access/meters must fail closed, got %+v", got)
+	}
+	if !strings.Contains(err.Error(), "access") {
+		t.Fatalf("error must name the missing console field, got %q", err)
+	}
+}

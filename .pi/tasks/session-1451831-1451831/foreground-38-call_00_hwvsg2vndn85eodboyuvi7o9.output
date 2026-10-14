@@ -1,0 +1,11 @@
+  129 pkg/sdk/providers/opencode/client.go
+  257 pkg/sdk/providers/opencode/client_test.go
+  172 pkg/sdk/providers/opencode/parser_console.go
+  282 pkg/sdk/providers/opencode/parser_console_test.go
+  400 pkg/sdk/providers/opencode/parser.go
+  280 pkg/sdk/providers/opencode/parser_test.go
+   25 pkg/sdk/providers/opencode/types.go
+  340 pkg/sdk/auth/opencode.go
+  286 pkg/sdk/auth/opencode_test.go
+  197 cmd_page.go
+ 2368 总计

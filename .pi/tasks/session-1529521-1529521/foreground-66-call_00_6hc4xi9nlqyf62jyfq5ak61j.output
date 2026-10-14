@@ -1,0 +1,17 @@
+M  cmd_config.go
+M  cmd_login.go
+M  cmd_quota.go
+M  internal/formatter/table.go
+A  internal/formatter/table_test.go
+M  internal/web/static/help.html
+M  pkg/sdk/providers/opencode/client.go
+M  pkg/sdk/providers/opencode/client_test.go
+M  pkg/sdk/providers/opencode/parser.go
+M  pkg/sdk/providers/opencode/parser_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md

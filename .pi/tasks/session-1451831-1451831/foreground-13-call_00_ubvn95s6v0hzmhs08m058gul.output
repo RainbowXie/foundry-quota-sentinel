@@ -1,0 +1,61 @@
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_188_cmdloginopencode",
+            "label": "CmdLoginOpenCode → Lp",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_189_cmdloginopencode",
+            "label": "CmdLoginOpenCode → St",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_190_cmdloginopencode",
+            "label": "CmdLoginOpenCode → St",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ]
+  },
+  "staleness": {
+    "commitsBehind": 12,
+    "hint": "⚠️ Index is 12 commits behind HEAD. Run analyze tool to update."
+  }
+}
+=====
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_65_main",
+            "label": "Main → SetAccountsProvider",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_41_main",
+            "label": "Main → Validate",
+            "processType": "cross_community",
+            "step": 1
+          },
+          {
+            "id": "proc_42_main",
+            "label": "Main → Server",
+            "processType": "cross_community",
+            "step": 1
+          }
+        ]
+      }
+    ]
+  },
+  "staleness": {
+    "commitsBehind": 12,
+    "hint": "⚠️ Index is 12 commits behind HEAD. Run analyze tool to update."
+  }
+}

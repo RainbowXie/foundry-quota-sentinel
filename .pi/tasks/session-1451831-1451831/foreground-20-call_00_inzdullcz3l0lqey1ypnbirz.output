@@ -1,0 +1,9 @@
+./pkg/sdk/providers/opencode/client.go:15:	openCodeGoServiceID = "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd"
+./pkg/sdk/providers/opencode/client.go:43:	args := buildRPCArgs(q.WorkspaceID)
+./pkg/sdk/providers/opencode/client.go:44:	reqURL := fmt.Sprintf("%s/_server?id=%s&args=%s", openCodeGoBaseURL, openCodeGoServiceID, url.QueryEscape(args))
+./pkg/sdk/providers/opencode/client.go:51:	req.Header.Set("x-server-id", openCodeGoServiceID)
+./pkg/sdk/providers/opencode/client.go:87:func buildRPCArgs(workspaceID string) string {
+./pkg/sdk/auth/opencode_test.go:50:	return "https://opencode.ai/workspace/" + c.workspaceID + "/go", nil
+./pkg/sdk/auth/opencode_test.go:88:	if got := openCodeWorkspaceID("https://opencode.ai/workspace/wrk_abc123/go"); got != "wrk_abc123" {
+./docs/superpowers/plans/2026-07-18-unified-browser-auth.md:401:	if got := openCodeWorkspaceID("https://opencode.ai/workspace/wrk_abc123/go"); got != "wrk_abc123" {
+./cmd_page.go:135:		url := "https://opencode.ai/workspace/" + p.WorkspaceID + "/go"

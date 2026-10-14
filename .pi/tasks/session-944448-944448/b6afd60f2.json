@@ -1,0 +1,18 @@
+{
+  "id": "b6afd60f2",
+  "name": "curl -Iv https://opencode.ai/console/api/go/sta…",
+  "command": "curl -Iv https://opencode.ai/console/api/go/status",
+  "status": "killed",
+  "outputPath": ".pi/tasks/session-944448-944448/foreground-81-bash-1791895462808924456-436.output",
+  "cwd": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+  "startTime": 1791895462859,
+  "endTime": 1791895592065,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 2772592,
+  "bytesWritten": 10946,
+  "isAgent": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

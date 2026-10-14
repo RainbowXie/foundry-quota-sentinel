@@ -1,0 +1,43 @@
+diff pkg/sdk/auth/commandcode_test.go.orig pkg/sdk/auth/commandcode_test.go
+--- pkg/sdk/auth/commandcode_test.go.orig
++++ pkg/sdk/auth/commandcode_test.go
+@@ -47,7 +47,7 @@
+ 	return c.pageURL, nil
+ }
+ func (c *fakeCommandCodeCDP) SetCookies(context.Context, []browserauth.Cookie) error { return nil }
+-func (c *fakeCommandCodeCDP) Navigate(context.Context, string) error                { return nil }
++func (c *fakeCommandCodeCDP) Navigate(context.Context, string) error                 { return nil }
+ func (c *fakeCommandCodeCDP) Close() error {
+ 	c.closed = true
+ 	return nil
+diff pkg/sdk/providers/commandcode/client.go.orig pkg/sdk/providers/commandcode/client.go
+--- pkg/sdk/providers/commandcode/client.go.orig
++++ pkg/sdk/providers/commandcode/client.go
+@@ -9,7 +9,7 @@
+ )
+ 
+ const (
+-	commandCodeAPIBase        = "https://api.commandcode.ai"
++	commandCodeAPIBase         = "https://api.commandcode.ai"
+ 	commandCodeMaxResponseSize = 1 << 20
+ 	commandCodeRequestTimeout  = 15 * time.Second
+ )
+diff pkg/sdk/providers/opencode/types.go.orig pkg/sdk/providers/opencode/types.go
+--- pkg/sdk/providers/opencode/types.go.orig
++++ pkg/sdk/providers/opencode/types.go
+@@ -16,10 +16,10 @@
+ // 之所以不使用通用的统一快照，是因为 OpenCode 独有的 Rolling/Weekly/Monthly 三重时间窗口机制
+ // 无法无损压缩为单一的额度数值。
+ type QuotaData struct {
+-	Rolling   QuotaUsage  `json:"rolling"`
+-	Weekly    QuotaUsage  `json:"weekly"`
+-	Monthly   *QuotaUsage `json:"monthly,omitempty"`
++	Rolling QuotaUsage  `json:"rolling"`
++	Weekly  QuotaUsage  `json:"weekly"`
++	Monthly *QuotaUsage `json:"monthly,omitempty"`
+ 	// Lapsed 标记当前账号的订阅已失效（OpenCode 配额 RPC 对失效订阅返回 null）。
+-	Lapsed    bool        `json:"lapsed,omitempty"`
+-	FetchedAt time.Time   `json:"fetched_at"`
++	Lapsed    bool      `json:"lapsed,omitempty"`
++	FetchedAt time.Time `json:"fetched_at"`
+ }

@@ -1,0 +1,10 @@
+commit a2029580b402a17147fad6d58a6755ffbce0a66c
+Author: RainbowXie <cmdweilan@gmail.com>
+Date:   Fri Oct 9 14:57:30 2026 +0800
+
+    chore(release): bump version to 0.11.3
+
+ README.md    | 2 +-
+ README_EN.md | 2 +-
+ main.go      | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)

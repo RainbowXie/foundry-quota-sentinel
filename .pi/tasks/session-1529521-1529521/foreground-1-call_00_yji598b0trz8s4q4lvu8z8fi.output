@@ -1,0 +1,12 @@
+1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+b883a78 fix(store): remove unsafe pseudo-reentrancy and restore strict mutex contract
+11a171a fix(sdk): fix store deadlocks, remove legacy quota shims, and clarify docs
+5c14714 refactor: decouple provider types, split card test suites, and add export script
+1eec455 feat(sdk): split provider sdk and decouple standalone display client
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md

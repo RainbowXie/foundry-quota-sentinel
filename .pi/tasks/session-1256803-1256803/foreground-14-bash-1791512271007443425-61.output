@@ -1,0 +1,125 @@
+const fileRoutes = [{ "page": true, "$component": { "src": "src/routes/[...404].tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_...404_-q3uTcVfW.js"
+), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_...404_-q3uTcVfW.js"
+), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0) }, "path": "/*404" }, { "page": true, "$component": { "src": "src/routes/black.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./black-DtjE3lI7.js"
+), true ? __vite__mapDeps([7,1,2,8,9,10,5,11,12,13,14,15,16,17,18,19]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./black-DtjE3lI7.js"
+), true ? __vite__mapDeps([7,1,2,8,9,10,5,11,12,13,14,15,16,17,18,19]) : void 0) }, "path": "/black" }, { "page": true, "$component": { "src": "src/routes/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Dnk4bY75.js"
+), true ? __vite__mapDeps([20,1,2,13,21,9,5,22,10,23,24,25,26,4,8,18,17,27,28,11,12,14,15,16,29]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Dnk4bY75.js"
+), true ? __vite__mapDeps([20,1,2,13,21,9,5,22,10,23,24,25,26,4,8,18,17,27,28,11,12,14,15,16,29]) : void 0) }, "path": "/" }, { "page": true, "$component": { "src": "src/routes/temp.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./temp-COsLookB.js"
+), true ? __vite__mapDeps([30,1,2,4,13,5,29]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./temp-COsLookB.js"
+), true ? __vite__mapDeps([30,1,2,4,13,5,29]) : void 0) }, "path": "/temp" }, { "page": true, "$component": { "src": "src/routes/workspace.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./workspace-kvIAHJL-.js"
+), true ? __vite__mapDeps([31,1,9,13,12,5,14,23,24,10,22,17,18,32,33]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./workspace-kvIAHJL-.js"
+), true ? __vite__mapDeps([31,1,9,13,12,5,14,23,24,10,22,17,18,32,33]) : void 0) }, "path": "/workspace" }, { "page": true, "$component": { "src": "src/routes/bench/[id].tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_id_-DzXAm5WD.js"
+), true ? __vite__mapDeps([34,1,9,2,5,10,17]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_id_-DzXAm5WD.js"
+), true ? __vite__mapDeps([34,1,9,2,5,10,17]) : void 0) }, "path": "/bench/:id" }, { "page": true, "$component": { "src": "src/routes/bench/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BbbHmS6n.js"
+), true ? __vite__mapDeps([35,1,9,2,5,17,10,18]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BbbHmS6n.js"
+), true ? __vite__mapDeps([35,1,9,2,5,17,10,18]) : void 0) }, "path": "/bench/" }, { "page": true, "$component": { "src": "src/routes/black/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Dfrn_oNX.js"
+), true ? __vite__mapDeps([36,1,9,2,5,10,17,18]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Dfrn_oNX.js"
+), true ? __vite__mapDeps([36,1,9,2,5,10,17,18]) : void 0) }, "path": "/black/" }, { "page": true, "$component": { "src": "src/routes/black/workspace.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./workspace-DeDC1-dS.js"
+), true ? __vite__mapDeps([37,1,2,8,9,10,24,5,11,12,13,14,15,17,18,38]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./workspace-DeDC1-dS.js"
+), true ? __vite__mapDeps([37,1,2,8,9,10,24,5,11,12,13,14,15,17,18,38]) : void 0) }, "path": "/black/workspace" }, { "page": true, "$component": { "src": "src/routes/brand/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BmHKQVuD.js"
+), true ? __vite__mapDeps([39,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,40]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BmHKQVuD.js"
+), true ? __vite__mapDeps([39,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,40]) : void 0) }, "path": "/brand/" }, { "page": true, "$component": { "src": "src/routes/changelog/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-DKLGXqKs.js"
+), true ? __vite__mapDeps([41,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,42]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-DKLGXqKs.js"
+), true ? __vite__mapDeps([41,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,42]) : void 0) }, "path": "/changelog/" }, { "page": true, "$component": { "src": "src/routes/download/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-B92Zheer.js"
+), true ? __vite__mapDeps([43,1,2,25,23,24,26,4,5,8,9,10,18,17,27,13,28,11,12,14,15,16,44]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-B92Zheer.js"
+), true ? __vite__mapDeps([43,1,2,25,23,24,26,4,5,8,9,10,18,17,27,13,28,11,12,14,15,16,44]) : void 0) }, "path": "/download/" }, { "page": true, "$component": { "src": "src/routes/enterprise/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-DgOxiSbd.js"
+), true ? __vite__mapDeps([45,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,25,23,24,16,46]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-DgOxiSbd.js"
+), true ? __vite__mapDeps([45,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,25,23,24,16,46]) : void 0) }, "path": "/enterprise/" }, { "page": true, "$component": { "src": "src/routes/go/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-yA9_uR3D.js"
+), true ? __vite__mapDeps([47,1,9,2,21,5,22,10,25,23,24,28,11,12,13,14,15,18,26,4,8,17,27,16,48]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-yA9_uR3D.js"
+), true ? __vite__mapDeps([47,1,9,2,21,5,22,10,25,23,24,28,11,12,13,14,15,18,26,4,8,17,27,16,48]) : void 0) }, "path": "/go/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id].tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_id_-hP8srI5h.js"
+), true ? __vite__mapDeps([49,1,50,9,10,22,5,28,11,12,13,14,15,18,17,51]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./_id_-hP8srI5h.js"
+), true ? __vite__mapDeps([49,1,50,9,10,22,5,28,11,12,13,14,15,18,17,51]) : void 0) }, "path": "/workspace/:id" }, { "page": true, "$component": { "src": "src/routes/zen/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-MOYGUWHX.js"
+), true ? __vite__mapDeps([52,1,9,2,21,5,22,10,25,23,24,28,11,12,13,14,15,18,26,4,8,17,27,16,53]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-MOYGUWHX.js"
+), true ? __vite__mapDeps([52,1,9,2,21,5,22,10,25,23,24,28,11,12,13,14,15,18,26,4,8,17,27,16,53]) : void 0) }, "path": "/zen/" }, { "page": true, "$component": { "src": "src/routes/legal/privacy-policy/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-uGkr2s6p.js"
+), true ? __vite__mapDeps([54,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,55,40]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-uGkr2s6p.js"
+), true ? __vite__mapDeps([54,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,55,40]) : void 0) }, "path": "/legal/privacy-policy/" }, { "page": true, "$component": { "src": "src/routes/legal/terms-of-service/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BJCYEyzt.js"
+), true ? __vite__mapDeps([56,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,57,40]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-BJCYEyzt.js"
+), true ? __vite__mapDeps([56,1,2,26,4,5,8,9,10,18,17,27,28,11,12,13,14,15,16,57,40]) : void 0) }, "path": "/legal/terms-of-service/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-bJjU0W26.js"
+), true ? __vite__mapDeps([58,1,5,9,13,10,17,50,22,59,60]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-bJjU0W26.js"
+), true ? __vite__mapDeps([58,1,5,9,13,10,17,50,22,59,60]) : void 0) }, "path": "/workspace/:id/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/billing/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-CBovb9Mm.js"
+), true ? __vite__mapDeps([61,1,9,5,50,10,22,59,17,13,62]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-CBovb9Mm.js"
+), true ? __vite__mapDeps([61,1,9,5,50,10,22,59,17,13,62]) : void 0) }, "path": "/workspace/:id/billing/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/go/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+--
+const pageRoutes = defineRoutes(fileRoutes.filter((o) => o.page));
+function defineRoutes(fileRoutes2) {
+  function processRoute(routes2, route, id, full) {

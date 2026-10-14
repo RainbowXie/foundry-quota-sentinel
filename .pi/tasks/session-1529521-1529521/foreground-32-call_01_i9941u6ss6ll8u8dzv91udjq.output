@@ -1,0 +1,16 @@
+ok  	foundry-quota-sentinel	(cached)
+?   	foundry-quota-sentinel/cmd/cdpprobe	[no test files]
+ok  	foundry-quota-sentinel/internal/config	(cached)
+ok  	foundry-quota-sentinel/internal/formatter	0.003s
+?   	foundry-quota-sentinel/internal/sidebar	[no test files]
+?   	foundry-quota-sentinel/internal/state	[no test files]
+?   	foundry-quota-sentinel/internal/storage	[no test files]
+ok  	foundry-quota-sentinel/internal/web	5.485s
+ok  	foundry-quota-sentinel/pkg/sdk/auth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.013s
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)

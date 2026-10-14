@@ -1,0 +1,4 @@
+48ba08d feat(opencode): migrate to Console v2 quota API and console login flow
+?? .agents/
+?? .claude/
+?? .codex/

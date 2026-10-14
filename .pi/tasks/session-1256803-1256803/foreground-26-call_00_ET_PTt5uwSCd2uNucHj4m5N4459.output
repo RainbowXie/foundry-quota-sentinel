@@ -1,0 +1,6 @@
+foundry-quota-sentinel v0.11.3
+=== 变更 ===
+ README.md    | 2 +-
+ README_EN.md | 2 +-
+ main.go      | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)

@@ -1,0 +1,125 @@
+import { s as delegateEvents, l as createEffect, R as getNextElement, T as getNextMarker, W as insert, Z as memo, i as createComponent, a4 as runHydrationEvents, a6 as setAttribute, ag as use, S as Show, n as createRenderEffect, a7 as setProperty, h as className, ae as template, m as createMemo, c as Switch, M as Match, F as For, a8 as setStyleProperty } from "./tr-Db0JsSoN.js";
+import { c as createServerReference } from "./server-runtime-Cf0dfMOw.js";
+import { u as useI18n, c as createStore } from "./i18n-Db1bPv1f.js";
+import { q as queryBillingInfo, c as createCheckoutUrl, f as formatBalance, a as formatDateForTable, b as formatDateUTC, d as querySessionInfo } from "./common-D8m7xPMq.js";
+import { l as localizeError } from "./form-error-DUzwAO89.js";
+import { a as action, c as useSubmission, u as useAction } from "./action-SL_f8Aao.js";
+import { p as useParams, q as query } from "./query-jHzU-9wN.js";
+import { c as createAsync } from "./createAsync-BG7wWROu.js";
+import { x as IconStripe, a as IconAlipay, z as IconWechat, y as IconUpi, j as IconCreditCard } from "./icon-D_BIe0X5.js";
+const root$6 = "_root_al9io_1";
+const styles$5 = {
+  root: root$6
+};
+var _tmpl$$6 = /* @__PURE__ */ template(`<button data-color=primary>`), _tmpl$2$5 = /* @__PURE__ */ template(`<p data-slot=usage-status><!$><!/> <!$><!/> <!$><!/><!$><!/>.`), _tmpl$3$5 = /* @__PURE__ */ template(`<section><div data-slot=section-title><h2></h2><p></p></div><div data-slot=section-content><div data-slot=balance><div data-slot=amount><!$><!/><span data-slot=value></span></div><!$><!/></div><!$><!/>`), _tmpl$4$3 = /* @__PURE__ */ template(`<span data-slot=currency>$`), _tmpl$5$2 = /* @__PURE__ */ template(`<form method=post data-slot=create-form><div data-slot=input-container><input required data-component=input name=limit type=number><!$><!/></div><input type=hidden name=workspaceID><div data-slot=form-actions><button type=reset data-color=ghost></button><button type=submit data-color=primary>`), _tmpl$6$2 = /* @__PURE__ */ template(`<div data-slot=form-error>`), _tmpl$7$1 = /* @__PURE__ */ template(`<p data-slot=usage-status>`);
+const setMonthlyLimit_action = createServerReference("57febdb66fa462161adef94258b3557858a7bcae013f15c2b7de85d2094182d9");
+const setMonthlyLimit = action(setMonthlyLimit_action, "billing.setMonthlyLimit");
+function MonthlyLimitSection() {
+  const params = useParams();
+  const i18n = useI18n();
+  const submission = useSubmission(setMonthlyLimit);
+  const [store, setStore] = createStore({
+    show: false
+  });
+  const billingInfo = createAsync(() => queryBillingInfo(params.id));
+  let input;
+  createEffect(() => {
+    if (!submission.pending && submission.result && !submission.result.error) {
+      hide();
+    }
+  });
+  function show() {
+    while (true) {
+      submission.clear();
+      if (!submission.result) break;
+    }
+    setStore("show", true);
+    input.focus();
+  }
+  function hide() {
+    setStore("show", false);
+  }
+  return (() => {
+    var _el$ = getNextElement(_tmpl$3$5), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.nextSibling, _el$5 = _el$2.nextSibling, _el$6 = _el$5.firstChild, _el$7 = _el$6.firstChild, _el$9 = _el$7.firstChild, [_el$0, _co$] = getNextMarker(_el$9.nextSibling), _el$8 = _el$0.nextSibling, _el$10 = _el$7.nextSibling, [_el$11, _co$2] = getNextMarker(_el$10.nextSibling), _el$24 = _el$6.nextSibling, [_el$25, _co$7] = getNextMarker(_el$24.nextSibling);
+    insert(_el$3, () => i18n.t("workspace.monthlyLimit.title"));
+    insert(_el$4, () => i18n.t("workspace.monthlyLimit.subtitle"));
+    insert(_el$7, (() => {
+      var _c$ = memo(() => !!billingInfo()?.monthlyLimit);
+      return () => _c$() ? getNextElement(_tmpl$4$3) : null;
+    })(), _el$0, _co$);
+    insert(_el$8, () => billingInfo()?.monthlyLimit ?? "-");
+    insert(_el$6, createComponent(Show, {
+      get when() {
+        return !store.show;
+      },
+      get fallback() {
+        return (() => {
+          var _el$27 = getNextElement(_tmpl$5$2), _el$28 = _el$27.firstChild, _el$29 = _el$28.firstChild, _el$30 = _el$29.nextSibling, [_el$31, _co$8] = getNextMarker(_el$30.nextSibling), _el$32 = _el$28.nextSibling, _el$33 = _el$32.nextSibling, _el$34 = _el$33.firstChild, _el$35 = _el$34.nextSibling;
+          setAttribute(_el$27, "action", setMonthlyLimit);
+          use((r) => input = r, _el$29);
+          insert(_el$28, createComponent(Show, {
+            get when() {
+              return memo(() => !!submission.result)() && submission.result.error;
+            },
+            children: (err) => (() => {
+              var _el$36 = getNextElement(_tmpl$6$2);
+              insert(_el$36, () => localizeError(i18n.t, err()));
+              return _el$36;
+            })()
+          }), _el$31, _co$8);
+          _el$34.$$click = () => hide();
+          insert(_el$34, () => i18n.t("common.cancel"));
+          insert(_el$35, (() => {
+            var _c$3 = memo(() => !!submission.pending);
+            return () => _c$3() ? i18n.t("wor
+=== tr-Db0JsSoN.js around lite.subscription ===
+  "workspace.lite.time.hour": "hour",
+  "workspace.lite.time.hours": "hours",
+  "workspace.lite.time.minute": "minute",
+  "workspace.lite.time.minutes": "minutes",
+  "workspace.lite.time.fewSeconds": "a few seconds",
+  "workspace.lite.subscription.message": "You are subscribed to OpenCode Go.",
+  "workspace.lite.subscription.manage": "Manage Subscription",
+  "workspace.lite.subscription.rollingUsage": "5-hour Usage",
+  "workspace.lite.subscription.rollingQuota": "5-hour Quota",
+  "workspace.lite.subscription.weeklyUsage": "Weekly Usage",
+  "workspace.lite.subscription.weeklyQuota": "Weekly Quota",
+  "workspace.lite.subscription.monthlyUsage": "Monthly Usage",
+  "workspace.lite.subscription.monthlyQuota": "Monthly Quota",
+  "workspace.lite.subscription.resetsIn": "Resets in",
+  "workspace.lite.subscription.showDetails": "Show details",
+  "workspace.lite.subscription.hideDetails": "Hide details",
+  "workspace.lite.subscription.model": "Model",
+  "workspace.lite.subscription.contribution": "%",
+  "workspace.lite.subscription.total": "Total",
+  "workspace.lite.subscription.useBalance": "Use your available balance after reaching the usage limits",
+  "workspace.lite.subscription.selectProvider": 'Select "OpenCode Go" as the provider in your opencode configuration to use Go models.',
+  "workspace.lite.providers.title": "Providers",
+  "workspace.lite.providers.description": "Control which providers are used for routing.",
+  "workspace.lite.providers.allowTraining": "Allow models that train on request data",
+  "workspace.lite.providers.useChina": "Allow models hosted in China",
+  "workspace.lite.black.message": "You're currently subscribed to OpenCode Black or on the waitlist. Please unsubscribe first if you'd like to switch to Go.",
+--
+  "workspace.lite.time.hour": "小时",
+  "workspace.lite.time.hours": "小时",
+  "workspace.lite.time.minute": "分钟",
+  "workspace.lite.time.minutes": "分钟",
+  "workspace.lite.time.fewSeconds": "几秒钟",
+  "workspace.lite.subscription.message": "您已订阅 OpenCode Go。",
+  "workspace.lite.subscription.manage": "管理订阅",
+  "workspace.lite.subscription.rollingUsage": "5 小时用量",
+  "workspace.lite.subscription.rollingQuota": "5 小时配额",
+  "workspace.lite.subscription.weeklyUsage": "每周用量",
+  "workspace.lite.subscription.weeklyQuota": "每周配额",
+  "workspace.lite.subscription.monthlyUsage": "每月用量",
+  "workspace.lite.subscription.monthlyQuota": "每月配额",
+  "workspace.lite.subscription.resetsIn": "重置于",
+  "workspace.lite.subscription.showDetails": "显示详情",
+  "workspace.lite.subscription.hideDetails": "隐藏详情",
+  "workspace.lite.subscription.model": "模型",
+  "workspace.lite.subscription.contribution": "%",
+  "workspace.lite.subscription.total": "总计",
+  "workspace.lite.subscription.useBalance": "达到使用限额后使用您的可用余额",
+  "workspace.lite.subscription.selectProvider": "在你的 opencode 配置中选择「OpenCode Go」作为提供商，即可使用 Go 模型。",
+  "workspace.lite.providers.title": "提供商",
+  "workspace.lite.providers.description": "控制用于路由的提供商。",

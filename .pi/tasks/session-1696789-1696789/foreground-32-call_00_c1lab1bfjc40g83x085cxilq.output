@@ -1,0 +1,6 @@
+=== CLI build ===
+OK
+=== GUI build (CGO + webkit2gtk-4.1 shim) ===
+OK
+-rwxrwxr-x 1 ethan ethan 11655464 10月  9 12:20 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 11579657 10月  9 12:20 build/fqs-cli

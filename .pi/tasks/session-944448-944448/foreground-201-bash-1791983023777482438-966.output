@@ -1,0 +1,22 @@
+pkg/sdk/auth/deepseek_types.go:36:	Exited() bool
+pkg/sdk/auth/deepseek_types.go:65:		if b.Exited() {
+pkg/sdk/auth/browserauth/process.go:319:// Exited reports whether the browser process has already terminated.
+pkg/sdk/auth/browserauth/process.go:320:func (b *Browser) Exited() bool {
+pkg/sdk/auth/browserauth/process_test.go:77:func TestBrowserCloseToleratesAlreadyExitedProcess(t *testing.T) {
+pkg/sdk/auth/commandcode.go:34:	Exited() bool
+pkg/sdk/auth/commandcode.go:63:		if b.Exited() {
+pkg/sdk/auth/commandcode.go:149:		if browser.Exited() {
+pkg/sdk/auth/opencode_test.go:36:func (b *fakeOpenCodeBrowser) Exited() bool { return b.exited }
+pkg/sdk/auth/commandcode_test.go:21:func (b *fakeCommandCodeBrowser) Exited() bool                                { return b.exited }
+pkg/sdk/auth/deepseek_login.go:129:		if browser.Exited() {
+pkg/sdk/auth/kimi_login.go:109:		if browser.Exited() {
+pkg/sdk/auth/opencode.go:111:	Exited() bool
+pkg/sdk/auth/opencode.go:140:		if b.Exited() {
+pkg/sdk/auth/opencode.go:252:		if browser.Exited() {
+pkg/sdk/auth/ollama.go:30:	Exited() bool
+pkg/sdk/auth/ollama.go:59:		if b.Exited() {
+pkg/sdk/auth/ollama.go:169:			if browser.Exited() {
+pkg/sdk/auth/ollama.go:174:		if browser.Exited() {
+pkg/sdk/auth/ollama_test.go:63:func (b *fakeOllamaBrowser) Exited() bool { return b.exited }
+pkg/sdk/auth/kimi_types.go:57:	Exited() bool
+pkg/sdk/auth/kimi_types.go:86:		if b.Exited() {

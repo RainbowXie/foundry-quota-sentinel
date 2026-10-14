@@ -1,0 +1,41 @@
+342 pkg/sdk/providers/opencode/parser_console_test.go
+=== RUN   TestOpenCodeFetchQuotaSendsConsoleV2Request
+--- PASS: TestOpenCodeFetchQuotaSendsConsoleV2Request (0.00s)
+=== RUN   TestParseQuotaResponseConsoleDesignExamplePayload
+--- PASS: TestParseQuotaResponseConsoleDesignExamplePayload (0.00s)
+=== RUN   TestParseQuotaResponseConsoleActiveMeters
+--- PASS: TestParseQuotaResponseConsoleActiveMeters (0.00s)
+=== RUN   TestParseQuotaResponseConsoleUnstartedFiveHourWindow
+--- PASS: TestParseQuotaResponseConsoleUnstartedFiveHourWindow (0.00s)
+=== RUN   TestParseQuotaResponseConsoleMissingFiveHourResetsAtKey
+--- PASS: TestParseQuotaResponseConsoleMissingFiveHourResetsAtKey (0.00s)
+=== RUN   TestParseQuotaResponseConsoleExhaustedMetersCapAt100
+--- PASS: TestParseQuotaResponseConsoleExhaustedMetersCapAt100 (0.00s)
+=== RUN   TestParseQuotaResponseConsolePercentPrecision
+=== RUN   TestParseQuotaResponseConsolePercentPrecision/exact_two_decimals
+=== RUN   TestParseQuotaResponseConsolePercentPrecision/repeating_decimal_rounds_to_two_decimals
+=== RUN   TestParseQuotaResponseConsolePercentPrecision/zero_usage
+=== RUN   TestParseQuotaResponseConsolePercentPrecision/numeric_micro-cents_tokens
+--- PASS: TestParseQuotaResponseConsolePercentPrecision (0.00s)
+=== RUN   TestParseQuotaResponseConsoleLapsedSubscription
+=== RUN   TestParseQuotaResponseConsoleLapsedSubscription/literal_null_payload
+=== RUN   TestParseQuotaResponseConsoleLapsedSubscription/null_access_with_subscription_envelope
+--- PASS: TestParseQuotaResponseConsoleLapsedSubscription (0.00s)
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/access_absent
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/fiveHour_absent
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/week_absent
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/meters_absent
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/access_is_a_string
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/access_is_an_array
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/meters_is_a_string
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/zero_limit
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/numeric_zero_limit
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/negative_limit
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/negative_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/non_numeric_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/fractional_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/exponent_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/empty_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/null_used
+=== RUN   TestParseQuotaResponseConsoleRejectsMalformed/used_absent

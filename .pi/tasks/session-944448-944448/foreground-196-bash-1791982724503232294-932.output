@@ -1,0 +1,15 @@
+pkg/sdk/auth/opencode_test.go:200:// TestValidateOpenCodePageURL 锁定账户页地址白名单：只接受 https + opencode.ai 主机，
+pkg/sdk/auth/opencode_test.go:204:func TestValidateOpenCodePageURL(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:228:			err := validateOpenCodePageURL(tt.url)
+pkg/sdk/auth/opencode_test.go:230:				t.Fatalf("validateOpenCodePageURL(%q) must be rejected", tt.url)
+pkg/sdk/auth/opencode_test.go:233:				t.Fatalf("validateOpenCodePageURL(%q) = %v, want nil", tt.url, err)
+pkg/sdk/auth/opencode_test.go:239:// TestRunOpenCodePageRejectsMalformedWorkspaceURL 守住审阅证据里的具体形态：
+pkg/sdk/auth/opencode_test.go:241:func TestRunOpenCodePageRejectsMalformedWorkspaceURL(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:248:	err := RunOpenCodePage("https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", "console_session=good")
+pkg/sdk/auth/opencode.go:183:// RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+pkg/sdk/auth/opencode.go:184:func RunOpenCodePage(pageURL, cookie string) error {
+pkg/sdk/auth/opencode.go:185:	if err := validateOpenCodePageURL(pageURL); err != nil {
+pkg/sdk/auth/opencode.go:198:	return runOpenCodePage(ctx, browser, pageURL, cookies)
+pkg/sdk/auth/opencode.go:280:func runOpenCodePage(ctx context.Context, browser openCodeLoginBrowser, pageURL string, cookies []browserauth.Cookie) (err error) {
+pkg/sdk/auth/opencode.go:360:func validateOpenCodePageURL(rawURL string) error {
+cmd_page.go:142:		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {

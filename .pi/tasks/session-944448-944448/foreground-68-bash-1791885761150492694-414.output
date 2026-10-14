@@ -1,0 +1,11 @@
+  "profiles": {
+    "RainbowXie": {
+      "cookie": "__Host-console_session=st_8513420a-60a8-4ca1-8846-92bacb40b542",
+      "workspace_id": "wrk_01KEGX7JC80S5YJF74HNZ07NA2"
+    },
+    "Wahgba@ethanxie.top": {
+      "cookie": "__Host-console_session=st_cd22ed32-12ac-4b43-9301-a55cd6b9595d; __stripe_mid=f441e385-2ad0-40b8-a9e9-cd8e55a2b50bc88faf; __stripe_sid=ea72c169-c6dd-4a25-813f-577e62c72969e5d069",
+      "workspace_id": "org_01M4T11T2ZSXZ05BDSQ4STHPCG"
+    }
+  },
+  "deepseek_accounts": [

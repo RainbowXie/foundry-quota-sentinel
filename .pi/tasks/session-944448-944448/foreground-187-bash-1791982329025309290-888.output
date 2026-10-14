@@ -1,0 +1,3 @@
+internal/web/static/sidebar.html:1938:            function ccDoLogin(name) {
+internal/web/static/sidebar.html:2504:                        ccDoLogin(t.getAttribute("data-name"));
+internal/web/static/sidebar.html:2518:                { type: "commandcode", label: "CommandCode", defaultName: "CommandCode", login: "ccDoLogin", refresh: "fc" }

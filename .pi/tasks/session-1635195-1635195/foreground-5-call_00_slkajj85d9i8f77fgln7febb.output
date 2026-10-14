@@ -1,0 +1,12 @@
+pkg/sdk/providers/opencode/parser.go:389:func formatDurationCompact(seconds int) string {
+pkg/sdk/providers/opencode/parser.go-390-	if seconds < 60 {
+pkg/sdk/providers/opencode/parser.go-391-		return fmt.Sprintf("%ds", seconds)
+pkg/sdk/providers/opencode/parser.go-392-	}
+pkg/sdk/providers/opencode/parser.go-393-	if seconds < 3600 {
+pkg/sdk/providers/opencode/parser.go-394-		return fmt.Sprintf("%dm", seconds/60)
+pkg/sdk/providers/opencode/parser.go-395-	}
+pkg/sdk/providers/opencode/parser.go-396-	if seconds < 86400 {
+pkg/sdk/providers/opencode/parser.go-397-		return fmt.Sprintf("%dh", seconds/3600)
+pkg/sdk/providers/opencode/parser.go-398-	}
+pkg/sdk/providers/opencode/parser.go-399-	return fmt.Sprintf("%dd", seconds/86400)
+pkg/sdk/providers/opencode/parser.go-400-}

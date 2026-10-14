@@ -70,6 +70,14 @@ func SaveWindowSize(w, h int) {
 	})
 }
 
+// SaveOpenCodeProfile 原子持久化 OpenCode 账户凭证与 WorkspaceID。
+func SaveOpenCodeProfile(name, cookie, wsid string) error {
+	return Mutate(func(c *Config) error {
+		c.AddProfile(name, Profile{Cookie: cookie, WorkspaceID: wsid})
+		return nil
+	})
+}
+
 // configPathOverride lets tests redirect the config file to a temp location
 // without touching the real user config. Empty in production. Guarded by
 // configPathMu because Load/Save may run concurrently (e.g. window-size save

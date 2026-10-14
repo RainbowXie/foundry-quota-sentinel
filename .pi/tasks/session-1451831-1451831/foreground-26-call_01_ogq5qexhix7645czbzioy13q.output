@@ -1,0 +1,12 @@
+internal/web/sidebar_schedule_test.go:576:		{Op: "reject", URL: "api/accounts"}, // opencode fails at t=0
+internal/web/sidebar_shell_test.go:207:		{Op: "setShellData", URL: "/api/opencode/accounts", Data: []map[string]any{
+internal/web/sidebar_shell_test.go:295:		{Op: "resolve", URL: "api/opencode/login"}, // login POST returns success
+internal/web/sidebar_shell_test.go:315:		{Op: "reject", URL: "api/accounts"}, // opencode fill fails → qerr
+internal/web/sidebar_shell_test.go:317:		{Op: "setShellData", URL: "/api/opencode/accounts", Data: []map[string]any{
+internal/web/sidebar_shell_test.go:346:		{Op: "reject", URL: "api/accounts"}, // opencode fill fails → qerr
+internal/web/stale_while_refresh_test.go:97:		{Op: "setShellData", URL: "/api/opencode/accounts", Data: []map[string]any{
+===
+2026-06-23-cross-platform-build.md
+2026-06-23-deepseek-rich-cards.md
+2026-06-23-multi-account-cards.md
+2026-07-18-unified-browser-auth.md

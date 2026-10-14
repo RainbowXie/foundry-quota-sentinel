@@ -1,0 +1,3 @@
+OpenCode Console API (/console/api/go/status)  &rarr;  quota    // 套餐额度
+DeepSeek API (/user/balance)                   &rarr;  balance  // 账户余额
+ocgt JSONL 日志文件                            &rarr;  history  // Token 消耗历史

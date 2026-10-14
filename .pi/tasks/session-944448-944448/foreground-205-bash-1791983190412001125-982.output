@@ -1,0 +1,7 @@
+pkg/sdk/auth/opencode_test.go:201:// 且必须与 openCodeWorkspaceID/openCodeConsoleURL 一样排除 auth 子域，
+pkg/sdk/auth/opencode_test.go:272:			if got := openCodeConsoleURL(tt.url); got != tt.want {
+pkg/sdk/auth/opencode_test.go:273:				t.Fatalf("openCodeConsoleURL(%q)=%v, want %v", tt.url, got, tt.want)
+pkg/sdk/auth/opencode.go:84:// openCodeConsoleURL 判断页面是否已落在 Console 控制台内部（登录页除外）。
+pkg/sdk/auth/opencode.go:86:func openCodeConsoleURL(rawURL string) bool {
+pkg/sdk/auth/opencode.go:233:		if urlErr == nil && cookieErr == nil && header != "" && wsid == "" && openCodeConsoleURL(pageURL) &&
+pkg/sdk/auth/opencode.go:369:	// 放行它会与 openCodeWorkspaceID/openCodeConsoleURL 的排除策略不一致。

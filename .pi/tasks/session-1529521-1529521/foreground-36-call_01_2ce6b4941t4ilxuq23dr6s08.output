@@ -1,0 +1,17 @@
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+FAIL	foundry-quota-sentinel/pkg/sdk/providers/opencode [build failed]
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)
+FAIL
+=== sdk only ===
+	pkg/sdk/providers/opencode/parser_test.go:15:2: other declaration of monthlyUnlimitedBody
+ok  	foundry-quota-sentinel/pkg/sdk/auth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	(cached)
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	(cached)
+FAIL	foundry-quota-sentinel/pkg/sdk/providers/opencode [build failed]
+ok  	foundry-quota-sentinel/pkg/sdk/store	(cached)
+FAIL

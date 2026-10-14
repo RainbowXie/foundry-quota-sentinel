@@ -1,0 +1,13 @@
+=== 正在导出 SDK 到: build/quota-sdk-go ===
+Module:     github.com/ethan/quota-sdk-go
+Go Version: 1.26.0
+=== 正在校验独立导出的 SDK ===
+ok  	github.com/ethan/quota-sdk-go/auth	0.611s
+ok  	github.com/ethan/quota-sdk-go/auth/browserauth	0.091s
+ok  	github.com/ethan/quota-sdk-go/providers/commandcode	0.011s
+ok  	github.com/ethan/quota-sdk-go/providers/deepseek	0.004s
+ok  	github.com/ethan/quota-sdk-go/providers/kimi	0.012s
+ok  	github.com/ethan/quota-sdk-go/providers/ollama	0.057s
+ok  	github.com/ethan/quota-sdk-go/providers/opencode	0.014s
+ok  	github.com/ethan/quota-sdk-go/store	0.076s
+=== SDK 成功导出至 build/quota-sdk-go 且独立测试全绿 ===

@@ -1,0 +1,3 @@
+pkg/sdk/providers/opencode/parser_test.go
+pkg/sdk/providers/opencode/types.go
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.009s

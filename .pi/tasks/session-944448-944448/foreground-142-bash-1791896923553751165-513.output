@@ -1,0 +1,25 @@
+scripts/build-linux.sh:12:#   scripts/build-linux.sh                                  # 默认 4.0
+scripts/build-linux.sh:13:#   WEBKIT=4.1 OUTPUT=build/fqs-wk41 scripts/build-linux.sh
+scripts/build-linux.sh:17:#   OUTPUT      输出路径（相对仓库根），默认 build/foundry-quota-sentinel-linux-amd64
+scripts/build-linux.sh:27:OUTPUT="${OUTPUT:-build/foundry-quota-sentinel-linux-amd64}"
+scripts/build-linux.sh:72:apt-get install -y -qq --no-install-recommends ca-certificates curl build-essential pkg-config libgtk-3-dev ${WK_DEV} >/dev/null
+scripts/build-linux.sh:80:go build -ldflags='-s -w' -o '/src/${OUTPUT}' .
+scripts/pack-deb.sh:36:dpkg-deb --build --root-owner-group "$WORK" "$OUT" >/dev/null
+scripts/export-sdk.sh:26:TARGET_DIR="${1:-${EXPORT_DIR:-$REPO_ROOT/build/quota-sdk-go}}"
+scripts/build-deb.sh:5:# 用法：scripts/build-deb.sh            # 编两套二进制并打两个 deb 到 build/
+scripts/build-deb.sh:6:#       SKIP_BUILD=1 scripts/build-deb.sh   # 复用 build/ 里已编好的二进制，只打包
+scripts/build-deb.sh:17:mkdir -p build/deb
+scripts/build-deb.sh:19:# build_one <webkit> <depends> <suffix>
+scripts/build-deb.sh:20:build_one() {
+scripts/build-deb.sh:22:  local bin="build/foundry-quota-sentinel-wk${suffix}"
+scripts/build-deb.sh:26:    OUTPUT="$bin" WEBKIT="$webkit" scripts/build-linux.sh
+scripts/build-deb.sh:30:  local out="build/foundry-quota-sentinel_${VERSION}_amd64-webkit${suffix}.deb"
+scripts/build-deb.sh:34:build_one 4.0 "libwebkit2gtk-4.0-37, libgtk-3-0"                40
+scripts/build-deb.sh:35:build_one 4.1 "libwebkit2gtk-4.1-0, libgtk-3-0t64 | libgtk-3-0" 41
+scripts/build-deb.sh:39:ls -1 build/*.deb
+README_EN.md:70:go build -ldflags="-s -w" -o foundry-quota-sentinel .
+README_EN.md:71:./scripts/build-linux.sh            # Linux GUI binary via Docker
+README_EN.md:74:go build -tags nogui -o foundry-quota-sentinel .
+README.md:76:go build -ldflags="-s -w" -o foundry-quota-sentinel .
+README.md:77:./scripts/build-linux.sh            # Docker 编 Linux GUI 二进制
+README.md:80:go build -tags nogui -o foundry-quota-sentinel .

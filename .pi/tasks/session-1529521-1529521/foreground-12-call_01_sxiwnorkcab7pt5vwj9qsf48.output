@@ -1,0 +1,50 @@
+534:               standard meter row, e.g. Kimi's Monthly Kimi/Code breakdown).
+1427:            // Task 2.3: Rolling, Weekly, optional Monthly with integer precision.
+1466:                    if (d.monthly) view.rows.push({
+1467:                        label: "Monthly",
+1468:                        percent: d.monthly.usage_percent,
+1470:                        resetInSec: d.monthly.reset_in_sec,
+1478:            // Task 2.4: Session, Weekly (no Monthly) with re-login action on error.
+1511:            // Task 2.5: five_hour→Rolling, seven_day→Weekly, total→Monthly with decimal precision.
+1541:                        var monthlyRow = {
+1542:                            label: "Monthly",
+1551:                            monthlyRow.details.push({ label: "Kimi", value: formatPercent(t.kimi_percent, 2) });
+1554:                            monthlyRow.details.push({ label: "Code", value: formatPercent(t.code_percent, 2) });
+1556:                        view.rows.push(monthlyRow);
+1564:            // (fiveHour→Rolling, weekly→Weekly, monthly→Monthly with integer
+1593:                    if (d.monthly) view.rows.push({
+1594:                        label: "Monthly",
+1595:                        percent: d.monthly.usage_percent,
+1597:                        resetInSec: d.monthly.reset_in_sec,
+=== table.go 70-90 ===
+	sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))
+	return sb.String()
+}
+
+// FormatCommandCodeTable 将 CommandCode 原生 QuotaData 格式化为终端展示表格。
+func FormatCommandCodeTable(accountName string, data *commandcode.QuotaData) string {
+	var sb strings.Builder
+	sb.WriteString("\n========================================\n")
+	sb.WriteString(fmt.Sprintf("  CommandCode 账户 %q\n", accountName))
+	sb.WriteString("----------------------------------------\n")
+	sb.WriteString(fmt.Sprintf("  5 小时用量: %s  reset in %s\n", ProgressBar(data.Rolling.UsagePercent, 18), data.Rolling.ResetDisplay))
+	sb.WriteString(fmt.Sprintf("  周用量:     %s  reset in %s\n", ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay))
+	if data.Monthly != nil {
+		sb.WriteString(fmt.Sprintf("  月用量:     %s  reset in %s\n", ProgressBar(data.Monthly.UsagePercent, 18), data.Monthly.ResetDisplay))
+	} else {
+		sb.WriteString("  月用量:     无限额度\n")
+	}
+	sb.WriteString("========================================\n")
+	sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))
+	return sb.String()
+}
+
+// FormatOllamaTable 将 Ollama 原生 QuotaData 格式化为终端展示表格。
+func FormatOllamaTable(accountName string, data *ollama.QuotaData) string {
+	var sb strings.Builder
+	sb.WriteString("\n========================================\n")
+	sb.WriteString(fmt.Sprintf("  Ollama 账户 %q\n", accountName))
+	sb.WriteString("----------------------------------------\n")
+	sb.WriteString(fmt.Sprintf("  Session: %s  reset in %s\n", ProgressBar(data.Rolling.UsagePercent, 18), data.Rolling.ResetDisplay))
+	sb.WriteString(fmt.Sprintf("  Weekly:  %s  reset in %s\n", ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay))
+	sb.WriteString("========================================\n")

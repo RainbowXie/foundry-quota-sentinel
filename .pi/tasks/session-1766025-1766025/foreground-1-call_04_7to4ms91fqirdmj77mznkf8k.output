@@ -1,0 +1,17 @@
+位于分支 master
+未跟踪的文件:
+  （使用 "git add <文件>..." 以包含要提交的内容）
+	.agents/
+	.claude/
+	.codex/
+	.endless-supervisor/
+	.pi/
+	AGENTS.md
+	CLAUDE.md
+
+提交为空，但是存在尚未跟踪的文件（使用 "git add" 建立跟踪）
+741ba01 fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+549e481 fix(opencode): close Console v2 audit findings (32-bit clamp, auth host, anchored workspace id)
+c11b8aa fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+b883a78 fix(store): remove unsafe pseudo-reentrancy and restore strict mutex contract

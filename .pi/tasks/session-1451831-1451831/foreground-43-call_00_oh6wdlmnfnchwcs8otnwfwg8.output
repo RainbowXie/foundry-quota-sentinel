@@ -1,0 +1,38 @@
+sidebar.go
+sidebar_nogui.go
+sidebar_unix.go
+sidebar_windows.go
+==> internal/sidebar/sidebar.go <==
+// Package sidebar shows the monitor panel in a desktop window.
+//
+// The implementation is selected at build time and all variants expose the
+// same API — New(port) and (*Sidebar).Run():
+//   - windows (default):                   Win32 auto-hiding docking sidebar
+
+==> internal/sidebar/sidebar_nogui.go <==
+//go:build nogui || (!windows && !darwin && !linux)
+
+package sidebar
+
+import "fmt"
+
+==> internal/sidebar/sidebar_unix.go <==
+//go:build (darwin || linux) && !nogui
+
+package sidebar
+
+import (
+
+==> internal/sidebar/sidebar_windows.go <==
+//go:build windows && !nogui
+
+package sidebar
+
+import (
+总计 37360
+drwxrwxr-x  3 ethan ethan     4096 10月  9 11:21 .
+drwxrwxr-x 20 ethan ethan     4096  9月  7 19:59 ..
+-rwxrwxr-x  1 ethan ethan 11639048  9月  7 20:24 foundry-quota-sentinel
+-rwxrwxr-x  1 ethan ethan 11526306 10月  9 11:21 fqs-cli
+-rwxrwxr-x  1 ethan ethan 15070907  9月  7 19:59 fqs-cli-v0.11.2
+drwxrwxr-x  5 ethan ethan     4096 10月  9 11:21 quota-sdk-go

@@ -1,0 +1,6 @@
+pkg/sdk/auth/opencode_test.go:239:// TestRunOpenCodePageRejectsMalformedWorkspaceURL 守住审阅证据里的具体形态：
+pkg/sdk/auth/opencode_test.go:241:func TestRunOpenCodePageRejectsMalformedWorkspaceURL(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:248:	err := RunOpenCodePage("https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", "console_session=good")
+pkg/sdk/auth/opencode.go:183:// RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+pkg/sdk/auth/opencode.go:184:func RunOpenCodePage(pageURL, cookie string) error {
+cmd_page.go:142:		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {

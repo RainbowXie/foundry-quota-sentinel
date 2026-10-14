@@ -1,0 +1,2 @@
+[2243320:2243320:1013/172203.895602:ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:257] Missing X server or $DISPLAY
+[2243320:2243320:1013/172203.895655:ERROR:ui/aura/env.cc:246] The platform failed to initialize.  Exiting.

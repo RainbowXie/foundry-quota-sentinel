@@ -1,0 +1,8 @@
+总计 1392
+drwxrwxr-x     2 ethan ethan    4096 10月  9 11:22 .
+drwxrwxrwt 14289 root  root  1413120 10月  9 12:20 ..
+-rw-rw-r--     1 ethan ethan      85 10月  9 11:39 webkit2gtk-4.0.pc
+Name: webkit2gtk-4.0
+Description: shim->4.1
+Version: 2.44.0
+Requires: webkit2gtk-4.1

@@ -1,0 +1,2420 @@
+import { s as delegateEvents, r as createUniqueId, q as createSignal, m as createMemo, R as getNextElement, T as getNextMarker, a6 as setAttribute, W as insert, i as createComponent, S as Show, F as For, n as createRenderEffect, a8 as setStyleProperty, Z as memo, a4 as runHydrationEvents, ae as template } from "./tr-Db0JsSoN.js";
+import { c as createServerReference } from "./server-runtime-Cf0dfMOw.js";
+import { T as Title, M as Meta } from "./index-OlXzgzvf.js";
+import { E as EmailSignup } from "./email-signup-BTM1UjvI.js";
+import { F as Faq } from "./faq-C6aOekhC.js";
+import { L as Legal } from "./legal-tQ_Q-taf.js";
+import { H as Header, F as Footer } from "./footer-CzRGZ5q5.js";
+import { u as useI18n, b as useLanguage, g as goUsageLimits } from "./i18n-Db1bPv1f.js";
+import { c as config } from "./config-DclGRANR.js";
+import { u as IconOpenAI, b as IconAnthropic, m as IconGoogle, B as IconXai, r as IconMiniMax, s as IconMoonshotAI, D as IconZai, I as IconAlibaba, k as IconDeepSeek, q as IconMiMo, o as IconLongCat, n as IconHunyuan, p as IconMeta, w as IconStepFun } from "./icon-D_BIe0X5.js";
+import { L as LocaleLinks } from "./locale-links-Dp4xavrp.js";
+import { c as createAsync } from "./createAsync-BG7wWROu.js";
+import { w as useSearchParams, q as query } from "./query-jHzU-9wN.js";
+import "./action-SL_f8Aao.js";
+import "./index-Bh5QV5Am.js";
+import "./U42ECMND-CpGP6a5I.js";
+import "./language-picker-K0YC8DVX.js";
+import "./dropdown-3_BHFPyV.js";
+import "./components-BixuhwHs.js";
+import "./logo-ornate-dark-CCGQN_4x.js";
+const goModels = [{
+  id: "kimi-k3",
+  name: "Kimi K3",
+  requests: 110,
+  allowance: 15,
+  featured: true
+}, {
+  id: "qwen3.8-max",
+  name: "Qwen3.8 Max",
+  requests: 160,
+  allowance: 15
+}, {
+  id: "grok-4.7",
+  name: "Grok 4.7",
+  requests: 169,
+  allowance: 15
+}, {
+  id: "grok-4.6",
+  name: "Grok 4.6",
+  requests: 169,
+  allowance: 15
+}, {
+  id: "glm-5.3",
+  name: "GLM-5.3",
+  requests: 220,
+  allowance: 15
+}, {
+  id: "glm-5.2",
+  name: "GLM-5.2",
+  requests: 880,
+  allowance: 60
+}, {
+  id: "deepseek-v4-pro",
+  name: "DeepSeek V4 Pro",
+  requests: 1050,
+  allowance: 15
+}, {
+  id: "kimi-k2.7-code",
+  name: "Kimi K2.7 Code",
+  requests: 1350,
+  allowance: 60,
+  featured: true
+}, {
+  id: "hy4-preview",
+  name: "Hy4 preview",
+  requests: 1350,
+  allowance: 30
+}, {
+  id: "gpt-5.6-luna",
+  name: "GPT 5.6 Luna",
+  requests: 2050,
+  allowance: 15
+}, {
+  id: "space-bunny",
+  name: "Space Bunny",
+  requests: 3130,
+  allowance: 30,
+  featured: true
+}, {
+  id: "minimax-m3",
+  name: "MiniMax M3",
+  requests: 3200,
+  allowance: 60,
+  featured: true
+}, {
+  id: "mimo-v2.6-pro",
+  name: "MiMo-V2.6-Pro",
+  requests: 3250,
+  allowance: 15
+}, {
+  id: "mimo-v2.5-pro",
+  name: "MiMo-V2.5-Pro",
+  requests: 3250,
+  allowance: 15
+}, {
+  id: "minimax-m2.7",
+  name: "MiniMax M2.7",
+  requests: 3400,
+  allowance: 60
+}, {
+  id: "claude-haiku-5-5",
+  name: "Claude Haiku 5.5",
+  requests: 3850,
+  allowance: 15,
+  featured: true,
+  fresh: true
+}, {
+  id: "deepseek-v4-flash-vision-exp",
+  name: "DeepSeek V4 Flash Vision Exp",
+  requests: 6500,
+  allowance: 15
+}, {
+  id: "qwen3.7-plus",
+  name: "Qwen3.7 Plus",
+  requests: 4300,
+  allowance: 60,
+  featured: true
+}, {
+  id: "gpt-6-luna",
+  name: "GPT 6 Luna",
+  requests: 4230,
+  allowance: 15,
+  featured: true
+}, {
+  id: "hy3",
+  name: "Hy3",
+  requests: 4300,
+  allowance: 60
+}, {
+  id: "qwen3.8-flash",
+  name: "Qwen3.8 Flash",
+  requests: 5400,
+  allowance: 30
+}, {
+  id: "glm-5.3-flash",
+  name: "GLM-5.3-Flash",
+  requests: 6320,
+  allowance: 60,
+  featured: true
+}, {
+  id: "deepseek-flash",
+  name: "DeepSeek V4.1 Flash",
+  requests: 26e3,
+  allowance: 60,
+  featured: true
+}, {
+  id: "longcat-2.0",
+  name: "LongCat-2.0",
+  requests: 11400,
+  allowance: 60
+}, {
+  id: "deepseek-v4-flash",
+  name: "DeepSeek V4 Flash",
+  requests: 13e3,
+  allowance: 30
+}, {
+  id: "mimo-v2.6-flash",
+  name: "MiMo-V2.6-Flash",
+  requests: 30100,
+  allowance: 60,
+  featured: true
+}, {
+  id: "mimo-v2.5",
+  name: "MiMo-V2.5",
+  requests: 30100,
+  allowance: 60
+}, {
+  id: "muse-spark-1.3-contributor",
+  name: "Muse Spark 1.3 Contributor",
+  requests: 45300,
+  allowance: 60,
+  featured: true,
+  regions: true
+}, {
+  id: "muse-spark-1.2-contributor",
+  name: "Muse Spark 1.2 Contributor",
+  requests: 45300,
+  allowance: 60,
+  regions: true
+}, {
+  id: "longcat-2.5-preview-free",
+  name: "LongCat 2.5 Preview Free",
+  requests: Infinity,
+  allowance: Infinity,
+  featured: true,
+  limitedTime: true
+}, {
+  id: "step-5-preview-free",
+  name: "Step 5 Preview Free",
+  requests: Infinity,
+  allowance: Infinity,
+  featured: true,
+  fresh: true,
+  limitedTime: true
+}].sort((a, b) => a.requests - b.requests);
+const plusLimits = {
+  "kimi-k3": [440, 60],
+  "qwen3.8-max": [640, 60],
+  "grok-4.7": [676, 60],
+  "grok-4.6": [676, 60],
+  "glm-5.3": [1760, 120],
+  "glm-5.2": [2640, 180],
+  "deepseek-v4-pro": [4200, 60],
+  "kimi-k2.7-code": [4050, 180],
+  "hy4-preview": [5400, 120],
+  "gpt-5.6-luna": [8200, 60],
+  "space-bunny": [12500, 120],
+  "minimax-m3": [9600, 180],
+  "mimo-v2.6-pro": [13e3, 60],
+  "mimo-v2.5-pro": [13e3, 60],
+  "minimax-m2.7": [13600, 240],
+  "deepseek-v4-flash-vision-exp": [26e3, 60],
+  "qwen3.7-plus": [12900, 180],
+  "gpt-6-luna": [16920, 60],
+  "claude-haiku-5-5": [15380, 60],
+  hy3: [17200, 240],
+  "qwen3.8-flash": [16200, 90],
+  "glm-5.3-flash": [18960, 180],
+  "deepseek-flash": [52e3, 120],
+  "longcat-2.0": [45600, 240],
+  "deepseek-v4-flash": [52e3, 120],
+  "mimo-v2.6-flash": [60200, 120],
+  "mimo-v2.5": [60200, 120],
+  "muse-spark-1.3-contributor": [90600, 120],
+  "muse-spark-1.2-contributor": [90600, 120],
+  "longcat-2.5-preview-free": [Infinity, Infinity],
+  "step-5-preview-free": [Infinity, Infinity]
+};
+const goPlanModels = goModels.map((model) => ({
+  ...model,
+  plusRequests: plusLimits[model.id][0],
+  plusAllowance: plusLimits[model.id][1]
+}));
+var _tmpl$$1 = /* @__PURE__ */ template(`<figure data-component=go-plan-chart><div data-slot=heading><div><h2></h2><p></p></div><ul data-slot=legend><li><i data-tier=go></i>Go</li><li><i data-tier=plus></i>Go Plus</li></ul></div><div data-slot=scroll><table><colgroup><col style=width:26%><col style=width:44%><col style=width:16%><col style=width:14%></colgroup><thead><tr><th scope=col></th><th scope=col colspan=2></th><th scope=col></th></tr></thead><tbody></tbody><tfoot aria-hidden=true><tr><td></td><td data-slot=axis></td><td colspan=2></td></tr></tfoot></table></div><figcaption><button type=button data-slot=expand><!$><!/><svg width=14 height=14 viewBox="0 0 16 16"fill=none aria-hidden=true><path d="m4 6 4 4 4-4"stroke=currentColor stroke-width=1.25></path></svg></button><a>`), _tmpl$2$1 = /* @__PURE__ */ template(`<small>`), _tmpl$3$1 = /* @__PURE__ */ template(`<a href=https://ai.developer.meta.com/legal/geographic-use-policy>`), _tmpl$4$1 = /* @__PURE__ */ template(`<span data-slot=labels><!$><!/><!$><!/><!$><!/>`), _tmpl$5$1 = /* @__PURE__ */ template(`<tr><th scope=row><bdi></bdi><!$><!/></th><td data-slot=bars aria-hidden=true><!$><!/><div data-slot=track><div data-slot=lane><span data-tier=go></span><span data-slot=remainder></span></div><div data-slot=lane><span data-tier=plus></span><span data-slot=remainder></span></div></div></td><td data-slot=number><span></span><span></span></td><td data-slot=number><span></span><span>`), _tmpl$6$1 = /* @__PURE__ */ template(`<span data-slot=gridline>`), _tmpl$7$1 = /* @__PURE__ */ template(`<span>`);
+const ticks = [100, 1e3, 1e4];
+const max = Math.max(...goPlanModels.map((model) => model.plusRequests).filter(Number.isFinite));
+function GoPlanChart(props) {
+  const i18n = useI18n();
+  const language = useLanguage();
+  const id = createUniqueId();
+  const [expanded, setExpanded] = createSignal(false);
+  const models2 = createMemo(() => goPlanModels.filter((model) => expanded() || model.featured));
+  const position = (requests) => Number.isFinite(requests) ? 4 + Math.pow(Math.log10(Math.max(requests / 100, 1)) / Math.log10(max / 100), 2.2) * 78 : 100;
+  const format = createMemo(() => new Intl.NumberFormat(language.tag(language.locale())));
+  const currency = createMemo(() => new Intl.NumberFormat(language.tag(language.locale()), {
+    style: "currency",
+    currency: "USD",
+    currencyDisplay: "narrowSymbol",
+    maximumFractionDigits: 0
+  }));
+  return (() => {
+    var _el$ = getNextElement(_tmpl$$1), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$4.nextSibling, _el$6 = _el$3.nextSibling, _el$7 = _el$2.nextSibling, _el$8 = _el$7.firstChild, _el$9 = _el$8.firstChild, _el$0 = _el$9.firstChild, _el$1 = _el$0.nextSibling, _el$10 = _el$1.nextSibling;
+    _el$10.nextSibling;
+    var _el$12 = _el$9.nextSibling, _el$13 = _el$12.firstChild, _el$14 = _el$13.firstChild, _el$15 = _el$14.nextSibling, _el$16 = _el$15.nextSibling, _el$17 = _el$12.nextSibling, _el$18 = _el$17.nextSibling, _el$19 = _el$18.firstChild, _el$20 = _el$19.firstChild, _el$21 = _el$20.nextSibling, _el$22 = _el$7.nextSibling, _el$23 = _el$22.firstChild, _el$25 = _el$23.firstChild, [_el$26, _co$] = getNextMarker(_el$25.nextSibling);
+    _el$26.nextSibling;
+    var _el$27 = _el$23.nextSibling;
+    setAttribute(_el$, "aria-labelledby", `${id}-title`);
+    setAttribute(_el$4, "id", `${id}-title`);
+    insert(_el$4, () => i18n.t("go.plans.limits"));
+    insert(_el$5, () => i18n.t("go.plans.description"));
+    setAttribute(_el$8, "id", id);
+    insert(_el$14, () => i18n.t("go.graph.model"));
+    insert(_el$15, () => i18n.t("go.graph.requests"));
+    insert(_el$16, () => i18n.t("go.graph.allowance"));
+    insert(_el$17, createComponent(For, {
+      get each() {
+        return models2();
+      },
+      children: (model) => (() => {
+        var _el$28 = getNextElement(_tmpl$5$1), _el$29 = _el$28.firstChild, _el$30 = _el$29.firstChild, _el$41 = _el$30.nextSibling, [_el$42, _co$5] = getNextMarker(_el$41.nextSibling), _el$43 = _el$29.nextSibling, _el$49 = _el$43.firstChild, [_el$50, _co$6] = getNextMarker(_el$49.nextSibling), _el$44 = _el$50.nextSibling, _el$45 = _el$44.firstChild, _el$46 = _el$45.firstChild, _el$47 = _el$45.nextSibling, _el$48 = _el$47.firstChild, _el$51 = _el$43.nextSibling, _el$52 = _el$51.firstChild, _el$53 = _el$52.nextSibling, _el$54 = _el$51.nextSibling, _el$55 = _el$54.firstChild, _el$56 = _el$55.nextSibling;
+        insert(_el$30, () => model.name);
+        insert(_el$29, createComponent(Show, {
+          get when() {
+            return model.fresh || model.limitedTime || model.regions;
+          },
+          get children() {
+            var _el$31 = getNextElement(_tmpl$4$1), _el$35 = _el$31.firstChild, [_el$36, _co$2] = getNextMarker(_el$35.nextSibling), _el$37 = _el$36.nextSibling, [_el$38, _co$3] = getNextMarker(_el$37.nextSibling), _el$39 = _el$38.nextSibling, [_el$40, _co$4] = getNextMarker(_el$39.nextSibling);
+            insert(_el$31, createComponent(Show, {
+              get when() {
+                return model.fresh;
+              },
+              get children() {
+                var _el$32 = getNextElement(_tmpl$2$1);
+                insert(_el$32, () => i18n.t("go.graph.new"));
+                return _el$32;
+              }
+            }), _el$36, _co$2);
+            insert(_el$31, createComponent(Show, {
+              get when() {
+                return model.limitedTime;
+              },
+              get children() {
+                var _el$33 = getNextElement(_tmpl$2$1);
+                insert(_el$33, () => i18n.t("go.graph.limitedTime"));
+                return _el$33;
+              }
+            }), _el$38, _co$3);
+            insert(_el$31, createComponent(Show, {
+              get when() {
+                return model.regions;
+              },
+              get children() {
+                var _el$34 = getNextElement(_tmpl$3$1);
+                insert(_el$34, () => i18n.t("go.graph.limitedRegions"));
+                return _el$34;
+              }
+            }), _el$40, _co$4);
+            return _el$31;
+          }
+        }), _el$42, _co$5);
+        insert(_el$43, createComponent(For, {
+          each: ticks,
+          children: (tick) => (() => {
+            var _el$57 = getNextElement(_tmpl$6$1);
+            createRenderEffect((_$p) => setStyleProperty(_el$57, "inset-inline-start", `${position(tick)}%`));
+            return _el$57;
+          })()
+        }), _el$50, _co$6);
+        insert(_el$52, () => format().format(model.requests));
+        insert(_el$53, () => format().format(model.plusRequests));
+        insert(_el$55, (() => {
+          var _c$2 = memo(() => !!Number.isFinite(model.allowance));
+          return () => _c$2() ? currency().format(model.allowance) : "∞";
+        })());
+        insert(_el$56, (() => {
+          var _c$3 = memo(() => !!Number.isFinite(model.plusAllowance));
+          return () => _c$3() ? currency().format(model.plusAllowance) : "∞";
+        })());
+        createRenderEffect((_p$) => {
+          var _v$5 = `${Number.isFinite(model.plusRequests) ? position(model.plusRequests) * model.requests / model.plusRequests : position(model.requests)}%`, _v$6 = `${position(model.plusRequests)}%`;
+          _v$5 !== _p$.e && setStyleProperty(_el$46, "width", _p$.e = _v$5);
+          _v$6 !== _p$.t && setStyleProperty(_el$48, "width", _p$.t = _v$6);
+          return _p$;
+        }, {
+          e: void 0,
+          t: void 0
+        });
+        return _el$28;
+      })()
+    }));
+    insert(_el$21, createComponent(For, {
+      each: ticks,
+      children: (tick) => (() => {
+        var _el$58 = getNextElement(_tmpl$7$1);
+        insert(_el$58, () => tick < 1e3 ? format().format(tick) : `${tick / 1e3}K`);
+        createRenderEffect((_$p) => setStyleProperty(_el$58, "inset-inline-start", `${position(tick)}%`));
+        return _el$58;
+      })()
+    }));
+    _el$23.$$click = () => setExpanded(!expanded());
+    setAttribute(_el$23, "aria-controls", id);
+    insert(_el$23, (() => {
+      var _c$ = memo(() => !!expanded());
+      return () => _c$() ? i18n.t("go.graph.showLess") : i18n.t("go.graph.showAll", {
+        count: format().format(goPlanModels.length)
+      });
+    })(), _el$26, _co$);
+    insert(_el$27, () => i18n.t("go.graph.usageLimits"));
+    createRenderEffect((_p$) => {
+      var _v$ = language.dir(language.locale()), _v$2 = i18n.t("go.plans.legend"), _v$3 = expanded(), _v$4 = props.href;
+      _v$ !== _p$.e && setAttribute(_el$, "dir", _p$.e = _v$);
+      _v$2 !== _p$.t && setAttribute(_el$6, "aria-label", _p$.t = _v$2);
+      _v$3 !== _p$.a && setAttribute(_el$23, "aria-expanded", _p$.a = _v$3);
+      _v$4 !== _p$.o && setAttribute(_el$27, "href", _p$.o = _v$4);
+      return _p$;
+    }, {
+      e: void 0,
+      t: void 0,
+      a: void 0,
+      o: void 0
+    });
+    runHydrationEvents();
+    return _el$;
+  })();
+}
+delegateEvents(["click"]);
+var _tmpl$ = /* @__PURE__ */ template(`<aside data-component=referral-ended-notice><strong></strong><p>`), _tmpl$2 = /* @__PURE__ */ template(`<ul data-slot=faq-models>`), _tmpl$3 = /* @__PURE__ */ template(`<a>`), _tmpl$4 = /* @__PURE__ */ template(`<a href=https://opencode.ai/console/go>`), _tmpl$5 = /* @__PURE__ */ template(`<div data-slot=faq-model-table><table><thead><tr><th></th><th></th><th></th></tr></thead><tbody>`), _tmpl$6 = /* @__PURE__ */ template(`<div data-slot=faq-retention-notes><p><strong>Grok 4.7/4.6:</strong> <!$><!/> <a href=https://docs.x.ai/developers/faq/security#what-is-zero-data-retention-zdr></a>.</p><p><strong>GPT 6 Luna / GPT 5.6 Luna:</strong> <!$><!/> <a href=https://developers.openai.com/api/docs/guides/your-data#data-retention-controls-for-abuse-monitoring></a>.</p><p><strong>Claude Haiku 5.5:</strong> <!$><!/>: <!$><!/>. <a href=https://docs.anthropic.com/en/docs/claude-code/data-usage></a>.</p><p><strong>Muse Spark 1.3 Contributor:</strong> <!$><!/> <a href=https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier></a>.</p><p><strong>Muse Spark 1.2 Contributor:</strong> <!$><!/> <a href=https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier></a>.</p><p><strong>DeepSeek V4 Flash:</strong> <!$><!/>`), _tmpl$7 = /* @__PURE__ */ template(`<main data-page=go><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><div data-component=container><!$><!/><div data-component=content><section data-component=hero><div data-component=desktop-app-banner><span data-slot=badge></span><div data-slot=content><span data-slot=text></span></div></div><!$><!/><div data-slot=hero-copy><div data-slot=headline><h1></h1><p></p></div><div data-slot=model-logos><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/></div><p data-slot=tagline></p></div><div data-slot=plans></div></section><section data-component=comparison></section><section data-component=problem><div data-slot=section-title><h3></h3><p><!$><!/> <!$><!/></p></div><p></p><ul><li><span>[*]</span> <!$><!/></li><li><span>[*]</span> <!$><!/></li><li><span>[*]</span> <!$><!/></li><li><span>[*]</span> <!$><!/></li></ul></section><section data-component=how><div data-slot=section-title><h3></h3><p><!$><!/> <!$><!/></p></div><ul><li><span>[1]</span><div><strong></strong> - <!$><!/> <a></a></div></li><li><span>[2]</span><div><strong></strong> - <a></a> <!$><!/> · <!$><!/></div></li><li><span>[3]</span><div><strong></strong> - <!$><!/></div></li></ul></section><section data-component=faq><div data-slot=section-title><h3></h3></div><ul><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li><li></li></ul></section><!$><!/><!$><!/></div></div><!$><!/>`), _tmpl$8 = /* @__PURE__ */ template(`<div data-slot=plan><div data-slot=plan-body><p data-slot=name></p><p data-slot=price><!$><!/> <span></span></p><ul></ul></div><a href=https://opencode.ai/console/go>`), _tmpl$9 = /* @__PURE__ */ template(`<li><svg aria-hidden=true width=16 height=16 viewBox="0 0 16 16"fill=none></svg><!$><!/>`), _tmpl$0 = /* @__PURE__ */ template(`<svg><path d="M11 5H5V11H11V5Z"fill=currentColor></svg>`, false, true, false), _tmpl$1 = /* @__PURE__ */ template(`<svg><path d="M8 3.5V12.5M3.5 8H12.5"stroke=currentColor></svg>`, false, true, false), _tmpl$10 = /* @__PURE__ */ template(`<li>`), _tmpl$11 = /* @__PURE__ */ template(`<tr><td></td><td></td><td>`), _tmpl$12 = /* @__PURE__ */ template(`<a href=mailto:help@anoma.ly>`);
+const checkLoggedIn_query = createServerReference("2ce91b3e3223afcebef79e386bb9ca6d735e38770a345ca9570ace4526a6ae56");
+const checkLoggedIn = query(checkLoggedIn_query, "checkLoggedIn.get");
+const models = [{
+  name: "Space Bunny",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "LongCat 2.5 Preview Free",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Step 5 Preview Free",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Grok 4.7",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention30"
+}, {
+  name: "Grok 4.6",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention30"
+}, {
+  name: "GPT 6 Luna",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention30"
+}, {
+  name: "GPT 5.6 Luna",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention30"
+}, {
+  name: "Claude Haiku 5.5",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention30"
+}, {
+  name: "GLM-5.3-Flash",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "GLM-5.3",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "GLM-5.2",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Kimi K3",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Kimi K2.7 Code",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "LongCat-2.0",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiMo-V2.6-Pro",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiMo-V2.6-Flash",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiMo-V2.5-Pro",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiMo-V2.5",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Qwen3.8 Max",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Qwen3.8 Flash",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Qwen3.7 Plus",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiniMax M3",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "MiniMax M2.7",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Muse Spark 1.3 Contributor",
+  training: "go.faq.a5.used",
+  retention: "go.faq.a5.notZdr"
+}, {
+  name: "Muse Spark 1.2 Contributor",
+  training: "go.faq.a5.used",
+  retention: "go.faq.a5.notZdr"
+}, {
+  name: "DeepSeek V4.1 Flash",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "DeepSeek V4 Pro",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "DeepSeek V4 Flash",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "DeepSeek V4 Flash Vision Exp",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Hy4 preview",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}, {
+  name: "Hy3",
+  training: "go.faq.a5.notUsed",
+  retention: "go.faq.a5.retention0"
+}];
+function Home() {
+  const workspaceID = createAsync(() => checkLoggedIn());
+  const i18n = useI18n();
+  const language = useLanguage();
+  const [searchParams] = useSearchParams();
+  return (() => {
+    var _el$ = getNextElement(_tmpl$7), _el$195 = _el$.firstChild, [_el$196, _co$36] = getNextMarker(_el$195.nextSibling), _el$197 = _el$196.nextSibling, [_el$198, _co$37] = getNextMarker(_el$197.nextSibling), _el$199 = _el$198.nextSibling, [_el$200, _co$38] = getNextMarker(_el$199.nextSibling), _el$201 = _el$200.nextSibling, [_el$202, _co$39] = getNextMarker(_el$201.nextSibling), _el$203 = _el$202.nextSibling, [_el$204, _co$40] = getNextMarker(_el$203.nextSibling), _el$205 = _el$204.nextSibling, [_el$206, _co$41] = getNextMarker(_el$205.nextSibling), _el$207 = _el$206.nextSibling, [_el$208, _co$42] = getNextMarker(_el$207.nextSibling), _el$209 = _el$208.nextSibling, [_el$210, _co$43] = getNextMarker(_el$209.nextSibling), _el$211 = _el$210.nextSibling, [_el$212, _co$44] = getNextMarker(_el$211.nextSibling), _el$213 = _el$212.nextSibling, [_el$214, _co$45] = getNextMarker(_el$213.nextSibling), _el$215 = _el$214.nextSibling, [_el$216, _co$46] = getNextMarker(_el$215.nextSibling), _el$217 = _el$216.nextSibling, [_el$218, _co$47] = getNextMarker(_el$217.nextSibling), _el$219 = _el$218.nextSibling, [_el$220, _co$48] = getNextMarker(_el$219.nextSibling), _el$2 = _el$220.nextSibling, _el$193 = _el$2.firstChild, [_el$194, _co$35] = getNextMarker(_el$193.nextSibling), _el$3 = _el$194.nextSibling, _el$4 = _el$3.firstChild, _el$5 = _el$4.firstChild, _el$6 = _el$5.firstChild, _el$7 = _el$6.nextSibling, _el$8 = _el$7.firstChild, _el$45 = _el$5.nextSibling, [_el$46, _co$13] = getNextMarker(_el$45.nextSibling), _el$10 = _el$46.nextSibling, _el$11 = _el$10.firstChild, _el$12 = _el$11.firstChild, _el$13 = _el$12.nextSibling, _el$14 = _el$11.nextSibling, _el$15 = _el$14.firstChild, [_el$16, _co$] = getNextMarker(_el$15.nextSibling), _el$17 = _el$16.nextSibling, [_el$18, _co$2] = getNextMarker(_el$17.nextSibling), _el$19 = _el$18.nextSibling, [_el$20, _co$3] = getNextMarker(_el$19.nextSibling), _el$21 = _el$20.nextSibling, [_el$22, _co$4] = getNextMarker(_el$21.nextSibling), _el$23 = _el$22.nextSibling, [_el$24, _co$5] = getNextMarker(_el$23.nextSibling), _el$25 = _el$24.nextSibling, [_el$26, _co$6] = getNextMarker(_el$25.nextSibling), _el$27 = _el$26.nextSibling, [_el$28, _co$7] = getNextMarker(_el$27.nextSibling), _el$29 = _el$28.nextSibling, [_el$30, _co$8] = getNextMarker(_el$29.nextSibling), _el$31 = _el$30.nextSibling, [_el$32, _co$9] = getNextMarker(_el$31.nextSibling), _el$33 = _el$32.nextSibling, [_el$34, _co$0] = getNextMarker(_el$33.nextSibling), _el$35 = _el$34.nextSibling, [_el$36, _co$1] = getNextMarker(_el$35.nextSibling), _el$37 = _el$36.nextSibling, [_el$38, _co$10] = getNextMarker(_el$37.nextSibling), _el$39 = _el$38.nextSibling, [_el$40, _co$11] = getNextMarker(_el$39.nextSibling), _el$41 = _el$40.nextSibling, [_el$42, _co$12] = getNextMarker(_el$41.nextSibling), _el$43 = _el$14.nextSibling, _el$44 = _el$10.nextSibling, _el$47 = _el$4.nextSibling, _el$48 = _el$47.nextSibling, _el$49 = _el$48.firstChild, _el$50 = _el$49.firstChild, _el$51 = _el$50.nextSibling, _el$53 = _el$51.firstChild, [_el$54, _co$14] = getNextMarker(_el$53.nextSibling), _el$52 = _el$54.nextSibling, _el$55 = _el$52.nextSibling, [_el$56, _co$15] = getNextMarker(_el$55.nextSibling), _el$57 = _el$49.nextSibling, _el$58 = _el$57.nextSibling, _el$59 = _el$58.firstChild, _el$60 = _el$59.firstChild, _el$61 = _el$60.nextSibling, _el$62 = _el$61.nextSibling, [_el$63, _co$16] = getNextMarker(_el$62.nextSibling), _el$64 = _el$59.nextSibling, _el$65 = _el$64.firstChild, _el$66 = _el$65.nextSibling, _el$67 = _el$66.nextSibling, [_el$68, _co$17] = getNextMarker(_el$67.nextSibling), _el$69 = _el$64.nextSibling, _el$70 = _el$69.firstChild, _el$71 = _el$70.nextSibling, _el$72 = _el$71.nextSibling, [_el$73, _co$18] = getNextMarker(_el$72.nextSibling), _el$74 = _el$69.nextSibling, _el$75 = _el$74.firstChild, _el$76 = _el$75.nextSibling, _el$77 = _el$76.nextSibling, [_el$78, _co$19] = getNextMarker(_el$77.nextSibling), _el$79 = _el$48.nextSibling, _el$80 = _el$79.firstChild, _el$81 = _el$80.firstChild, _el$82 = _el$81.nextSibling, _el$84 = _el$82.firstChild, [_el$85, _co$20] = getNextMarker(_el$84.nextSibling), _el$83 = _el$85.nextSibling, _el$86 = _el$83.nextSibling, [_el$87, _co$21] = getNextMarker(_el$86.nextSibling), _el$88 = _el$80.nextSibling, _el$89 = _el$88.firstChild, _el$90 = _el$89.firstChild, _el$91 = _el$90.nextSibling, _el$92 = _el$91.firstChild, _el$93 = _el$92.nextSibling, _el$96 = _el$93.nextSibling, [_el$97, _co$22] = getNextMarker(_el$96.nextSibling), _el$94 = _el$97.nextSibling, _el$95 = _el$94.nextSibling, _el$98 = _el$89.nextSibling, _el$99 = _el$98.firstChild, _el$100 = _el$99.nextSibling, _el$101 = _el$100.firstChild, _el$102 = _el$101.nextSibling, _el$104 = _el$102.nextSibling, _el$105 = _el$104.nextSibling, _el$107 = _el$105.nextSibling, [_el$108, _co$23] = getNextMarker(_el$107.nextSibling), _el$106 = _el$108.nextSibling, _el$109 = _el$106.nextSibling, [_el$110, _co$24] = getNextMarker(_el$109.nextSibling), _el$111 = _el$98.nextSibling, _el$112 = _el$111.firstChild, _el$113 = _el$112.nextSibling, _el$114 = _el$113.firstChild, _el$115 = _el$114.nextSibling, _el$116 = _el$115.nextSibling, [_el$117, _co$25] = getNextMarker(_el$116.nextSibling), _el$118 = _el$79.nextSibling, _el$119 = _el$118.firstChild, _el$120 = _el$119.firstChild, _el$121 = _el$119.nextSibling, _el$122 = _el$121.firstChild, _el$123 = _el$122.nextSibling, _el$125 = _el$123.nextSibling, _el$126 = _el$125.nextSibling, _el$127 = _el$126.nextSibling, _el$130 = _el$127.nextSibling, _el$185 = _el$130.nextSibling, _el$186 = _el$185.nextSibling, _el$187 = _el$186.nextSibling, _el$188 = _el$187.nextSibling, _el$189 = _el$118.nextSibling, [_el$190, _co$33] = getNextMarker(_el$189.nextSibling), _el$191 = _el$190.nextSibling, [_el$192, _co$34] = getNextMarker(_el$191.nextSibling), _el$221 = _el$2.nextSibling, [_el$222, _co$49] = getNextMarker(_el$221.nextSibling);
+    insert(_el$, createComponent(Title, {
+      get children() {
+        return i18n.t("go.title");
+      }
+    }), _el$196, _co$36);
+    insert(_el$, createComponent(Meta, {
+      name: "description",
+      get content() {
+        return `${i18n.t("go.meta.description")} ${i18n.t("go.plans.plus.description")}`;
+      }
+    }), _el$198, _co$37);
+    insert(_el$, createComponent(LocaleLinks, {
+      path: "/go"
+    }), _el$200, _co$38);
+    insert(_el$, createComponent(Meta, {
+      property: "og:type",
+      content: "website"
+    }), _el$202, _co$39);
+    insert(_el$, createComponent(Meta, {
+      property: "og:url",
+      get content() {
+        return `${config.baseUrl}${language.route("/go")}`;
+      }
+    }), _el$204, _co$40);
+    insert(_el$, createComponent(Meta, {
+      property: "og:title",
+      get content() {
+        return i18n.t("go.title");
+      }
+    }), _el$206, _co$41);
+    insert(_el$, createComponent(Meta, {
+      property: "og:description",
+      get content() {
+        return `${i18n.t("go.meta.description")} ${i18n.t("go.plans.plus.description")}`;
+      }
+    }), _el$208, _co$42);
+    insert(_el$, createComponent(Meta, {
+      property: "og:image",
+      content: "/social-share-black.png"
+    }), _el$210, _co$43);
+    insert(_el$, createComponent(Meta, {
+      name: "twitter:card",
+      content: "summary_large_image"
+    }), _el$212, _co$44);
+    insert(_el$, createComponent(Meta, {
+      name: "twitter:title",
+      get content() {
+        return i18n.t("go.title");
+      }
+    }), _el$214, _co$45);
+    insert(_el$, createComponent(Meta, {
+      name: "twitter:description",
+      get content() {
+        return `${i18n.t("go.meta.description")} ${i18n.t("go.plans.plus.description")}`;
+      }
+    }), _el$216, _co$46);
+    insert(_el$, createComponent(Meta, {
+      name: "twitter:image",
+      content: "/social-share-black.png"
+    }), _el$218, _co$47);
+    insert(_el$, createComponent(Meta, {
+      name: "opencode:auth",
+      get content() {
+        return workspaceID() ? "true" : "false";
+      }
+    }), _el$220, _co$48);
+    insert(_el$2, createComponent(Header, {
+      go: true,
+      hideGetStarted: true
+    }), _el$194, _co$35);
+    insert(_el$6, () => i18n.t("home.banner.badge"));
+    insert(_el$8, () => i18n.t("go.promo.step5"));
+    insert(_el$4, createComponent(Show, {
+      get when() {
+        return searchParams.ref;
+      },
+      get children() {
+        var _el$9 = getNextElement(_tmpl$), _el$0 = _el$9.firstChild, _el$1 = _el$0.nextSibling;
+        insert(_el$0, () => i18n.t("go.referral.ended.label"));
+        insert(_el$1, () => i18n.t("go.referral.ended"));
+        createRenderEffect(() => setAttribute(_el$9, "aria-label", i18n.t("go.referral.ended.label")));
+        return _el$9;
+      }
+    }), _el$46, _co$13);
+    insert(_el$12, () => i18n.t("go.hero.title"));
+    insert(_el$13, () => i18n.t("go.hero.body"));
+    insert(_el$14, createComponent(IconOpenAI, {}), _el$16, _co$);
+    insert(_el$14, createComponent(IconAnthropic, {}), _el$18, _co$2);
+    insert(_el$14, createComponent(IconGoogle, {}), _el$20, _co$3);
+    insert(_el$14, createComponent(IconXai, {}), _el$22, _co$4);
+    insert(_el$14, createComponent(IconMiniMax, {}), _el$24, _co$5);
+    insert(_el$14, createComponent(IconMoonshotAI, {}), _el$26, _co$6);
+    insert(_el$14, createComponent(IconZai, {}), _el$28, _co$7);
+    insert(_el$14, createComponent(IconAlibaba, {}), _el$30, _co$8);
+    insert(_el$14, createComponent(IconDeepSeek, {
+      viewBox: "-2 -2 28 28"
+    }), _el$32, _co$9);
+    insert(_el$14, createComponent(IconMiMo, {}), _el$34, _co$0);
+    insert(_el$14, createComponent(IconLongCat, {}), _el$36, _co$1);
+    insert(_el$14, createComponent(IconHunyuan, {}), _el$38, _co$10);
+    insert(_el$14, createComponent(IconMeta, {}), _el$40, _co$11);
+    insert(_el$14, createComponent(IconStepFun, {}), _el$42, _co$12);
+    insert(_el$43, () => i18n.t("go.hero.tagline"));
+    insert(_el$44, createComponent(For, {
+      each: [{
+        name: "Go",
+        price: "$10",
+        cta: "go.cta.text",
+        features: ["go.plans.go.feature1", "go.plans.go.feature2", "go.plans.go.feature3"],
+        marker: "square"
+      }, {
+        name: "Go Plus",
+        price: "$40",
+        cta: "go.plans.plus.cta",
+        features: ["go.plans.plus.feature1", "go.plans.plus.feature2", "go.plans.plus.feature3"],
+        marker: "plus"
+      }],
+      children: (plan) => (() => {
+        var _el$223 = getNextElement(_tmpl$8), _el$224 = _el$223.firstChild, _el$225 = _el$224.firstChild, _el$226 = _el$225.nextSibling, _el$229 = _el$226.firstChild, [_el$230, _co$50] = getNextMarker(_el$229.nextSibling), _el$227 = _el$230.nextSibling, _el$228 = _el$227.nextSibling, _el$231 = _el$226.nextSibling, _el$232 = _el$224.nextSibling;
+        insert(_el$225, () => plan.name);
+        insert(_el$226, () => plan.price, _el$230, _co$50);
+        insert(_el$228, () => i18n.t("go.plans.month"));
+        insert(_el$231, createComponent(For, {
+          get each() {
+            return plan.features;
+          },
+          children: (feature) => (() => {
+            var _el$233 = getNextElement(_tmpl$9), _el$234 = _el$233.firstChild, _el$235 = _el$234.nextSibling, [_el$236, _co$51] = getNextMarker(_el$235.nextSibling);
+            insert(_el$234, (() => {
+              var _c$ = memo(() => plan.marker === "square");
+              return () => _c$() ? getNextElement(_tmpl$0) : getNextElement(_tmpl$1);
+            })());
+            insert(_el$233, () => i18n.t(feature), _el$236, _co$51);
+            return _el$233;
+          })()
+        }));
+        insert(_el$232, () => i18n.t(plan.cta));
+        return _el$223;
+      })()
+    }));
+    insert(_el$47, createComponent(GoPlanChart, {
+      get href() {
+        return goUsageLimits(language.locale());
+      }
+    }));
+    insert(_el$50, () => i18n.t("go.problem.title"));
+    insert(_el$51, () => i18n.t("go.problem.body"), _el$54, _co$14);
+    insert(_el$51, () => i18n.t("go.plans.plus.description"), _el$56, _co$15);
+    insert(_el$57, () => i18n.t("go.problem.subtitle"));
+    insert(_el$59, () => i18n.t("go.problem.item1"), _el$63, _co$16);
+    insert(_el$64, () => i18n.t("go.problem.item2"), _el$68, _co$17);
+    insert(_el$69, () => i18n.t("go.problem.item3"), _el$73, _co$18);
+    insert(_el$74, () => i18n.t("go.problem.item4"), _el$78, _co$19);
+    insert(_el$81, () => i18n.t("go.how.title"));
+    insert(_el$82, () => i18n.t("go.how.body"), _el$85, _co$20);
+    insert(_el$82, () => i18n.t("go.plans.plus.description"), _el$87, _co$21);
+    insert(_el$92, () => i18n.t("go.how.step1.title"));
+    insert(_el$91, () => i18n.t("go.how.step1.beforeLink"), _el$97, _co$22);
+    insert(_el$95, () => i18n.t("go.how.step1.link"));
+    insert(_el$101, () => i18n.t("go.how.step2.title"));
+    insert(_el$104, () => i18n.t("go.how.step2.link"));
+    insert(_el$100, () => i18n.t("go.how.step2.afterLink"), _el$108, _co$23);
+    insert(_el$100, () => i18n.t("go.plans.plus.description"), _el$110, _co$24);
+    insert(_el$114, () => i18n.t("go.how.step3.title"));
+    insert(_el$113, () => i18n.t("go.how.step3.body"), _el$117, _co$25);
+    insert(_el$120, () => i18n.t("common.faq"));
+    insert(_el$122, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q1");
+      },
+      get children() {
+        return i18n.t("go.faq.a1");
+      }
+    }));
+    insert(_el$123, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q2");
+      },
+      get children() {
+        return [memo(() => i18n.t("go.faq.a2")), (() => {
+          var _el$124 = getNextElement(_tmpl$2);
+          insert(_el$124, createComponent(For, {
+            each: models,
+            children: (model) => (() => {
+              var _el$239 = getNextElement(_tmpl$10);
+              insert(_el$239, () => model.name);
+              return _el$239;
+            })()
+          }));
+          return _el$124;
+        })()];
+      }
+    }));
+    insert(_el$125, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q9");
+      },
+      get children() {
+        return i18n.t("go.faq.a9");
+      }
+    }));
+    insert(_el$126, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q3");
+      },
+      get children() {
+        return [memo(() => i18n.t("go.faq.a3")), " ", memo(() => i18n.t("go.plans.plus.description"))];
+      }
+    }));
+    insert(_el$127, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q4");
+      },
+      get children() {
+        return [memo(() => i18n.t("go.faq.a4.p1.beforePricing")), " ", (() => {
+          var _el$128 = getNextElement(_tmpl$3);
+          insert(_el$128, () => i18n.t("go.faq.a4.p1.pricingLink"));
+          createRenderEffect(() => setAttribute(_el$128, "href", language.route("/docs/go/#pricing")));
+          return _el$128;
+        })(), " ", memo(() => i18n.t("go.faq.a4.p1.afterPricing")), " ", memo(() => i18n.t("go.plans.plus.description")), " ", memo(() => i18n.t("go.faq.a4.p2.beforeAccount")), " ", (() => {
+          var _el$129 = getNextElement(_tmpl$4);
+          insert(_el$129, () => i18n.t("go.faq.a4.p2.accountLink"));
+          return _el$129;
+        })(), ". ", memo(() => i18n.t("go.faq.a4.p3"))];
+      }
+    }));
+    insert(_el$130, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q5");
+      },
+      get children() {
+        return [(() => {
+          var _el$131 = getNextElement(_tmpl$5), _el$132 = _el$131.firstChild, _el$133 = _el$132.firstChild, _el$134 = _el$133.firstChild, _el$135 = _el$134.firstChild, _el$136 = _el$135.nextSibling, _el$137 = _el$136.nextSibling, _el$138 = _el$133.nextSibling;
+          insert(_el$135, () => i18n.t("go.faq.a5.model"));
+          insert(_el$136, () => i18n.t("go.faq.a5.training"));
+          insert(_el$137, () => i18n.t("go.faq.a5.retention"));
+          insert(_el$138, createComponent(For, {
+            each: models,
+            children: (model) => (() => {
+              var _el$240 = getNextElement(_tmpl$11), _el$241 = _el$240.firstChild, _el$242 = _el$241.nextSibling, _el$243 = _el$242.nextSibling;
+              insert(_el$241, () => model.name);
+              insert(_el$242, () => i18n.t(model.training));
+              insert(_el$243, () => i18n.t(model.retention));
+              return _el$240;
+            })()
+          }));
+          return _el$131;
+        })(), (() => {
+          var _el$139 = getNextElement(_tmpl$6), _el$140 = _el$139.firstChild, _el$141 = _el$140.firstChild, _el$142 = _el$141.nextSibling, _el$145 = _el$142.nextSibling, [_el$146, _co$26] = getNextMarker(_el$145.nextSibling), _el$143 = _el$146.nextSibling, _el$144 = _el$143.nextSibling, _el$147 = _el$140.nextSibling, _el$148 = _el$147.firstChild, _el$149 = _el$148.nextSibling, _el$152 = _el$149.nextSibling, [_el$153, _co$27] = getNextMarker(_el$152.nextSibling), _el$150 = _el$153.nextSibling, _el$151 = _el$150.nextSibling, _el$154 = _el$147.nextSibling, _el$155 = _el$154.firstChild, _el$156 = _el$155.nextSibling, _el$162 = _el$156.nextSibling, [_el$163, _co$28] = getNextMarker(_el$162.nextSibling), _el$157 = _el$163.nextSibling, _el$164 = _el$157.nextSibling, [_el$165, _co$29] = getNextMarker(_el$164.nextSibling), _el$159 = _el$165.nextSibling, _el$161 = _el$159.nextSibling, _el$166 = _el$154.nextSibling, _el$167 = _el$166.firstChild, _el$168 = _el$167.nextSibling, _el$171 = _el$168.nextSibling, [_el$172, _co$30] = getNextMarker(_el$171.nextSibling), _el$169 = _el$172.nextSibling, _el$170 = _el$169.nextSibling, _el$173 = _el$166.nextSibling, _el$174 = _el$173.firstChild, _el$175 = _el$174.nextSibling, _el$178 = _el$175.nextSibling, [_el$179, _co$31] = getNextMarker(_el$178.nextSibling), _el$176 = _el$179.nextSibling, _el$177 = _el$176.nextSibling, _el$180 = _el$173.nextSibling, _el$181 = _el$180.firstChild, _el$182 = _el$181.nextSibling, _el$183 = _el$182.nextSibling, [_el$184, _co$32] = getNextMarker(_el$183.nextSibling);
+          insert(_el$140, () => i18n.t("go.faq.a5.grokRetention"), _el$146, _co$26);
+          insert(_el$144, () => i18n.t("go.faq.a5.learnMore"));
+          insert(_el$147, () => i18n.t("go.faq.a5.gptRetention"), _el$153, _co$27);
+          insert(_el$151, () => i18n.t("go.faq.a5.learnMore"));
+          insert(_el$154, () => i18n.t("go.faq.a5.retention"), _el$163, _co$28);
+          insert(_el$154, () => i18n.t("go.faq.a5.retention30"), _el$165, _co$29);
+          insert(_el$161, () => i18n.t("go.faq.a5.learnMore"));
+          insert(_el$166, () => i18n.t("go.faq.a5.museRetention"), _el$172, _co$30);
+          insert(_el$170, () => i18n.t("go.faq.a5.learnMore"));
+          insert(_el$173, () => i18n.t("go.faq.a5.museRetention"), _el$179, _co$31);
+          insert(_el$177, () => i18n.t("go.faq.a5.learnMore"));
+          insert(_el$180, () => i18n.t("go.faq.a5.deepseekRetention"), _el$184, _co$32);
+          return _el$139;
+        })()];
+      }
+    }));
+    insert(_el$185, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q6");
+      },
+      get children() {
+        return i18n.t("go.faq.a6");
+      }
+    }));
+    insert(_el$186, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q7");
+      },
+      get children() {
+        return i18n.t("go.faq.a7");
+      }
+    }));
+    insert(_el$187, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q8");
+      },
+      get children() {
+        return i18n.t("go.faq.a8");
+      }
+    }));
+    insert(_el$188, createComponent(Faq, {
+      get question() {
+        return i18n.t("go.faq.q10");
+      },
+      get children() {
+        return createComponent(For, {
+          get each() {
+            return i18n.t("go.faq.a10").split(/(\{\{contact\}\})/g);
+          },
+          children: (part) => part === "{{contact}}" ? (() => {
+            var _el$244 = getNextElement(_tmpl$12);
+            insert(_el$244, () => i18n.t("common.contactUs"));
+            return _el$244;
+          })() : part
+        });
+      }
+    }));
+    insert(_el$3, createComponent(EmailSignup, {}), _el$190, _co$33);
+    insert(_el$3, createComponent(Footer, {}), _el$192, _co$34);
+    insert(_el$, createComponent(Legal, {}), _el$222, _co$49);
+    createRenderEffect((_p$) => {
+      var _v$ = language.route("/docs/go/#how-it-works"), _v$2 = i18n.t("go.how.step1.link"), _v$3 = language.route("/docs/go/#pricing");
+      _v$ !== _p$.e && setAttribute(_el$95, "href", _p$.e = _v$);
+      _v$2 !== _p$.t && setAttribute(_el$95, "title", _p$.t = _v$2);
+      _v$3 !== _p$.a && setAttribute(_el$104, "href", _p$.a = _v$3);
+      return _p$;
+    }, {
+      e: void 0,
+      t: void 0,
+      a: void 0
+    });
+    return _el$;
+  })();
+}
+export {
+  Home as default
+};
+=== workspace-kvIAHJL-.js ===
+import { q as createSignal, l as createEffect, a1 as onCleanup, aa as splitProps, a2 as onMount, a0 as on, i as createComponent, _ as mergeProps, ah as useContext, k as createContext, r as createUniqueId, Z as memo, P as Portal, S as Show, s as delegateEvents, R as getNextElement, T as getNextMarker, W as insert, F as For, a4 as runHydrationEvents, a6 as setAttribute, ag as use, n as createRenderEffect, a7 as setProperty, ae as template } from "./tr-Db0JsSoN.js";
+import { c as createServerReference } from "./server-runtime-Cf0dfMOw.js";
+import { A as IconWorkspaceLogo } from "./icon-D_BIe0X5.js";
+import { a as DropdownItem, D as Dropdown } from "./dropdown-3_BHFPyV.js";
+import { q as getDocument, o as getActiveElement, g as contains$1, n as focusWithoutScrolling, a as access, F as removeItemFromArray, v as isFocusable, J as visuallyHiddenStyles, p as getAllTabbableIn, D as noop, u as isCtrlKey, f as composeEventHandlers, E as EventKey, P as Polymorphic, C as mergeRefs, A as mergeDefaultProps, j as createDisclosureState, H as src_default$1, B as ButtonRoot, e as combineStyle, l as createRegisterId, k as createGenerateId, d as callHandler, _ as __export } from "./index-Bh5QV5Am.js";
+import { a as access$1 } from "./U42ECMND-CpGP6a5I.js";
+/* empty css               */
+import { u as useI18n, b as useLanguage } from "./i18n-Db1bPv1f.js";
+import { q as query, p as useParams } from "./query-jHzU-9wN.js";
+import { a as action, c as useSubmission } from "./action-SL_f8Aao.js";
+import { c as createAsync } from "./createAsync-BG7wWROu.js";
+import { A } from "./components-BixuhwHs.js";
+var DATA_TOP_LAYER_ATTR = "data-kb-top-layer";
+var originalBodyPointerEvents;
+var hasDisabledBodyPointerEvents = false;
+var layers = [];
+function indexOf(node) {
+  return layers.findIndex((layer) => layer.node === node);
+}
+function find(node) {
+  return layers[indexOf(node)];
+}
+function isTopMostLayer(node) {
+  return layers[layers.length - 1].node === node;
+}
+function getPointerBlockingLayers() {
+  return layers.filter((layer) => layer.isPointerBlocking);
+}
+function getTopMostPointerBlockingLayer() {
+  return [...getPointerBlockingLayers()].slice(-1)[0];
+}
+function hasPointerBlockingLayer() {
+  return getPointerBlockingLayers().length > 0;
+}
+function isBelowPointerBlockingLayer(node) {
+  const highestBlockingIndex = indexOf(getTopMostPointerBlockingLayer()?.node);
+  return indexOf(node) < highestBlockingIndex;
+}
+function addLayer(layer) {
+  layers.push(layer);
+}
+function removeLayer(node) {
+  const index = indexOf(node);
+  if (index < 0) {
+    return;
+  }
+  layers.splice(index, 1);
+}
+function assignPointerEventToLayers() {
+  for (const {
+    node
+  } of layers) {
+    node.style.pointerEvents = isBelowPointerBlockingLayer(node) ? "none" : "auto";
+  }
+}
+function disableBodyPointerEvents(node) {
+  if (hasPointerBlockingLayer() && !hasDisabledBodyPointerEvents) {
+    const ownerDocument = getDocument(node);
+    originalBodyPointerEvents = document.body.style.pointerEvents;
+    ownerDocument.body.style.pointerEvents = "none";
+    hasDisabledBodyPointerEvents = true;
+  }
+}
+function restoreBodyPointerEvents(node) {
+  if (hasPointerBlockingLayer()) {
+    return;
+  }
+  const ownerDocument = getDocument(node);
+  ownerDocument.body.style.pointerEvents = originalBodyPointerEvents;
+  if (ownerDocument.body.style.length === 0) {
+    ownerDocument.body.removeAttribute("style");
+  }
+  hasDisabledBodyPointerEvents = false;
+}
+var layerStack = {
+  layers,
+  isTopMostLayer,
+  hasPointerBlockingLayer,
+  isBelowPointerBlockingLayer,
+  addLayer,
+  removeLayer,
+  indexOf,
+  find,
+  assignPointerEventToLayers,
+  disableBodyPointerEvents,
+  restoreBodyPointerEvents
+};
+var AUTOFOCUS_ON_MOUNT_EVENT = "focusScope.autoFocusOnMount";
+var AUTOFOCUS_ON_UNMOUNT_EVENT = "focusScope.autoFocusOnUnmount";
+var EVENT_OPTIONS = {
+  bubbles: false,
+  cancelable: true
+};
+var focusScopeStack = {
+  /** A stack of focus scopes, with the active one at the top */
+  stack: [],
+  active() {
+    return this.stack[0];
+  },
+  add(scope) {
+    if (scope !== this.active()) {
+      this.active()?.pause();
+    }
+    this.stack = removeItemFromArray(this.stack, scope);
+    this.stack.unshift(scope);
+  },
+  remove(scope) {
+    this.stack = removeItemFromArray(this.stack, scope);
+    this.active()?.resume();
+  }
+};
+function createFocusScope(props, ref) {
+  const [isPaused, setIsPaused] = createSignal(false);
+  const focusScope = {
+    pause() {
+      setIsPaused(true);
+    },
+    resume() {
+      setIsPaused(false);
+    }
+  };
+  let lastFocusedElement = null;
+  const onMountAutoFocus = (e) => props.onMountAutoFocus?.(e);
+  const onUnmountAutoFocus = (e) => props.onUnmountAutoFocus?.(e);
+  const ownerDocument = () => getDocument(ref());
+  const createSentinel = () => {
+    const element = ownerDocument().createElement("span");
+    element.setAttribute("data-focus-trap", "");
+    element.tabIndex = 0;
+    Object.assign(element.style, visuallyHiddenStyles);
+    return element;
+  };
+  const tabbables = () => {
+    const container = ref();
+    if (!container) {
+      return [];
+    }
+    return getAllTabbableIn(container, true).filter((el) => !el.hasAttribute("data-focus-trap"));
+  };
+  const firstTabbable = () => {
+    const items = tabbables();
+    return items.length > 0 ? items[0] : null;
+  };
+  const lastTabbable = () => {
+    const items = tabbables();
+    return items.length > 0 ? items[items.length - 1] : null;
+  };
+  const shouldPreventUnmountAutoFocus = () => {
+    const container = ref();
+    if (!container) {
+      return false;
+    }
+    const activeElement = getActiveElement(container);
+    if (!activeElement) {
+      return false;
+    }
+    if (contains$1(container, activeElement)) {
+      return false;
+    }
+    return isFocusable(activeElement);
+  };
+  createEffect(() => {
+    const container = ref();
+    if (!container) {
+      return;
+    }
+    focusScopeStack.add(focusScope);
+    const previouslyFocusedElement = getActiveElement(container);
+    const hasFocusedCandidate = contains$1(container, previouslyFocusedElement);
+    if (!hasFocusedCandidate) {
+      const mountEvent = new CustomEvent(AUTOFOCUS_ON_MOUNT_EVENT, EVENT_OPTIONS);
+      container.addEventListener(AUTOFOCUS_ON_MOUNT_EVENT, onMountAutoFocus);
+      container.dispatchEvent(mountEvent);
+      if (!mountEvent.defaultPrevented) {
+        setTimeout(() => {
+          focusWithoutScrolling(firstTabbable());
+          if (getActiveElement(container) === previouslyFocusedElement) {
+            focusWithoutScrolling(container);
+          }
+        }, 0);
+      }
+    }
+    onCleanup(() => {
+      container.removeEventListener(AUTOFOCUS_ON_MOUNT_EVENT, onMountAutoFocus);
+      setTimeout(() => {
+        const unmountEvent = new CustomEvent(AUTOFOCUS_ON_UNMOUNT_EVENT, EVENT_OPTIONS);
+        if (shouldPreventUnmountAutoFocus()) {
+          unmountEvent.preventDefault();
+        }
+        container.addEventListener(AUTOFOCUS_ON_UNMOUNT_EVENT, onUnmountAutoFocus);
+        container.dispatchEvent(unmountEvent);
+        if (!unmountEvent.defaultPrevented) {
+          focusWithoutScrolling(previouslyFocusedElement ?? ownerDocument().body);
+        }
+        container.removeEventListener(AUTOFOCUS_ON_UNMOUNT_EVENT, onUnmountAutoFocus);
+        focusScopeStack.remove(focusScope);
+      }, 0);
+    });
+  });
+  createEffect(() => {
+    const container = ref();
+    if (!container || !access(props.trapFocus) || isPaused()) {
+      return;
+    }
+    const onFocusIn = (event) => {
+      const target = event.target;
+      if (target?.closest(`[${DATA_TOP_LAYER_ATTR}]`)) {
+        return;
+      }
+      if (contains$1(container, target)) {
+        lastFocusedElement = target;
+      } else {
+        focusWithoutScrolling(lastFocusedElement);
+      }
+    };
+    const onFocusOut = (event) => {
+      const relatedTarget = event.relatedTarget;
+      const target = relatedTarget ?? getActiveElement(container);
+      if (target?.closest(`[${DATA_TOP_LAYER_ATTR}]`)) {
+        return;
+      }
+      if (!contains$1(container, target)) {
+        focusWithoutScrolling(lastFocusedElement);
+      }
+    };
+    ownerDocument().addEventListener("focusin", onFocusIn);
+    ownerDocument().addEventListener("focusout", onFocusOut);
+    onCleanup(() => {
+      ownerDocument().removeEventListener("focusin", onFocusIn);
+      ownerDocument().removeEventListener("focusout", onFocusOut);
+    });
+  });
+  createEffect(() => {
+    const container = ref();
+    if (!container || !access(props.trapFocus) || isPaused()) {
+      return;
+    }
+    const startSentinel = createSentinel();
+    container.insertAdjacentElement("afterbegin", startSentinel);
+    const endSentinel = createSentinel();
+    container.insertAdjacentElement("beforeend", endSentinel);
+    function onFocus(event) {
+      const first = firstTabbable();
+      const last = lastTabbable();
+      if (event.relatedTarget === first) {
+        focusWithoutScrolling(last);
+      } else {
+        focusWithoutScrolling(first);
+      }
+    }
+    startSentinel.addEventListener("focusin", onFocus);
+    endSentinel.addEventListener("focusin", onFocus);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.previousSibling === endSentinel) {
+          endSentinel.remove();
+          container.insertAdjacentElement("beforeend", endSentinel);
+        }
+        if (mutation.nextSibling === startSentinel) {
+          startSentinel.remove();
+          container.insertAdjacentElement("afterbegin", startSentinel);
+        }
+      }
+    });
+    observer.observe(container, {
+      childList: true,
+      subtree: false
+    });
+    onCleanup(() => {
+      startSentinel.removeEventListener("focusin", onFocus);
+      endSentinel.removeEventListener("focusin", onFocus);
+      startSentinel.remove();
+      endSentinel.remove();
+      observer.disconnect();
+    });
+  });
+}
+var DATA_LIVE_ANNOUNCER_ATTR = "data-live-announcer";
+function createHideOutside(props) {
+  createEffect(() => {
+    if (access(props.isDisabled)) {
+      return;
+    }
+    onCleanup(ariaHideOutside(access(props.targets), access(props.root)));
+  });
+}
+var refCountMap = /* @__PURE__ */ new WeakMap();
+var observerStack = [];
+function ariaHideOutside(targets, root = document.body) {
+  const visibleNodes = new Set(targets);
+  const hiddenNodes = /* @__PURE__ */ new Set();
+  const walk = (root2) => {
+    for (const element of root2.querySelectorAll(`[${DATA_LIVE_ANNOUNCER_ATTR}], [${DATA_TOP_LAYER_ATTR}]`)) {
+      visibleNodes.add(element);
+    }
+    const acceptNode = (node) => {
+      if (visibleNodes.has(node) || node.parentElement && hiddenNodes.has(node.parentElement) && node.parentElement.getAttribute("role") !== "row") {
+        return NodeFilter.FILTER_REJECT;
+      }
+      for (const target of visibleNodes) {
+        if (node.contains(target)) {
+          return NodeFilter.FILTER_SKIP;
+        }
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    };
+    const walker = document.createTreeWalker(root2, NodeFilter.SHOW_ELEMENT, {
+      acceptNode
+    });
+    const acceptRoot = acceptNode(root2);
+    if (acceptRoot === NodeFilter.FILTER_ACCEPT) {
+      hide(root2);
+    }
+    if (acceptRoot !== NodeFilter.FILTER_REJECT) {
+      let node = walker.nextNode();
+      while (node != null) {
+        hide(node);
+        node = walker.nextNode();
+      }
+    }
+  };
+  const hide = (node) => {
+    const refCount = refCountMap.get(node) ?? 0;
+    if (node.getAttribute("aria-hidden") === "true" && refCount === 0) {
+      return;
+    }
+    if (refCount === 0) {
+      node.setAttribute("aria-hidden", "true");
+    }
+    hiddenNodes.add(node);
+    refCountMap.set(node, refCount + 1);
+  };
+  if (observerStack.length) {
+    observerStack[observerStack.length - 1].disconnect();
+  }
+  walk(root);
+  const observer = new MutationObserver((changes) => {
+    for (const change of changes) {
+      if (change.type !== "childList" || change.addedNodes.length === 0) {
+        continue;
+      }
+      if (![...visibleNodes, ...hiddenNodes].some((node) => node.contains(change.target))) {
+        for (const node of change.removedNodes) {
+          if (node instanceof Element) {
+            visibleNodes.delete(node);
+            hiddenNodes.delete(node);
+          }
+        }
+        for (const node of change.addedNodes) {
+          if ((node instanceof HTMLElement || node instanceof SVGElement) && (node.dataset.liveAnnouncer === "true" || node.dataset.reactAriaTopLayer === "true")) {
+            visibleNodes.add(node);
+          } else if (node instanceof Element) {
+            walk(node);
+          }
+        }
+      }
+    }
+  });
+  observer.observe(root, {
+    childList: true,
+    subtree: true
+  });
+  const observerWrapper = {
+    observe() {
+      observer.observe(root, {
+        childList: true,
+        subtree: true
+      });
+    },
+    disconnect() {
+      observer.disconnect();
+    }
+  };
+  observerStack.push(observerWrapper);
+  return () => {
+    observer.disconnect();
+    for (const node of hiddenNodes) {
+      const count = refCountMap.get(node);
+      if (count == null) {
+        return;
+      }
+      if (count === 1) {
+        node.removeAttribute("aria-hidden");
+        refCountMap.delete(node);
+      } else {
+        refCountMap.set(node, count - 1);
+      }
+    }
+    if (observerWrapper === observerStack[observerStack.length - 1]) {
+      observerStack.pop();
+      if (observerStack.length) {
+        observerStack[observerStack.length - 1].observe();
+      }
+    } else {
+      observerStack.splice(observerStack.indexOf(observerWrapper), 1);
+    }
+  };
+}
+var POINTER_DOWN_OUTSIDE_EVENT = "interactOutside.pointerDownOutside";
+var FOCUS_OUTSIDE_EVENT = "interactOutside.focusOutside";
+function createInteractOutside(props, ref) {
+  let pointerDownTimeoutId;
+  let clickHandler = noop;
+  const ownerDocument = () => getDocument(ref());
+  const onPointerDownOutside = (e) => props.onPointerDownOutside?.(e);
+  const onFocusOutside = (e) => props.onFocusOutside?.(e);
+  const onInteractOutside = (e) => props.onInteractOutside?.(e);
+  const isEventOutside = (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) {
+      return false;
+    }
+    if (target.closest(`[${DATA_TOP_LAYER_ATTR}]`)) {
+      return false;
+    }
+    if (!contains$1(ownerDocument(), target)) {
+      return false;
+    }
+    if (contains$1(ref(), target)) {
+      return false;
+    }
+    return !props.shouldExcludeElement?.(target);
+  };
+  const onPointerDown = (e) => {
+    function handler() {
+      const container = ref();
+      const target = e.target;
+      if (!container || !target || !isEventOutside(e)) {
+        return;
+      }
+      const handler2 = composeEventHandlers([onPointerDownOutside, onInteractOutside]);
+      target.addEventListener(POINTER_DOWN_OUTSIDE_EVENT, handler2, {
+        once: true
+      });
+      const pointerDownOutsideEvent = new CustomEvent(POINTER_DOWN_OUTSIDE_EVENT, {
+        bubbles: false,
+        cancelable: true,
+        detail: {
+          originalEvent: e,
+          isContextMenu: e.button === 2 || isCtrlKey(e) && e.button === 0
+        }
+      });
+      target.dispatchEvent(pointerDownOutsideEvent);
+    }
+    if (e.pointerType === "touch") {
+      ownerDocument().removeEventListener("click", handler);
+      clickHandler = handler;
+      ownerDocument().addEventListener("click", handler, {
+        once: true
+      });
+    } else {
+      handler();
+    }
+  };
+  const onFocusIn = (e) => {
+    const container = ref();
+    const target = e.target;
+    if (!container || !target || !isEventOutside(e)) {
+      return;
+    }
+    const handler = composeEventHandlers([onFocusOutside, onInteractOutside]);
+    target.addEventListener(FOCUS_OUTSIDE_EVENT, handler, {
+      once: true
+    });
+    const focusOutsideEvent = new CustomEvent(FOCUS_OUTSIDE_EVENT, {
+      bubbles: false,
+      cancelable: true,
+      detail: {
+        originalEvent: e,
+        isContextMenu: false
+      }
+    });
+    target.dispatchEvent(focusOutsideEvent);
+  };
+  createEffect(() => {
+    if (access(props.isDisabled)) {
+      return;
+    }
+    pointerDownTimeoutId = window.setTimeout(() => {
+      ownerDocument().addEventListener("pointerdown", onPointerDown, true);
+    }, 0);
+    ownerDocument().addEventListener("focusin", onFocusIn, true);
+    onCleanup(() => {
+      window.clearTimeout(pointerDownTimeoutId);
+      ownerDocument().removeEventListener("click", clickHandler);
+      ownerDocument().removeEventListener("pointerdown", onPointerDown, true);
+      ownerDocument().removeEventListener("focusin", onFocusIn, true);
+    });
+  });
+}
+function createEscapeKeyDown(props) {
+  const handleKeyDown = (event) => {
+    if (event.key === EventKey.Escape) {
+      props.onEscapeKeyDown?.(event);
+    }
+  };
+  createEffect(() => {
+    if (access(props.isDisabled)) {
+      return;
+    }
+    const document2 = props.ownerDocument?.() ?? getDocument();
+    document2.addEventListener("keydown", handleKeyDown);
+    onCleanup(() => {
+      document2.removeEventListener("keydown", handleKeyDown);
+    });
+  });
+}
+var DismissableLayerContext = createContext();
+function useOptionalDismissableLayerContext() {
+  return useContext(DismissableLayerContext);
+}
+function DismissableLayer(props) {
+  let ref;
+  const parentContext = useOptionalDismissableLayerContext();
+  const [local, others] = splitProps(props, ["ref", "disableOutsidePointerEvents", "excludedElements", "onEscapeKeyDown", "onPointerDownOutside", "onFocusOutside", "onInteractOutside", "onDismiss", "bypassTopMostLayerCheck"]);
+  const nestedLayers = /* @__PURE__ */ new Set([]);
+  const registerNestedLayer = (element) => {
+    nestedLayers.add(element);
+    const parentUnregister = parentContext?.registerNestedLayer(element);
+    return () => {
+      nestedLayers.delete(element);
+      parentUnregister?.();
+    };
+  };
+  const shouldExcludeElement = (element) => {
+    if (!ref) {
+      return false;
+    }
+    return local.excludedElements?.some((node) => contains$1(node(), element)) || [...nestedLayers].some((layer) => contains$1(layer, element));
+  };
+  const onPointerDownOutside = (e) => {
+    if (!ref || layerStack.isBelowPointerBlockingLayer(ref)) {
+      return;
+    }
+    if (!local.bypassTopMostLayerCheck && !layerStack.isTopMostLayer(ref)) {
+      return;
+    }
+    local.onPointerDownOutside?.(e);
+    local.onInteractOutside?.(e);
+    if (!e.defaultPrevented) {
+      local.onDismiss?.();
+    }
+  };
+  const onFocusOutside = (e) => {
+    local.onFocusOutside?.(e);
+    local.onInteractOutside?.(e);
+    if (!e.defaultPrevented) {
+      local.onDismiss?.();
+    }
+  };
+  createInteractOutside({
+    shouldExcludeElement,
+    onPointerDownOutside,
+    onFocusOutside
+  }, () => ref);
+  createEscapeKeyDown({
+    ownerDocument: () => getDocument(ref),
+    onEscapeKeyDown: (e) => {
+      if (!ref || !layerStack.isTopMostLayer(ref)) {
+        return;
+      }
+      local.onEscapeKeyDown?.(e);
+      if (!e.defaultPrevented && local.onDismiss) {
+        e.preventDefault();
+        local.onDismiss();
+      }
+    }
+  });
+  onMount(() => {
+    if (!ref) {
+      return;
+    }
+    layerStack.addLayer({
+      node: ref,
+      isPointerBlocking: local.disableOutsidePointerEvents,
+      dismiss: local.onDismiss
+    });
+    const unregisterFromParentLayer = parentContext?.registerNestedLayer(ref);
+    layerStack.assignPointerEventToLayers();
+    layerStack.disableBodyPointerEvents(ref);
+    onCleanup(() => {
+      if (!ref) {
+        return;
+      }
+      layerStack.removeLayer(ref);
+      unregisterFromParentLayer?.();
+      layerStack.assignPointerEventToLayers();
+      layerStack.restoreBodyPointerEvents(ref);
+    });
+  });
+  createEffect(on([() => ref, () => local.disableOutsidePointerEvents], ([ref2, disableOutsidePointerEvents]) => {
+    if (!ref2) {
+      return;
+    }
+    const layer = layerStack.find(ref2);
+    if (layer && layer.isPointerBlocking !== disableOutsidePointerEvents) {
+      layer.isPointerBlocking = disableOutsidePointerEvents;
+      layerStack.assignPointerEventToLayers();
+    }
+    if (disableOutsidePointerEvents) {
+      layerStack.disableBodyPointerEvents(ref2);
+    }
+    onCleanup(() => {
+      layerStack.restoreBodyPointerEvents(ref2);
+    });
+  }, {
+    defer: true
+  }));
+  const context = {
+    registerNestedLayer
+  };
+  return createComponent(DismissableLayerContext.Provider, {
+    value: context,
+    get children() {
+      return createComponent(Polymorphic, mergeProps({
+        as: "div",
+        ref(r$) {
+          var _ref$ = mergeRefs((el) => ref = el, local.ref);
+          typeof _ref$ === "function" && _ref$(r$);
+        }
+      }, others));
+    }
+  });
+}
+var contains = (wrapper, target) => {
+  if (wrapper.contains(target)) return true;
+  let currentElement = target;
+  while (currentElement) {
+    if (currentElement === wrapper) return true;
+    currentElement = currentElement._$host ?? currentElement.parentElement;
+  }
+  return false;
+};
+var activeStyles = /* @__PURE__ */ new Map();
+var createStyle = (props) => {
+  createEffect(() => {
+    const style = access$1(props.style) ?? {};
+    const properties = access$1(props.properties) ?? [];
+    const originalStyles = {};
+    for (const key in style) {
+      originalStyles[key] = props.element.style[key];
+    }
+    const activeStyle = activeStyles.get(props.key);
+    if (activeStyle) {
+      activeStyle.activeCount++;
+    } else {
+      activeStyles.set(props.key, {
+        activeCount: 1,
+        originalStyles,
+        properties: properties.map((property) => property.key)
+      });
+    }
+    Object.assign(props.element.style, props.style);
+    for (const property of properties) {
+      props.element.style.setProperty(property.key, property.value);
+    }
+    onCleanup(() => {
+      const activeStyle2 = activeStyles.get(props.key);
+      if (!activeStyle2) return;
+      if (activeStyle2.activeCount !== 1) {
+        activeStyle2.activeCount--;
+        return;
+      }
+      activeStyles.delete(props.key);
+      for (const [key, value] of Object.entries(activeStyle2.originalStyles)) {
+        props.element.style[key] = value;
+      }
+      for (const property of activeStyle2.properties) {
+        props.element.style.removeProperty(property);
+      }
+      if (props.element.style.length === 0) {
+        props.element.removeAttribute("style");
+      }
+      props.cleanup?.();
+    });
+  });
+};
+var style_default = createStyle;
+var getScrollDimensions = (element, axis) => {
+  switch (axis) {
+    case "x":
+      return [element.clientWidth, element.scrollLeft, element.scrollWidth];
+    case "y":
+      return [element.clientHeight, element.scrollTop, element.scrollHeight];
+  }
+};
+var isScrollContainer = (element, axis) => {
+  const styles = getComputedStyle(element);
+  const overflow = axis === "x" ? styles.overflowX : styles.overflowY;
+  return overflow === "auto" || overflow === "scroll" || // The HTML element is a scroll container if it has overflow visible
+  element.tagName === "HTML" && overflow === "visible";
+};
+var getScrollAtLocation = (location, axis, stopAt) => {
+  const directionFactor = axis === "x" && window.getComputedStyle(location).direction === "rtl" ? -1 : 1;
+  let currentElement = location;
+  let availableScroll = 0;
+  let availableScrollTop = 0;
+  let wrapperReached = false;
+  do {
+    const [clientSize, scrollOffset, scrollSize] = getScrollDimensions(currentElement, axis);
+    const scrolled = scrollSize - clientSize - directionFactor * scrollOffset;
+    if ((scrollOffset !== 0 || scrolled !== 0) && isScrollContainer(currentElement, axis)) {
+      availableScroll += scrolled;
+      availableScrollTop += scrollOffset;
+    }
+    if (currentElement === (stopAt ?? document.documentElement)) {
+      wrapperReached = true;
+    } else {
+      currentElement = currentElement._$host ?? currentElement.parentElement;
+    }
+  } while (currentElement && !wrapperReached);
+  return [availableScroll, availableScrollTop];
+};
+var [preventScrollStack, setPreventScrollStack] = createSignal([]);
+var isActive = (id) => preventScrollStack().indexOf(id) === preventScrollStack().length - 1;
+var createPreventScroll = (props) => {
+  const defaultedProps = mergeProps({
+    element: null,
+    enabled: true,
+    hideScrollbar: true,
+    preventScrollbarShift: true,
+    preventScrollbarShiftMode: "padding",
+    restoreScrollPosition: true,
+    allowPinchZoom: false
+  }, props);
+  const preventScrollId = createUniqueId();
+  let currentTouchStart = [0, 0];
+  let currentTouchStartAxis = null;
+  let currentTouchStartDelta = null;
+  createEffect(() => {
+    if (!access$1(defaultedProps.enabled)) return;
+    setPreventScrollStack((stack) => [...stack, preventScrollId]);
+    onCleanup(() => {
+      setPreventScrollStack((stack) => stack.filter((id) => id !== preventScrollId));
+    });
+  });
+  createEffect(() => {
+    if (!access$1(defaultedProps.enabled) || !access$1(defaultedProps.hideScrollbar)) return;
+    const {
+      body
+    } = document;
+    const scrollbarWidth = window.innerWidth - body.offsetWidth;
+    if (access$1(defaultedProps.preventScrollbarShift)) {
+      const style = {
+        overflow: "hidden"
+      };
+      const properties = [];
+      if (scrollbarWidth > 0) {
+        if (access$1(defaultedProps.preventScrollbarShiftMode) === "padding") {
+          style.paddingRight = `calc(${window.getComputedStyle(body).paddingRight} + ${scrollbarWidth}px)`;
+        } else {
+          style.marginRight = `calc(${window.getComputedStyle(body).marginRight} + ${scrollbarWidth}px)`;
+        }
+        properties.push({
+          key: "--scrollbar-width",
+          value: `${scrollbarWidth}px`
+        });
+      }
+      const offsetTop = window.scrollY;
+      const offsetLeft = window.scrollX;
+      style_default({
+        key: "prevent-scroll",
+        element: body,
+        style,
+        properties,
+        cleanup: () => {
+          if (access$1(defaultedProps.restoreScrollPosition) && scrollbarWidth > 0) {
+            window.scrollTo(offsetLeft, offsetTop);
+          }
+        }
+      });
+    } else {
+      style_default({
+        key: "prevent-scroll",
+        element: body,
+        style: {
+          overflow: "hidden"
+        }
+      });
+    }
+  });
+  createEffect(() => {
+    if (!isActive(preventScrollId) || !access$1(defaultedProps.enabled)) return;
+    document.addEventListener("wheel", maybePreventWheel, {
+      passive: false
+    });
+    document.addEventListener("touchstart", logTouchStart, {
+      passive: false
+    });
+    document.addEventListener("touchmove", maybePreventTouch, {
+      passive: false
+    });
+    onCleanup(() => {
+      document.removeEventListener("wheel", maybePreventWheel);
+      document.removeEventListener("touchstart", logTouchStart);
+      document.removeEventListener("touchmove", maybePreventTouch);
+    });
+  });
+  const logTouchStart = (event) => {
+    currentTouchStart = getTouchXY(event);
+    currentTouchStartAxis = null;
+    currentTouchStartDelta = null;
+  };
+  const maybePreventWheel = (event) => {
+    const target = event.target;
+    const wrapper = access$1(defaultedProps.element);
+    const delta = getDeltaXY(event);
+    const axis = Math.abs(delta[0]) > Math.abs(delta[1]) ? "x" : "y";
+    const axisDelta = axis === "x" ? delta[0] : delta[1];
+    const resultsInScroll = wouldScroll(target, axis, axisDelta, wrapper);
+    let shouldCancel;
+    if (wrapper && contains(wrapper, target)) {
+      shouldCancel = !resultsInScroll;
+    } else {
+      shouldCancel = true;
+    }
+    if (shouldCancel && event.cancelable) {
+      event.preventDefault();
+    }
+  };
+  const maybePreventTouch = (event) => {
+    const wrapper = access$1(defaultedProps.element);
+    const target = event.target;
+    let shouldCancel;
+    if (event.touches.length === 2) {
+      shouldCancel = !access$1(defaultedProps.allowPinchZoom);
+    } else {
+      if (currentTouchStartAxis == null || currentTouchStartDelta === null) {
+        const delta = getTouchXY(event).map((touch, i) => currentTouchStart[i] - touch);
+        const axis = Math.abs(delta[0]) > Math.abs(delta[1]) ? "x" : "y";
+        currentTouchStartAxis = axis;
+        currentTouchStartDelta = axis === "x" ? delta[0] : delta[1];
+      }
+      if (target.type === "range") {
+        shouldCancel = false;
+      } else {
+        const wouldResultInScroll = wouldScroll(target, currentTouchStartAxis, currentTouchStartDelta, wrapper);
+        if (wrapper && contains(wrapper, target)) {
+          shouldCancel = !wouldResultInScroll;
+        } else {
+          shouldCancel = true;
+        }
+      }
+    }
+    if (shouldCancel && event.cancelable) {
+      event.preventDefault();
+    }
+  };
+};
+var getDeltaXY = (event) => [event.deltaX, event.deltaY];
+var getTouchXY = (event) => event.changedTouches[0] ? [event.changedTouches[0].clientX, event.changedTouches[0].clientY] : [0, 0];
+var wouldScroll = (target, axis, delta, wrapper) => {
+  const targetInWrapper = wrapper !== null && contains(wrapper, target);
+  const [availableScroll, availableScrollTop] = getScrollAtLocation(target, axis, targetInWrapper ? wrapper : void 0);
+  if (delta > 0 && Math.abs(availableScroll) <= 1) {
+    return false;
+  }
+  if (delta < 0 && Math.abs(availableScrollTop) < 1) {
+    return false;
+  }
+  return true;
+};
+var preventScroll_default = createPreventScroll;
+var src_default = preventScroll_default;
+var dialog_exports = {};
+__export(dialog_exports, {
+  CloseButton: () => DialogCloseButton,
+  Content: () => DialogContent,
+  Description: () => DialogDescription,
+  Dialog: () => Dialog,
+  Overlay: () => DialogOverlay,
+  Portal: () => DialogPortal,
+  Root: () => DialogRoot,
+  Title: () => DialogTitle,
+  Trigger: () => DialogTrigger,
+  useDialogContext: () => useDialogContext
+});
+var DialogContext = createContext();
+function useDialogContext() {
+  const context = useContext(DialogContext);
+  if (context === void 0) {
+    throw new Error("[kobalte]: `useDialogContext` must be used within a `Dialog` component");
+  }
+  return context;
+}
+function DialogCloseButton(props) {
+  const context = useDialogContext();
+  const [local, others] = splitProps(props, ["aria-label", "onClick"]);
+  const onClick = (e) => {
+    callHandler(e, local.onClick);
+    context.close();
+  };
+  return createComponent(ButtonRoot, mergeProps({
+    get ["aria-label"]() {
+      return local["aria-label"] || context.translations().dismiss;
+    },
+    onClick
+  }, others));
+}
+function DialogContent(props) {
+  let ref;
+  const context = useDialogContext();
+  const mergedProps = mergeDefaultProps({
+    id: context.generateId("content")
+  }, props);
+  const [local, others] = splitProps(mergedProps, ["ref", "onOpenAutoFocus", "onCloseAutoFocus", "onPointerDownOutside", "onFocusOutside", "onInteractOutside"]);
+  let hasInteractedOutside = false;
+  let hasPointerDownOutside = false;
+  const onPointerDownOutside = (e) => {
+    local.onPointerDownOutside?.(e);
+    if (context.modal() && e.detail.isContextMenu) {
+      e.preventDefault();
+    }
+  };
+  const onFocusOutside = (e) => {
+    local.onFocusOutside?.(e);
+    if (context.modal()) {
+      e.preventDefault();
+    }
+  };
+  const onInteractOutside = (e) => {
+    local.onInteractOutside?.(e);
+    if (context.modal()) {
+      return;
+    }
+    if (!e.defaultPrevented) {
+      hasInteractedOutside = true;
+      if (e.detail.originalEvent.type === "pointerdown") {
+        hasPointerDownOutside = true;
+      }
+    }
+    if (contains$1(context.triggerRef(), e.target)) {
+      e.preventDefault();
+    }
+    if (e.detail.originalEvent.type === "focusin" && hasPointerDownOutside) {
+      e.preventDefault();
+    }
+  };
+  const onCloseAutoFocus = (e) => {
+    local.onCloseAutoFocus?.(e);
+    if (context.modal()) {
+      e.preventDefault();
+      focusWithoutScrolling(context.triggerRef());
+    } else {
+      if (!e.defaultPrevented) {
+        if (!hasInteractedOutside) {
+          focusWithoutScrolling(context.triggerRef());
+        }
+        e.preventDefault();
+      }
+      hasInteractedOutside = false;
+      hasPointerDownOutside = false;
+    }
+  };
+  createHideOutside({
+    isDisabled: () => !(context.isOpen() && context.modal()),
+    targets: () => ref ? [ref] : []
+  });
+  src_default({
+    element: () => ref ?? null,
+    enabled: () => context.contentPresent() && context.preventScroll()
+  });
+  createFocusScope({
+    trapFocus: () => context.isOpen() && context.modal(),
+    onMountAutoFocus: local.onOpenAutoFocus,
+    onUnmountAutoFocus: onCloseAutoFocus
+  }, () => ref);
+  createEffect(() => onCleanup(context.registerContentId(others.id)));
+  return createComponent(Show, {
+    get when() {
+      return context.contentPresent();
+    },
+    get children() {
+      return createComponent(DismissableLayer, mergeProps({
+        ref(r$) {
+          var _ref$ = mergeRefs((el) => {
+            context.setContentRef(el);
+            ref = el;
+          }, local.ref);
+          typeof _ref$ === "function" && _ref$(r$);
+        },
+        role: "dialog",
+        tabIndex: -1,
+        get disableOutsidePointerEvents() {
+          return memo(() => !!context.modal())() && context.isOpen();
+        },
+        get excludedElements() {
+          return [context.triggerRef];
+        },
+        get ["aria-labelledby"]() {
+          return context.titleId();
+        },
+        get ["aria-describedby"]() {
+          return context.descriptionId();
+        },
+        get ["data-expanded"]() {
+          return context.isOpen() ? "" : void 0;
+        },
+        get ["data-closed"]() {
+          return !context.isOpen() ? "" : void 0;
+        },
+        onPointerDownOutside,
+        onFocusOutside,
+        onInteractOutside,
+        get onDismiss() {
+          return context.close;
+        }
+      }, others));
+    }
+  });
+}
+function DialogDescription(props) {
+  const context = useDialogContext();
+  const mergedProps = mergeDefaultProps({
+    id: context.generateId("description")
+  }, props);
+  const [local, others] = splitProps(mergedProps, ["id"]);
+  createEffect(() => onCleanup(context.registerDescriptionId(local.id)));
+  return createComponent(Polymorphic, mergeProps({
+    as: "p",
+    get id() {
+      return local.id;
+    }
+  }, others));
+}
+function DialogOverlay(props) {
+  const context = useDialogContext();
+  const [local, others] = splitProps(props, ["ref", "style", "onPointerDown"]);
+  const onPointerDown = (e) => {
+    callHandler(e, local.onPointerDown);
+    if (e.target === e.currentTarget) {
+      e.preventDefault();
+    }
+  };
+  return createComponent(Show, {
+    get when() {
+      return context.overlayPresent();
+    },
+    get children() {
+      return createComponent(Polymorphic, mergeProps({
+        as: "div",
+        ref(r$) {
+          var _ref$2 = mergeRefs(context.setOverlayRef, local.ref);
+          typeof _ref$2 === "function" && _ref$2(r$);
+        },
+        get style() {
+          return combineStyle({
+            "pointer-events": "auto"
+          }, local.style);
+        },
+        get ["data-expanded"]() {
+          return context.isOpen() ? "" : void 0;
+        },
+        get ["data-closed"]() {
+          return !context.isOpen() ? "" : void 0;
+        },
+        onPointerDown
+      }, others));
+    }
+  });
+}
+function DialogPortal(props) {
+  const context = useDialogContext();
+  return createComponent(Show, {
+    get when() {
+      return context.contentPresent() || context.overlayPresent();
+    },
+    get children() {
+      return createComponent(Portal, props);
+    }
+  });
+}
+var DIALOG_INTL_TRANSLATIONS = {
+  // `aria-label` of Dialog.CloseButton.
+  dismiss: "Dismiss"
+};
+function DialogRoot(props) {
+  const defaultId = `dialog-${createUniqueId()}`;
+  const mergedProps = mergeDefaultProps({
+    id: defaultId,
+    modal: true,
+    translations: DIALOG_INTL_TRANSLATIONS
+  }, props);
+  const [contentId, setContentId] = createSignal();
+  const [titleId, setTitleId] = createSignal();
+  const [descriptionId, setDescriptionId] = createSignal();
+  const [overlayRef, setOverlayRef] = createSignal();
+  const [contentRef, setContentRef] = createSignal();
+  const [triggerRef, setTriggerRef] = createSignal();
+  const disclosureState = createDisclosureState({
+    open: () => mergedProps.open,
+    defaultOpen: () => mergedProps.defaultOpen,
+    onOpenChange: (isOpen) => mergedProps.onOpenChange?.(isOpen)
+  });
+  const shouldMount = () => mergedProps.forceMount || disclosureState.isOpen();
+  const {
+    present: overlayPresent
+  } = src_default$1({
+    show: shouldMount,
+    element: () => overlayRef() ?? null
+  });
+  const {
+    present: contentPresent
+  } = src_default$1({
+    show: shouldMount,
+    element: () => contentRef() ?? null
+  });
+  const context = {
+    translations: () => mergedProps.translations ?? DIALOG_INTL_TRANSLATIONS,
+    isOpen: disclosureState.isOpen,
+    modal: () => mergedProps.modal ?? true,
+    preventScroll: () => mergedProps.preventScroll ?? context.modal(),
+    contentId,
+    titleId,
+    descriptionId,
+    triggerRef,
+    overlayRef,
+    setOverlayRef,
+    contentRef,
+    setContentRef,
+    overlayPresent,
+    contentPresent,
+    close: disclosureState.close,
+    toggle: disclosureState.toggle,
+    setTriggerRef,
+    generateId: createGenerateId(() => mergedProps.id),
+    registerContentId: createRegisterId(setContentId),
+    registerTitleId: createRegisterId(setTitleId),
+    registerDescriptionId: createRegisterId(setDescriptionId)
+  };
+  return createComponent(DialogContext.Provider, {
+    value: context,
+    get children() {
+      return mergedProps.children;
+    }
+  });
+}
+function DialogTitle(props) {
+  const context = useDialogContext();
+  const mergedProps = mergeDefaultProps({
+    id: context.generateId("title")
+  }, props);
+  const [local, others] = splitProps(mergedProps, ["id"]);
+  createEffect(() => onCleanup(context.registerTitleId(local.id)));
+  return createComponent(Polymorphic, mergeProps({
+    as: "h2",
+    get id() {
+      return local.id;
+    }
+  }, others));
+}
+function DialogTrigger(props) {
+  const context = useDialogContext();
+  const [local, others] = splitProps(props, ["ref", "onClick"]);
+  const onClick = (e) => {
+    callHandler(e, local.onClick);
+    context.toggle();
+  };
+  return createComponent(ButtonRoot, mergeProps({
+    ref(r$) {
+      var _ref$3 = mergeRefs(context.setTriggerRef, local.ref);
+      typeof _ref$3 === "function" && _ref$3(r$);
+    },
+    "aria-haspopup": "dialog",
+    get ["aria-expanded"]() {
+      return context.isOpen();
+    },
+    get ["aria-controls"]() {
+      return memo(() => !!context.isOpen())() ? context.contentId() : void 0;
+    },
+    get ["data-expanded"]() {
+      return context.isOpen() ? "" : void 0;
+    },
+    get ["data-closed"]() {
+      return !context.isOpen() ? "" : void 0;
+    },
+    onClick
+  }, others));
+}
+var Dialog = Object.assign(DialogRoot, {
+  CloseButton: DialogCloseButton,
+  Content: DialogContent,
+  Description: DialogDescription,
+  Overlay: DialogOverlay,
+  Portal: DialogPortal,
+  Title: DialogTitle,
+  Trigger: DialogTrigger
+});
+function Modal(props) {
+  return createComponent(Show, {
+    get when() {
+      return props.open;
+    },
+    get children() {
+      return createComponent(Dialog, {
+        modal: true,
+        get open() {
+          return props.open;
+        },
+        preventScroll: false,
+        onOpenChange: (open) => {
+          if (!open) props.onClose();
+        },
+        get children() {
+          return createComponent(Dialog.Portal, {
+            get children() {
+              return createComponent(Dialog.Overlay, {
+                "data-component": "modal",
+                "data-slot": "overlay",
+                get onClick() {
+                  return props.onClose;
+                },
+                get children() {
+                  return createComponent(Dialog.Content, {
+                    "data-slot": "content",
+                    get ["data-variant"]() {
+                      return props.variant;
+                    },
+                    onClick: (e) => e.stopPropagation(),
+                    onOpenAutoFocus: (e) => {
+                      e.preventDefault();
+                      const target = e.currentTarget;
+                      target?.focus({
+                        preventScroll: true
+                      });
+                    },
+                    get children() {
+                      return [createComponent(Show, {
+                        get when() {
+                          return props.title;
+                        },
+                        get children() {
+                          return createComponent(Dialog.Title, {
+                            "data-slot": "title",
+                            get children() {
+                              return props.title;
+                            }
+                          });
+                        }
+                      }), memo(() => props.children)];
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+  });
+}
+var _tmpl$$2 = /* @__PURE__ */ template(`<button data-slot=create-item type=button>`), _tmpl$2$1 = /* @__PURE__ */ template(`<div data-component=workspace-create-modal><form data-slot=create-form method=post><div data-slot=create-input-group><input data-slot=create-input type=text name=workspaceName required><div data-slot=button-group><button type=button data-color=ghost></button><button type=submit data-color=primary>`), _tmpl$3 = /* @__PURE__ */ template(`<div data-component=workspace-picker><!$><!/><!$><!/>`);
+const getWorkspaces_query = createServerReference("def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f");
+const getWorkspaces = query(getWorkspaces_query, "workspaces");
+const createWorkspace_action = createServerReference("bc1df2ec882864eb2a672ad900037c23194a72c615a43312585bbc718128a655");
+const createWorkspace = action(createWorkspace_action, "createWorkspace");
+function WorkspacePicker() {
+  const params = useParams();
+  const i18n = useI18n();
+  const workspaces = createAsync(() => getWorkspaces());
+  const submission = useSubmission(createWorkspace);
+  const [showForm, setShowForm] = createSignal(false);
+  let inputRef;
+  const currentWorkspace = () => {
+    const ws = workspaces()?.find((w) => w.id === params.id);
+    return ws ? ws.name : i18n.t("workspace.select");
+  };
+  createEffect(() => {
+    if (showForm() && inputRef) {
+      setTimeout(() => inputRef?.focus(), 0);
+    }
+  });
+  const handleSelectWorkspace = (workspaceID) => {
+    if (workspaceID === params.id) return;
+    window.location.href = `/workspace/${workspaceID}`;
+  };
+  createEffect(() => {
+    params.id;
+    setShowForm(false);
+  });
+  return (() => {
+    var _el$ = getNextElement(_tmpl$3), _el$0 = _el$.firstChild, [_el$1, _co$] = getNextMarker(_el$0.nextSibling), _el$10 = _el$1.nextSibling, [_el$11, _co$2] = getNextMarker(_el$10.nextSibling);
+    insert(_el$, createComponent(Dropdown, {
+      get trigger() {
+        return currentWorkspace();
+      },
+      align: "left",
+      get children() {
+        return [createComponent(For, {
+          get each() {
+            return workspaces();
+          },
+          children: (workspace) => createComponent(DropdownItem, {
+            get selected() {
+              return workspace.id === params.id;
+            },
+            onClick: () => handleSelectWorkspace(workspace.id),
+            get children() {
+              return workspace.name || workspace.slug;
+            }
+          })
+        }), (() => {
+          var _el$2 = getNextElement(_tmpl$$2);
+          _el$2.$$click = () => setShowForm(true);
+          insert(_el$2, () => i18n.t("workspace.createNew"));
+          runHydrationEvents();
+          return _el$2;
+        })()];
+      }
+    }), _el$1, _co$);
+    insert(_el$, createComponent(Modal, {
+      get open() {
+        return showForm();
+      },
+      onClose: () => setShowForm(false),
+      get title() {
+        return i18n.t("workspace.modal.title");
+      },
+      get children() {
+        var _el$3 = getNextElement(_tmpl$2$1), _el$4 = _el$3.firstChild, _el$5 = _el$4.firstChild, _el$6 = _el$5.firstChild, _el$7 = _el$6.nextSibling, _el$8 = _el$7.firstChild, _el$9 = _el$8.nextSibling;
+        setAttribute(_el$4, "action", createWorkspace);
+        var _ref$ = inputRef;
+        typeof _ref$ === "function" ? use(_ref$, _el$6) : inputRef = _el$6;
+        _el$8.$$click = () => setShowForm(false);
+        insert(_el$8, () => i18n.t("common.cancel"));
+        insert(_el$9, (() => {
+          var _c$ = memo(() => !!submission.pending);
+          return () => _c$() ? i18n.t("common.creating") : i18n.t("common.create");
+        })());
+        createRenderEffect((_p$) => {
+          var _v$ = i18n.t("workspace.modal.placeholder"), _v$2 = submission.pending;
+          _v$ !== _p$.e && setAttribute(_el$6, "placeholder", _p$.e = _v$);
+          _v$2 !== _p$.t && setProperty(_el$9, "disabled", _p$.t = _v$2);
+          return _p$;
+        }, {
+          e: void 0,
+          t: void 0
+        });
+        runHydrationEvents();
+        return _el$3;
+      }
+    }), _el$11, _co$2);
+    return _el$;
+  })();
+}
+delegateEvents(["click"]);
+var _tmpl$$1 = /* @__PURE__ */ template(`<a data-slot=item>`), _tmpl$2 = /* @__PURE__ */ template(`<div data-component=user-menu>`);
+const _logout_action = createServerReference("2a0c76f9130c2621f6a066118c8820240ee6475cf2b01a61df3082c34290e836");
+action(_logout_action, "auth.logout");
+function UserMenu(props) {
+  const i18n = useI18n();
+  const language = useLanguage();
+  return (() => {
+    var _el$ = getNextElement(_tmpl$2);
+    insert(_el$, createComponent(Dropdown, {
+      get trigger() {
+        return props.email ?? "";
+      },
+      align: "right",
+      get children() {
+        var _el$2 = getNextElement(_tmpl$$1);
+        insert(_el$2, () => i18n.t("user.logout"));
+        createRenderEffect(() => setAttribute(_el$2, "href", language.route("/auth/logout")));
+        return _el$2;
+      }
+    }));
+    return _el$;
+  })();
+}
+var _tmpl$ = /* @__PURE__ */ template(`<main data-page=workspace><header data-component=workspace-header><div data-slot=header-brand><!$><!/><!$><!/></div><div data-slot=header-actions></div></header><div>`);
+const getUserEmail_query = createServerReference("44e81edfbd76665bfe0657aa7f751d7e73ab8d4a1b00f5b9909ba57ece0cf874");
+const getUserEmail = query(getUserEmail_query, "userEmail");
+function WorkspaceLayout(props) {
+  const params = useParams();
+  const language = useLanguage();
+  const userEmail = createAsync(() => getUserEmail(params.id));
+  return (() => {
+    var _el$ = getNextElement(_tmpl$), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, [_el$5, _co$] = getNextMarker(_el$4.nextSibling), _el$6 = _el$5.nextSibling, [_el$7, _co$2] = getNextMarker(_el$6.nextSibling), _el$8 = _el$3.nextSibling, _el$9 = _el$2.nextSibling;
+    insert(_el$3, createComponent(A, {
+      get href() {
+        return language.route("/");
+      },
+      "data-component": "site-title",
+      get children() {
+        return createComponent(IconWorkspaceLogo, {});
+      }
+    }), _el$5, _co$);
+    insert(_el$3, createComponent(WorkspacePicker, {}), _el$7, _co$2);
+    insert(_el$8, createComponent(UserMenu, {
+      get email() {
+        return userEmail();
+      }
+    }));
+    insert(_el$9, () => props.children);
+    return _el$;
+  })();
+}
+export {
+  WorkspaceLayout as default
+};
+=== _id_-hP8srI5h.js ===
+import { R as getNextElement, T as getNextMarker, W as insert, i as createComponent, ae as template, S as Show } from "./tr-Db0JsSoN.js";
+import { d as querySessionInfo } from "./common-D8m7xPMq.js";
+import { u as useI18n } from "./i18n-Db1bPv1f.js";
+import { L as Legal } from "./legal-tQ_Q-taf.js";
+import { p as useParams } from "./query-jHzU-9wN.js";
+import { c as createAsync } from "./createAsync-BG7wWROu.js";
+import { A } from "./components-BixuhwHs.js";
+import "./server-runtime-Cf0dfMOw.js";
+import "./action-SL_f8Aao.js";
+import "./language-picker-K0YC8DVX.js";
+import "./dropdown-3_BHFPyV.js";
+import "./icon-D_BIe0X5.js";
+var _tmpl$ = /* @__PURE__ */ template(`<main data-page=workspace><div data-component=workspace-container><nav data-component=workspace-nav><nav data-component=nav-desktop><div data-component=workspace-nav-items><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/></div></nav><nav data-component=nav-mobile><div data-component=workspace-nav-items><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/><!$><!/></div></nav></nav><div data-component=workspace-content><div data-component=workspace-main></div><!$><!/>`);
+function WorkspaceLayout(props) {
+  const params = useParams();
+  const i18n = useI18n();
+  const userInfo = createAsync(() => querySessionInfo(params.id));
+  return (() => {
+    var _el$ = getNextElement(_tmpl$), _el$2 = _el$.firstChild, _el$3 = _el$2.firstChild, _el$4 = _el$3.firstChild, _el$5 = _el$4.firstChild, _el$6 = _el$5.firstChild, [_el$7, _co$] = getNextMarker(_el$6.nextSibling), _el$8 = _el$7.nextSibling, [_el$9, _co$2] = getNextMarker(_el$8.nextSibling), _el$0 = _el$9.nextSibling, [_el$1, _co$3] = getNextMarker(_el$0.nextSibling), _el$10 = _el$1.nextSibling, [_el$11, _co$4] = getNextMarker(_el$10.nextSibling), _el$12 = _el$11.nextSibling, [_el$13, _co$5] = getNextMarker(_el$12.nextSibling), _el$14 = _el$13.nextSibling, [_el$15, _co$6] = getNextMarker(_el$14.nextSibling), _el$16 = _el$4.nextSibling, _el$17 = _el$16.firstChild, _el$18 = _el$17.firstChild, [_el$19, _co$7] = getNextMarker(_el$18.nextSibling), _el$20 = _el$19.nextSibling, [_el$21, _co$8] = getNextMarker(_el$20.nextSibling), _el$22 = _el$21.nextSibling, [_el$23, _co$9] = getNextMarker(_el$22.nextSibling), _el$24 = _el$23.nextSibling, [_el$25, _co$0] = getNextMarker(_el$24.nextSibling), _el$26 = _el$25.nextSibling, [_el$27, _co$1] = getNextMarker(_el$26.nextSibling), _el$28 = _el$27.nextSibling, [_el$29, _co$10] = getNextMarker(_el$28.nextSibling), _el$30 = _el$3.nextSibling, _el$31 = _el$30.firstChild, _el$32 = _el$31.nextSibling, [_el$33, _co$11] = getNextMarker(_el$32.nextSibling);
+    insert(_el$5, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}`;
+      },
+      end: true,
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.zen");
+      }
+    }), _el$7, _co$);
+    insert(_el$5, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/go`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.go");
+      }
+    }), _el$9, _co$2);
+    insert(_el$5, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/usage`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.usage");
+      }
+    }), _el$1, _co$3);
+    insert(_el$5, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/keys`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.apiKeys");
+      }
+    }), _el$11, _co$4);
+    insert(_el$5, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/members`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.members");
+      }
+    }), _el$13, _co$5);
+    insert(_el$5, createComponent(Show, {
+      get when() {
+        return userInfo()?.isAdmin;
+      },
+      get children() {
+        return [createComponent(A, {
+          get href() {
+            return `/workspace/${params.id}/billing`;
+          },
+          activeClass: "active",
+          "data-nav-button": true,
+          get children() {
+            return i18n.t("workspace.nav.billing");
+          }
+        }), createComponent(A, {
+          get href() {
+            return `/workspace/${params.id}/settings`;
+          },
+          activeClass: "active",
+          "data-nav-button": true,
+          get children() {
+            return i18n.t("workspace.nav.settings");
+          }
+        })];
+      }
+    }), _el$15, _co$6);
+    insert(_el$17, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}`;
+      },
+      end: true,
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.zen");
+      }
+    }), _el$19, _co$7);
+    insert(_el$17, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/go`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.go");
+      }
+    }), _el$21, _co$8);
+    insert(_el$17, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/usage`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.usage");
+      }
+    }), _el$23, _co$9);
+    insert(_el$17, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/keys`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.apiKeys");
+      }
+    }), _el$25, _co$0);
+    insert(_el$17, createComponent(A, {
+      get href() {
+        return `/workspace/${params.id}/members`;
+      },
+      activeClass: "active",
+      "data-nav-button": true,
+      get children() {
+        return i18n.t("workspace.nav.members");
+      }
+    }), _el$27, _co$1);
+    insert(_el$17, createComponent(Show, {
+      get when() {
+        return userInfo()?.isAdmin;
+      },
+      get children() {
+        return [createComponent(A, {
+          get href() {
+            return `/workspace/${params.id}/billing`;
+          },
+          activeClass: "active",
+          "data-nav-button": true,
+          get children() {
+            return i18n.t("workspace.nav.billing");
+          }
+        }), createComponent(A, {
+          get href() {
+            return `/workspace/${params.id}/settings`;
+          },
+          activeClass: "active",
+          "data-nav-button": true,
+          get children() {
+            return i18n.t("workspace.nav.settings");
+          }
+        })];
+      }
+    }), _el$29, _co$10);
+    insert(_el$31, () => props.children);
+    insert(_el$30, createComponent(Legal, {}), _el$33, _co$11);
+    return _el$;
+  })();
+}
+export {
+  WorkspaceLayout as default
+};

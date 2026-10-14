@@ -1,0 +1,15 @@
+internal/web/quota_card_adapter_test.go:4:// (OpenCode Go, Ollama, Kimi).
+internal/web/quota_card_adapter_test.go:13:// TestOpenCodeGoLapsedSubscriptionRendersNotice (quota-exhausted regression,
+internal/web/quota_card_adapter_test.go:14:// OBSERVED 2026-08-19) proves a lapsed OpenCode subscription (quota RPC
+internal/web/quota_card_adapter_test.go:18:func TestOpenCodeGoLapsedSubscriptionRendersNotice(t *testing.T) {
+internal/web/quota_card_adapter_test.go:49:// TestOpenCodeGoCardStructure proves the OpenCode Go card uses the shared
+internal/web/quota_card_adapter_test.go:51:func TestOpenCodeGoCardStructure(t *testing.T) {
+internal/web/quota_card_adapter_test.go:70:		t.Error("OpenCode card must have data-prov=opencode")
+internal/web/quota_card_adapter_test.go:72:	if !strings.Contains(result, "OpenCode Go") {
+internal/web/quota_card_adapter_test.go:73:		t.Error("OpenCode card must display provider label")
+internal/web/quota_card_adapter_test.go:81:		t.Errorf("OpenCode rows must be in order Rolling, Weekly, Monthly; got indices %d, %d, %d", iRolling, iWeekly, iMonthly)
+internal/web/quota_card_adapter_test.go:86:		t.Error("OpenCode Rolling must display 45.5%")
+internal/web/quota_card_adapter_test.go:89:		t.Error("OpenCode Weekly must display 72%")
+internal/web/quota_card_adapter_test.go:92:		t.Error("OpenCode Monthly must display 15%")
+internal/web/quota_card_dialog_test.go:65:		{"opencode", "OpenCode Go"},
+internal/web/quota_card_structure_test.go:352:// TestAllowanceProvidersShareDesignTokens proves OpenCode Go, Ollama, and

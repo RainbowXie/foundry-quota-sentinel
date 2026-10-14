@@ -1,0 +1,16 @@
+M  internal/web/static/help.html
+M  pkg/sdk/README.md
+M  pkg/sdk/auth/opencode.go
+M  pkg/sdk/auth/opencode_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+ internal/web/static/help.html |   8 +--
+ pkg/sdk/README.md             |   2 +-
+ pkg/sdk/auth/opencode.go      |  68 ++++++++++++++++--------
+ pkg/sdk/auth/opencode_test.go | 117 +++++++++++++++++++++++++++++++++++++++++-
+ 4 files changed, 166 insertions(+), 29 deletions(-)

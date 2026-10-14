@@ -1,0 +1,24 @@
+diff pkg/sdk/providers/opencode/parser_test.go.orig pkg/sdk/providers/opencode/parser_test.go
+--- pkg/sdk/providers/opencode/parser_test.go.orig
++++ pkg/sdk/providers/opencode/parser_test.go
+@@ -5,13 +5,13 @@
+ )
+ 
+ const (
+-	canonicalBody = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[3]={status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	referenceDriftBody = `{region:$R[1]=["us"],rollingUsage:$R[7]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[8]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[9]={status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	inlineBody = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	reorderedFieldsBody = `{rollingUsage:{usagePercent:42,status:"ok",resetInSec:300},weeklyUsage:{usagePercent:80,resetInSec:604800,status:"ok"},monthlyUsage:{status:"ok",usagePercent:55,resetInSec:2592000}}`
+-	whitespaceBody = `{rollingUsage: $R[1] = { status: "ok", resetInSec: 300, usagePercent: 42 },weeklyUsage:{status:"ok", resetInSec:604800, usagePercent:80},monthlyUsage:{ status:"ok",resetInSec:2592000,usagePercent:55 }}`
+-	additionalPropsBody = `{rollingUsage:{foo:1,status:"ok",bar:"x",resetInSec:300,baz:true,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80,extra:0},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
+-	monthlyAbsentBody = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80}}`
++	canonicalBody        = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[3]={status:"ok",resetInSec:2592000,usagePercent:55}}`
++	referenceDriftBody   = `{region:$R[1]=["us"],rollingUsage:$R[7]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[8]={status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:$R[9]={status:"ok",resetInSec:2592000,usagePercent:55}}`
++	inlineBody           = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
++	reorderedFieldsBody  = `{rollingUsage:{usagePercent:42,status:"ok",resetInSec:300},weeklyUsage:{usagePercent:80,resetInSec:604800,status:"ok"},monthlyUsage:{status:"ok",usagePercent:55,resetInSec:2592000}}`
++	whitespaceBody       = `{rollingUsage: $R[1] = { status: "ok", resetInSec: 300, usagePercent: 42 },weeklyUsage:{status:"ok", resetInSec:604800, usagePercent:80},monthlyUsage:{ status:"ok",resetInSec:2592000,usagePercent:55 }}`
++	additionalPropsBody  = `{rollingUsage:{foo:1,status:"ok",bar:"x",resetInSec:300,baz:true,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80,extra:0},monthlyUsage:{status:"ok",resetInSec:2592000,usagePercent:55}}`
++	monthlyAbsentBody    = `{rollingUsage:$R[1]={status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:$R[2]={status:"ok",resetInSec:604800,usagePercent:80}}`
+ 	monthlyUnlimitedBody = `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:42},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80},monthlyUsage:{status:"unlimited",resetInSec:0,usagePercent:0}}`
+ )
+ 

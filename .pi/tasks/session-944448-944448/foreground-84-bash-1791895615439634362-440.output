@@ -1,0 +1,34 @@
+pkg/sdk/providers/deepseek/web_querier.go:18:	Client *http.Client
+pkg/sdk/providers/deepseek/web_querier.go:45:		client = &http.Client{Timeout: 15 * time.Second}
+pkg/sdk/providers/deepseek/api_querier.go:17:	Client *http.Client
+pkg/sdk/providers/deepseek/api_querier.go:42:		client = &http.Client{Timeout: 15 * time.Second}
+pkg/sdk/providers/commandcode/client.go:21:	Client   *http.Client
+pkg/sdk/providers/commandcode/client.go:40:		client = &http.Client{Timeout: commandCodeRequestTimeout}
+pkg/sdk/providers/commandcode/client.go:60:func (q *CommandCodeQuerier) getJSON(client *http.Client, path string) (string, error) {
+pkg/sdk/providers/kimi/client.go:29:func kimiHTTPClient(transport http.RoundTripper) *http.Client {
+pkg/sdk/providers/kimi/client.go:30:	return &http.Client{
+pkg/sdk/providers/kimi/client.go:37:func kimiEnforceNoRedirect(c *http.Client) *http.Client {
+pkg/sdk/providers/kimi/client.go:64:	Client       *http.Client
+pkg/sdk/providers/kimi/client_test.go:54:	q.Client = &http.Client{Transport: transport}
+pkg/sdk/providers/kimi/client_test.go:244:		Client:      &http.Client{Transport: rt},
+pkg/sdk/providers/kimi/client_test.go:265:		Client:       &http.Client{Transport: rt},
+pkg/sdk/providers/opencode/client.go:35:	// Client 允许注入自定义 http.Client（测试或特殊代理场景），为 nil 时采用默认超时客户端。
+pkg/sdk/providers/opencode/client.go:36:	Client *http.Client
+pkg/sdk/providers/opencode/client.go:64:func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
+pkg/sdk/providers/opencode/client.go:94:func openCodeConsoleGET(cookie, orgID, path string, client *http.Client) ([]byte, error) {
+pkg/sdk/providers/opencode/client.go:105:		client = &http.Client{Timeout: openCodeGoRequestTimeout}
+pkg/sdk/providers/opencode/client_test.go:55:	q.Client = &http.Client{Transport: tr}
+pkg/sdk/providers/opencode/client_test.go:61:	q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: "org_01JXYZ", Client: &http.Client{Transport: tr}}
+pkg/sdk/providers/opencode/client_test.go:95:	q.Client = &http.Client{Transport: &roundTripBody{body: body}}
+pkg/sdk/providers/opencode/client_test.go:117:	q.Client = &http.Client{Transport: tr}
+pkg/sdk/providers/opencode/client_test.go:190:			q := &OpenCodeQuerier{Cookie: "console_session=synthetic-test-cookie", WorkspaceID: tt.id, Client: &http.Client{Transport: tr}}
+pkg/sdk/providers/opencode/client_test.go:229:	got, err := FetchDefaultOrgID("__Host-console_session=synthetic", &http.Client{Transport: tr})
+pkg/sdk/providers/opencode/client_test.go:255:	got, err := FetchDefaultOrgID("console_session=synthetic", &http.Client{Transport: tr})
+pkg/sdk/providers/opencode/client_test.go:284:			got, err := FetchDefaultOrgID("console_session=synthetic", &http.Client{Transport: tr})
+pkg/sdk/providers/opencode/client_test.go:300:	if _, err := FetchDefaultOrgID("", &http.Client{Transport: tr}); err == nil {
+pkg/sdk/providers/ollama/client.go:26:	Client    *http.Client
+pkg/sdk/providers/ollama/client.go:65:		client = &http.Client{Timeout: ollamaRequestTimeout}
+pkg/sdk/providers/ollama/ollama_test.go:100:	_, err := (&OllamaQuerier{Cookie: "__Secure-session=valid", BaseURL: s.URL, Client: &http.Client{}}).FetchQuota()
+pkg/sdk/README.md:15:- **HTTP 客户端与重定向防护**：Kimi 原生具备严格的域名白名单限制（`kimiAllowedHosts`）与强行拦截重定向（`http.ErrUseLastResponse`），防止凭据外泄；其余各 Provider 专注于标准 API/Web 数据的直接获取，消费端可按需注入定制化 `http.Client`。
+pkg/sdk/auth/browserauth/cdp.go:188:	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)
+pkg/sdk/auth/browserauth/cdp.go:219:	response, err := (&http.Client{Timeout: 2 * time.Second}).Do(request)

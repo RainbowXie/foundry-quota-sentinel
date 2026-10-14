@@ -1,0 +1,8 @@
+=== RUN   TestFormatOpenCodeTableAbsentMonthlyIsNotUnlimited
+--- PASS: TestFormatOpenCodeTableAbsentMonthlyIsNotUnlimited (0.00s)
+=== RUN   TestFormatOpenCodeTableRendersPresentMonthly
+--- PASS: TestFormatOpenCodeTableRendersPresentMonthly (0.00s)
+=== RUN   TestFormatOpenCodeTableLapsedSubscriptionRendersNotice
+--- PASS: TestFormatOpenCodeTableLapsedSubscriptionRendersNotice (0.00s)
+PASS
+ok  	foundry-quota-sentinel/internal/formatter	0.004s

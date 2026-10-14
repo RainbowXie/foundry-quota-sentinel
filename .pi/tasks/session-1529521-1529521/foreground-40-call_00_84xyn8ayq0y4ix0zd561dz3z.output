@@ -1,0 +1,22 @@
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/empty
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/bare_identifier
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/pasted_console_url
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/prefix_without_body
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/hyphenated_body
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/leading_whitespace
+=== RUN   TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID/unexpected_prefix
+--- PASS: TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID (0.00s)
+=== RUN   TestParseQuotaResponseNonSerovalNullIsNotLapsed
+=== RUN   TestParseQuotaResponseNonSerovalNullIsNotLapsed/truncated_console_json_mentioning_null
+=== RUN   TestParseQuotaResponseNonSerovalNullIsNotLapsed/bom_prefixed_console_body
+=== RUN   TestParseQuotaResponseNonSerovalNullIsNotLapsed/html_interstitial_mentioning_null
+--- PASS: TestParseQuotaResponseNonSerovalNullIsNotLapsed (0.00s)
+PASS
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.004s
+=== RUN   TestFormatOpenCodeTableAbsentMonthlyIsNotUnlimited
+--- PASS: TestFormatOpenCodeTableAbsentMonthlyIsNotUnlimited (0.00s)
+=== RUN   TestFormatOpenCodeTableRendersPresentMonthly
+--- PASS: TestFormatOpenCodeTableRendersPresentMonthly (0.00s)
+PASS
+ok  	foundry-quota-sentinel/internal/formatter	0.003s

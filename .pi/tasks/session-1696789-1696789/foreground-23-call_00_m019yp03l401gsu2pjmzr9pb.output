@@ -1,0 +1,15 @@
+│   ├── deepseek_*.go     # DeepSeek 登录拦截、凭据提取与 Storage 回放
+│   ├── kimi_*.go         # Kimi 登录拦截、凭据信封与页面内 Token 轮换监听
+│   ├── commandcode.go    # CommandCode 登录拦截与凭据回放
+│   └── ollama.go         # Ollama 登录拦截与凭据回放
+├── providers/
+│   ├── opencode/         # Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支
+│   ├── deepseek/         # DeepSeek API 余额与 Web 钱包/按天明细获取
+│   ├── kimi/             # Kimi 原生配额获取、自动双 Token 轮换与信封模型
+==== help.html 156/348 ====
+<p>foundry-quota-sentinel 是一个独立的 OpenCode Go 套餐额度监控工具。它直接调用 OpenCode Console 的 <code>/console/api/go/status</code> 接口查询额度，以及 DeepSeek 官方 API 查询余额。<strong>大部分功能与 ocgt 无关</strong>&mdash;只有历史消耗查询需要读取 ocgt 产生的 JSONL 日志文件。<span class=en>Most features work independently of ocgt; only the history/trend feature reads ocgt log files.</span></p>
+OpenCode Console API (/console/api/go/status)  &rarr;  quota    // 套餐额度
+DeepSeek API (/user/balance)                   &rarr;  balance  // 账户余额
+ocgt JSONL 日志文件                            &rarr;  history  // Token 消耗历史
+==== 中英文空格扫描 ====
+internal/web/static/help.html:298:<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">按使用量排序，每行显示模型全称和 Token 总数。可切换 1日/7日/30日或自定义日期范围。</p>

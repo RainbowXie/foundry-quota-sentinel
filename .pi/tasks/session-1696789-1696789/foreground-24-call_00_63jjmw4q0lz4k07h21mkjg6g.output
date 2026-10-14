@@ -1,0 +1,5 @@
+  374 pkg/sdk/auth/opencode.go
+  412 pkg/sdk/auth/opencode_test.go
+  786 总计
+gofmt done
+vet done

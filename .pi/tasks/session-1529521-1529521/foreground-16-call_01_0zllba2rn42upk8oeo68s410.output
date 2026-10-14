@@ -1,0 +1,51 @@
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseQuotaResponse(tt.body)
+			if err == nil {
+				t.Fatalf("expected error for malformed usagePercent in %q, got %+v", tt.body, got)
+			}
+			if got != nil {
+				t.Fatalf("parser must return nil quota on error for %q, got %+v", tt.body, got)
+			}
+		})
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
+func TestParseQuotaResponseExhaustedRollingParses(t *testing.T) {
+	body := `{rollingUsage:{status:"exhausted",usagePercent:100},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`
+	got, err := ParseQuotaResponse(body)
+	if err != nil {
+		t.Fatalf("exhausted rolling must parse, got error: %v", err)
+	}
+	if got.Rolling.UsagePercent != 100 {
+		t.Fatalf("exhausted rolling percent = %v, want 100", got.Rolling.UsagePercent)
+	}
+	if got.Rolling.ResetInSec != 0 {
+		t.Fatalf("exhausted rolling resetInSec = %d, want 0", got.Rolling.ResetInSec)
+	}
+}
+
+func TestParseQuotaResponseLapsedSubscriptionMarksUnavailable(t *testing.T) {
+	real := `;0x0000002e;((self.$R=self.$R||{})["server-fn:3"]=[],null)`
+	got, err := ParseQuotaResponse(real)
+	if err != nil {
+		t.Fatalf("lapsed subscription must not fail the account, got error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("lapsed subscription must return quota data, got nil")
+	}
+	if !got.Lapsed {
+		t.Fatal("lapsed subscription must mark QuotaData.Lapsed")
+	}
+	if got.Rolling.Status != "unavailable" {
+		t.Fatalf("rolling status = %q, want unavailable", got.Rolling.Status)
+	}
+	if got.Weekly.Status != "unavailable" {
+		t.Fatalf("weekly status = %q, want unavailable", got.Weekly.Status)
+	}
+	if got.Monthly != nil {
+		t.Fatalf("lapsed subscription must omit monthly, got %+v", *got.Monthly)
+	}
+}

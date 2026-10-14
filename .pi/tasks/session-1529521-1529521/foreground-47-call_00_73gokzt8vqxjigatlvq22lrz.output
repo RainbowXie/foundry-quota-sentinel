@@ -1,0 +1,12 @@
+总计 37376
+drwxrwxr-x  3 ethan ethan     4096 10月  9 11:39 .
+drwxrwxr-x 20 ethan ethan     4096  9月  7 19:59 ..
+-rwxrwxr-x  1 ethan ethan 11655432 10月  9 11:22 foundry-quota-sentinel
+-rwxrwxr-x  1 ethan ethan 11526306 10月  9 11:21 fqs-cli
+-rwxrwxr-x  1 ethan ethan 15070907  9月  7 19:59 fqs-cli-v0.11.2
+drwxrwxr-x  5 ethan ethan     4096 10月  9 11:39 quota-sdk-go
+build/fqs-cli:                ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, Go BuildID=DcmoeTHA8SQZqTW-SbVA/sXkjT45heNmILXCB5AUD/cet1WZRYUznyOH4nLpWe/L1yLQ_29Cr1DgPLq5Noy, BuildID[sha1]=d43d695583cf8f6be6b31555896526fa9beacbb3, stripped
+build/foundry-quota-sentinel: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=13e922e1812f2fd5f58645ba97b2382db9b74ed6, for GNU/Linux 3.2.0, stripped
+build/fqs-cli-v0.11.2:        ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, Go BuildID=OeRhRo9FuKQjHAblCenz/Tmsizf0jeCSIlJboPzBP/2S-X3TRgUIes9IO1CEqc/7usKTUosJezIFBtSShkH, BuildID[sha1]=76b42d78b3c9a087dcc7f1baf83e0856414bc534, with debug_info, not stripped
+=== gitignore ===
+23:build/

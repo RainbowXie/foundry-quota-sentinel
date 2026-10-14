@@ -1,0 +1,16 @@
+ M cmd_config.go
+ M cmd_quota.go
+ M pkg/sdk/export-manifest.json
+ M pkg/sdk/providers/opencode/client_test.go
+ M pkg/sdk/providers/opencode/parser_console_test.go
+ M scripts/export-sdk.sh
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+--- is build ignored? ---
+build/quota-sdk-go/go.mod
+build/fqs-cli

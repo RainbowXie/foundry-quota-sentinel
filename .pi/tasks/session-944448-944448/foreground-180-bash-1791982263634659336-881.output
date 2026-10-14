@@ -1,0 +1,8 @@
+2603:            // openPage opens the account page and surfaces spawn
+2608:            // surfaced via openPageError.
+2611:            // may call openPage from outside the context-menu IIFE —
+2614:            function openPage(prov, name) {
+2624:                            openPageError((r && r.error) || "无法打开账户页");
+2627:                    .catch(function () { openPageError("无法打开账户页"); });
+2629:            function openPageError(msg) {
+2675:                    openPage(cur.prov, cur.name);

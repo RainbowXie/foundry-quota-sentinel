@@ -1,0 +1,14 @@
+internal/config/kimi_test.go:191:// TestSaveKimiTokensConcurrentNoLostUpdate (hardening) proves that concurrent
+internal/config/kimi_test.go:198:func TestSaveKimiTokensConcurrentNoLostUpdate(t *testing.T) {
+internal/config/kimi_test.go:234:				if err := SaveKimiTokens(name, name+"-rotated-access-"+strconv.Itoa(i), name+"-rotated-refresh-"+strconv.Itoa(i)); err != nil {
+internal/config/kimi_test.go:235:					t.Errorf("SaveKimiTokens(%s): %v", name, err)
+internal/config/kimi_test.go:294:			if err := SaveKimiTokens("work", "rotated-access-"+strconv.Itoa(i), "rotated-refresh-"+strconv.Itoa(i)); err != nil {
+internal/config/kimi_test.go:295:				t.Errorf("SaveKimiTokens: %v", err)
+internal/config/kimi.go:89:// SaveKimiTokens atomically persists rotated access + refresh tokens for one
+internal/config/kimi.go:97:func SaveKimiTokens(name, accessToken, refreshToken string) error {
+cmd_config.go:337:		if err := config.SaveKimiTokens(name, mark, mark+"-refresh"); err != nil {
+cmd_kimi.go:15:	return config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken)
+cmd_page.go:72:		if saveErr := config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken); saveErr != nil {
+cmd_page.go:101:		if err := config.SaveKimiTokens(name, newAccess, newRefresh); err != nil {
+cmd_serve.go:129:		return config.SaveKimiTokens(name, accessToken, refreshToken)
+cmd_serve.go:154:		return config.SaveKimiTokens(name, accessToken, refreshToken)

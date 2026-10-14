@@ -1,0 +1,60 @@
+{"level":40,"time":1791517210459,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "target": {
+    "id": "Function:pkg/sdk/providers/opencode/parser.go:ParseQuotaResponse",
+    "name": "ParseQuotaResponse",
+    "type": "Function",
+    "filePath": "pkg/sdk/providers/opencode/parser.go"
+  },
+  "direction": "upstream",
+  "impactedCount": 8,
+  "risk": "CRITICAL",
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 6,
+    "modules_affected": 5
+  },
+  "byDepthCounts": {
+    "1": 1,
+    "2": 4,
+    "3": 3
+  },
+  "affected_processes": [
+    {
+      "name": "Handler",
+      "type": "Function",
+      "filePath": "internal/web/server.go",
+      "affected_process_count": 12,
+      "total_hits": 19,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "main",
+      "type": "Function",
+      "filePath": "main.go",
+      "affected_process_count": 11,
+      "total_hits": 19,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "cmdWatch",
+      "type": "Function",
+      "filePath": "cmd_quota.go",
+      "affected_process_count": 9,
+      "total_hits": 18,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "registerOpenCodeRoutes",
+      "type": "Function",
+      "filePath": "internal/web/routes_opencode.go",
+      "affected_process_count": 7,
+      "total_hits": 14,
+      "earliest_broken_step": 1
+    },
+    {
+      "name": "cmdQuota",
+      "type": "Function",
+      "filePath": "cmd_quota.go",
+      "affected_process_count": 6,

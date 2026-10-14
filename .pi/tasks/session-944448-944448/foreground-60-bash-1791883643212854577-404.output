@@ -1,0 +1,4 @@
+udp   UNCONN 21120  0                                         100.72.98.15:48484      0.0.0.0:*    users:(("vmos-cloud-v1.1",pid=1771262,fd=1080),("AppRun.wrapped",pid=1771257,fd=1080))
+tcp   LISTEN 0      4096                                         127.0.0.1:8888       0.0.0.0:*    users:(("integrity-swarm",pid=2497848,fd=13))                                         
+tcp   LISTEN 0      4096                                                 *:10808            *:*    users:(("xray",pid=2532344,fd=4))                                                     
+tcp   LISTEN 0      4096                                                 *:10808            *:*    users:(("xray",pid=2564050,fd=3))                                                     

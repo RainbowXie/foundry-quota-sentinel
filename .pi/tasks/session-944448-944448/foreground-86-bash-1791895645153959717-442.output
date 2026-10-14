@@ -1,0 +1,6 @@
+ethan    2160166 1373562  0 16:55 pts/0    00:00:41 build/foundry-quota-sentinel
+ethan    2160181 2160166  0 16:55 pts/0    00:00:07 /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess 2 18
+ethan    2160183 2160166  0 16:55 pts/0    00:02:10 /usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitWebProcess 4 20
+ethan    2161308 2160166  0 16:55 pts/0    00:00:00 [foundry-quota-s] <defunct>
+ethan    2781289  944448  0 20:47 ?        00:00:00 bash -c ps -ef | grep 2160166
+ethan    2781291 2781289  0 20:47 ?        00:00:00 grep 2160166

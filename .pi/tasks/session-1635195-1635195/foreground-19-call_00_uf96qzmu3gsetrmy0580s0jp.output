@@ -1,0 +1,14 @@
+CLI built: -rwxrwxr-x 1 ethan ethan 11579657 10月  9 12:04 build/fqs-cli
+=== 正在导出 SDK 到: /mnt/data/Work/Projects/foundry-quota-sentinel/build/quota-sdk-go ===
+Module:     github.com/ethan/quota-sdk-go
+Go Version: 1.23.0
+=== 正在校验独立导出的 SDK ===
+ok  	github.com/ethan/quota-sdk-go/auth	0.307s
+ok  	github.com/ethan/quota-sdk-go/auth/browserauth	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/commandcode	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/deepseek	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/kimi	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/ollama	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/opencode	0.018s
+ok  	github.com/ethan/quota-sdk-go/store	(cached)
+=== SDK 成功导出至 /mnt/data/Work/Projects/foundry-quota-sentinel/build/quota-sdk-go 且独立测试全绿 ===

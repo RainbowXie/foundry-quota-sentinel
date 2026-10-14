@@ -1,0 +1,12 @@
+build/quota-sdk-go/providers/opencode/parser.go:21:// parseSerovalQuotaResponse 解析旧版 Seroval 序列化文本（如 `{rollingUsage:$R[1]={...}}`）。
+build/quota-sdk-go/providers/opencode/parser.go:32:		// 只有真正的 Seroval 文本才允许推断“无 quota 记录=订阅失效”：Seroval 响应一定带 `$R` 引用表
+build/quota-sdk-go/providers/opencode/parser.go:35:		if !strings.Contains(text, "$R") || !strings.Contains(text, "null") {
+build/quota-sdk-go/providers/opencode/client.go:21:// openCodeOrgIDRe 白名单校验 Console 返回的组织/工作区标识：org_ 或 wrk_ 前缀加字母数字主体。
+build/quota-sdk-go/providers/opencode/client.go:23:var openCodeOrgIDRe = regexp.MustCompile(`^(?:org|wrk)_[a-zA-Z0-9]+$`)
+build/quota-sdk-go/providers/opencode/client.go:78:		if !openCodeOrgIDRe.MatchString(org.ID) {
+build/quota-sdk-go/providers/opencode/client.go:130:	if !openCodeOrgIDRe.MatchString(q.WorkspaceID) {
+=== build scripts ===
+build-deb.sh
+build-linux.sh
+export-sdk.sh
+pack-deb.sh

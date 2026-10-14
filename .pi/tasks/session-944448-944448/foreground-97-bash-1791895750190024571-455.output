@@ -1,0 +1,180 @@
+     0x3000001 "rustdesk": ("rustdesk" "Rustdesk")  10x10+10+10  +10+10
+     0x6a18cd2 "nemo": ("nemo" "Nemo")  1x1+-99+-99  +-99+-99
+     0x6a18c9f "nemo": ("nemo" "Nemo")  1x1+-99+-99  +-99+-99
+     0x280000b "cinnamon": ("cinnamon" "Cinnamon")  1x1+-200+-200  +-200+-200
+     0x400007 "Fcitx5 Input Window": ("fcitx" "fcitx")  391x42+201+1971  +201+1971
+     0x7400985 "wechat": ("wechat" "wechat")  717x726+4061+1114  +4061+1114
+        0x7400987 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +4060+1113
+        0x3c0000b "π - grpc-mesh": ("kitty" "kitty")  3840x2087+0+32  +0+32
+     0x74008ef "微信": ("wechat" "wechat")  2560x1441+3840+719  +3840+719
+           0x7400bbe "Qt NET_WM User Time Window": ()  1x1+-1+-1  +4379+816
+        0x74008f1 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +3839+718
+     0x5c00013 "IntegritySwarm — api-reference.md": ("dev.zed.Zed" "dev.zed.Zed")  3840x2119+0+0  +0+0
+     0x62001a1 "Preview structure-design.md - integrity-protocol - Visual Studio Code": ("code" "code")  3840x2119+0+0  +0+0
+     0x5c00037 "integrity-token-service — README.md": ("dev.zed.Zed" "dev.zed.Zed")  3840x2119+0+0  +0+0
+     0x6200029 "structure-design.md - integrity-protocol - Visual Studio Code": ("code" "code")  2560x1440+3840+720  +3840+720
+     0x8800033 "VMOSCloud": ("AppRun.wrapped" "AppRun.wrapped")  1884x1159+1312+366  +1312+366
+        0x8800035 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +1311+365
+     0x6200004 "full-chain-sequence.md - DroidGuard - Visual Studio Code": ("code" "code")  3840x2119+0+0  +0+0
+     0x7200089 "code": ("code" "Code")  200x200+0+0  +0+0
+        0x5a00003 "foundry-quota-sentinel": ("foundry-quota-sentinel" "Foundry-quota-sentinel")  543x1714+10+40  +3297+230
+        0x3c0008f "tmux new -s IntegritySwarm-Judger": ("kitty" "kitty")  3840x2087+0+32  +0+32
+     0x5c00010 "Account — opencode.md": ("dev.zed.Zed" "dev.zed.Zed")  3840x2119+0+0  +0+0
+     0x3a00004 "OpenCode Console - Helium": ("helium" "Helium")  2560x1440+3840+720  +3840+720
+     0x8600017 "收件箱 - cmdweilan@gmail.com - Mozilla Thunderbird": ("Mail" "thunderbird-esr")  3840x2119+0+0  +0+0
+     0x5c0002d ".agents — SKILL.md": ("dev.zed.Zed" "dev.zed.Zed")  3840x2119+-13+-13  +-13+-13
+        0x6a00007 "DroidGuard": ("nemo" "Nemo")  3840x2087+0+32  +0+32
+        0x6b42100 "Project": ("nemo" "Nemo")  2560x1408+0+32  +3840+752
+     0x8400f95 "baobab": ("baobab" "baobab")  263x168+3903+733  +3903+733
+     0x8400f88 "baobab": ("baobab" "baobab")  214x104+3903+733  +3903+733
+     0x8400f77 "baobab": ("baobab" "baobab")  1x1+3903+733  +3903+733
+     0x8400018 "baobab": ("baobab" "baobab")  282x277+3903+733  +3903+733
+     0x8400004 "Projects": ("baobab" "baobab")  2239x937+3903+733  +3903+733
+        0x5600013 "v2rayN - V7.24.9 - X64": ("v2rayN" "v2rayN")  2278x1005+10+40  +1111+401
+     0x7400d12 "群聊的聊天记录": ("wechat" "wechat")  835x893+4703+994  +4703+994
+        0x7400d14 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +4702+993
+     0x9200004 "看雪安全社区｜非营利性质的安全技术交流平台 3 - MyNotebook - Obsidian 1.13.7": ("obsidian" "obsidian")  3583x1703+-60+72  +-60+72
+        0x4800006 "Enpass": ("Enpass" "Enpass")  1660x961+10+40  +3974+844
+           0x480001b "Qt NET_WM User Time Window": ()  1x1+-1+-1  +3973+843
+     0xa200004 "RustConn": ("rustconn" "rustconn")  2042x1161+1259+465  +1259+465
+     0x3a000dc "accounts.google.com/info/sessionexpired?TL=ADG-GRSNrDSn4ZPPfczqFrqkGIJnBjvn9n8Zwbczm4UnYkVKHp7drQnMLQZvDs6b&authuser=0&checkedDomains=youtube&continue=https%3A%2F%2Fconsole.cloud.google.com%2F&dsh=S1228562123%3A1789990655729286&flowEntry=AccountChooser&flowName=GlifWebSignIn&followup=https%3A%2F%2Fconsole.cloud.google.com%2F&osid=1&pstMsg=1&service=cloudconsole - Helium": ("helium" "Helium")  3840x2119+0+0  +0+0
+     0x2e00003 "桌面": ("nemo-desktop" "Nemo-desktop")  2560x1440+3840+720  +3840+720
+     0x2e0000b "nemo-desktop": ("nemo-desktop" "Nemo-desktop")  3840x2119+0+0  +0+0
+     0x7200001 "code": ("code" "Code")  10x10+10+10  +10+10
+     0x6200000 "Chromium clipboard": ()  10x10+-100+-100  +-100+-100
+     0x420000c "Vicinae Launcher": ("command" "vicinae")  1075x670+1382+496  +1382+496
+        0x420000f "Qt NET_WM User Time Window": ()  1x1+-1+-1  +1381+495
+     0x5a00090 "foundry-quota-sentinel": ()  10x10+-100+-100  +-100+-100
+     0x5a00001 "foundry-quota-sentinel": ("foundry-quota-sentinel" "Foundry-quota-sentinel")  10x10+10+10  +10+10
+     0x4800009 "Enpass Assistant": ("Enpass" "Enpass")  360x400+3461+824  +3461+824
+        0x480000e "Qt NET_WM User Time Window": ()  1x1+-1+-1  +3460+823
+     0x86001b3 "Thunderbird": ("thunderbird-esr" "thunderbird-esr")  1x1+0+0  +0+0
+     0x6a0ba54 "96% 将 65,639/65,650 个文件(“osxcross”中)移动到“Project”": ("file_progress" "Nemo")  546x118+1726+1000  +1726+1000
+     0x6b4632a "nemo": ("nemo" "Nemo")  176x48+0+0  +0+0
+     0x6b4287c "nemo": ("nemo" "Nemo")  176x48+0+0  +0+0
+     0x6b4210e "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6e00120 "媒体查看器": ("Telegram" "TelegramDesktop")  3840x2160+0+0  +0+0
+        0x6e00129 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +-1+-1
+     0x6b3574b "nemo": ("nemo" "Nemo")  176x48+0+0  +0+0
+     0x6e0073f "TelegramDesktop": ("Telegram" "TelegramDesktop")  1x1+2135+1322  +2135+1322
+        0x6e00742 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +2134+1321
+     0x6a338ff "nemo": ("nemo" "Nemo")  215x465+1240+203  +1240+203
+     0x7400be1 "wechat": ("wechat" "wechat")  258x78+4539+1669  +4539+1669
+        0x7400be3 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +4538+1668
+     0x2a000ad "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  180x89+3364+2030  +3364+2030
+     0x880004b "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x880001d "AppRun.wrapped": ()  1x1+0+0  +0+0
+     0x8800006 "Qt Selection Owner for AppRun.wrapped": ()  3x3+0+0  +0+0
+     0x6b2c389 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x860004c "Thunderbird": ()  10x10+-100+-100  +-100+-100
+     0x8600001 "Thunderbird": ("thunderbird-esr" "Thunderbird-esr")  10x10+10+10  +10+10
+     0x8400002 "baobab": ("baobab" "baobab")  1x1+0+0  +0+0
+     0x2a000a1 "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  181x84+3364+2035  +3364+2035
+     0x7400aa9 "wechat": ("wechat" "wechat")  461x103+4620+1140  +4620+1140
+        0x7400aab "Qt NET_WM User Time Window": ()  1x1+-1+-1  +4619+1139
+     0x740098b "wechat": ("wechat" "wechat")  223x223+0+0  +0+0
+     0x740094e "wechat": ("wechat" "wechat")  514x1385+3910+775  +3910+775
+        0x7400950 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +3909+774
+     0x2a0006d "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  184x90+3296+2029  +3296+2029
+     0x6400067 "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x640001d "AppRun.wrapped": ()  1x1+0+0  +0+0
+     0x6400006 "Qt Selection Owner for AppRun.wrapped": ()  3x3+0+0  +0+0
+     0x6a91bac "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a90e23 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a907c6 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a0ac49 "nemo": ("nemo" "Nemo")  228x392+1514+497  +1514+497
+     0x6a8cb7a "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a8a9e9 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0xc00001 "csd-clipboard": ("csd-clipboard" "Csd-clipboard")  10x10+10+10  +10+10
+     0xa600010 "flameshot": ()  10x10+-100+-100  +-100+-100
+     0x8a00027 "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x8a0000a "flameshot": ()  1x1+0+0  +0+0
+     0xa600001 "flameshot": ("flameshot" "Flameshot")  10x10+10+10  +10+10
+     0x8a00004 "Qt Selection Owner for flameshot": ()  3x3+0+0  +0+0
+     0x6a717cf "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a71292 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a59b4b "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a597a3 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a51564 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a4af5c "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a47511 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a425ca "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a42440 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a3b865 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a3b29d "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a363d5 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a356a6 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a34732 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a343c9 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a22950 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a2230c "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a1e13c "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6e00020 "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x6e00011 "TelegramDesktop": ()  1x1+0+0  +0+0
+     0xa400001 "Telegram Desktop": ("Telegram" "Telegram")  10x10+10+10  +10+10
+     0x6e00006 "Qt Selection Owner for TelegramDesktop": ()  3x3+0+0  +0+0
+     0x74000be "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x2a00048 "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  445x519+3395+1600  +3395+1600
+     0x6a18947 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a14600 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x2e008f9 "nemo-desktop": ("nemo-desktop" "Nemo-desktop")  176x48+0+0  +0+0
+     0x2a00038 "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  294x403+3501+1716  +3501+1716
+     0x6a1229f "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x9400003 "obsidian": ("obsidian" "Obsidian")  200x200+0+0  +0+0
+     0x9400001 "obsidian": ("obsidian" "Obsidian")  10x10+10+10  +10+10
+     0x9200000 "Chromium clipboard": ()  10x10+-100+-100  +-100+-100
+     0x90005d5 "xdg-desktop-portal-gtk": ()  10x10+-100+-100  +-100+-100
+     0x9000001 "xdg-desktop-portal-gtk": ("xdg-desktop-portal-gtk" "Xdg-desktop-portal-gtk")  10x10+10+10  +10+10
+     0x6a0ba4a "nemo": ("nemo" "Nemo")  176x48+0+0  +0+0
+     0x7800003 "WeChatAppEx": ("WeChatAppEx" "WeChatAppEx")  200x200+0+0  +0+0
+     0x7800001 "WeChatAppEx": ("WeChatAppEx" "WeChatAppEx")  10x10+10+10  +10+10
+     0x7600000 "Chromium clipboard": ()  10x10+-100+-100  +-100+-100
+     0x7400008 "wechat": ()  1x1+0+0  +0+0
+     0x7400004 "Qt Selection Owner for wechat": ()  3x3+0+0  +0+0
+     0x6a062f8 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a05ded "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a05650 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a052ae "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a04c5d "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a04a2f "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a043fc "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a04043 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a02693 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a0235a "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a0053e "nemo": ()  10x10+-100+-100  +-100+-100
+     0x6a00339 "nemo": ("nemo" "Nemo")  200x222+0+0  +0+0
+     0x6a00001 "nemo": ("nemo" "Nemo")  10x10+10+10  +10+10
+     0x4200017 "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x4800016 "Qt Clipboard Requestor Window": ()  3x3+0+0  +0+0
+     0x4e00003 "helium": ("helium" "Helium")  200x200+0+0  +0+0
+     0x4e00001 "helium": ("helium" "Helium")  10x10+10+10  +10+10
+     0x3a00000 "Chromium clipboard": ()  10x10+-100+-100  +-100+-100
+     0x420000e "vicinae": ()  1x1+0+0  +0+0
+     0x4200006 "Qt Selection Owner for command": ()  3x3+0+0  +0+0
+     0x2e0018d "nemo-desktop": ("nemo-desktop" "Nemo-desktop")  234x430+4714+1518  +4714+1518
+     0x2e0011b "nemo-desktop": ("nemo-desktop" "Nemo-desktop")  215x187+1508+934  +1508+934
+     0x4800008 "Enpass": ()  1x1+0+0  +0+0
+     0x4a00001 "Enpass": ("Enpass" "Enpass")  10x10+10+10  +10+10
+     0x4800004 "Qt Selection Owner for Enpass": ()  3x3+0+0  +0+0
+     0x2a00003 "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  225x413+3569+1706  +3569+1706
+     0x2e00028 "nemo-desktop": ()  10x10+-100+-100  +-100+-100
+     0x3200001 "evolution-alarm-notify": ("evolution-alarm-notify" "Evolution-alarm-notify")  10x10+10+10  +10+10
+     0x2e00001 "nemo-desktop": ("nemo-desktop" "Nemo-desktop")  10x10+10+10  +10+10
+     0x280003e "cinnamon": ()  10x10+-100+-100  +-100+-100
+     0x2a00001 "xapp-sn-watcher": ("xapp-sn-watcher" "Xapp-sn-watcher")  10x10+10+10  +10+10
+     0x2800006 "Mutter (Muffin)": ()  1x1+-100+-100  +-100+-100
+     0x2800001 "cinnamon": ("cinnamon" "Cinnamon")  10x10+10+10  +10+10
+     0x2400001 "xdg-desktop-portal-gtk": ("xdg-desktop-portal-gtk" "Xdg-desktop-portal-gtk")  10x10+10+10  +10+10
+     0x1a00001 "xdg-desktop-portal-xapp": ("xdg-desktop-portal-xapp" "Xdg-desktop-portal-xapp")  10x10+10+10  +10+10
+     0x1600001 "csd-xsettings": ("csd-xsettings" "Csd-xsettings")  10x10+10+10  +10+10
+     0x1c00001 "csd-background": ("csd-background" "Csd-background")  10x10+10+10  +10+10
+     0x1400001 "csd-keyboard": ("csd-keyboard" "Csd-keyboard")  10x10+10+10  +10+10
+     0x1000001 "csd-housekeeping": ("csd-housekeeping" "Csd-housekeeping")  10x10+10+10  +10+10
+     0x1200001 "csd-power": ("csd-power" "Csd-power")  10x10+10+10  +10+10
+     0xe00001 "csd-media-keys": ("csd-media-keys" "Csd-media-keys")  10x10+10+10  +10+10
+     0xa00001 "csd-automount": ("csd-automount" "Csd-automount")  10x10+10+10  +10+10
+     0x800001 "csd-wacom": ("csd-wacom" "Csd-wacom")  10x10+10+10  +10+10
+     0x600001 "csd-color": ("csd-color" "Csd-color")  10x10+10+10  +10+10
+     0x2800010 "muffin guard window": ()  6400x2160+0+0  +0+0
+     0x6e00812 "(1) ‎⁨Eugnis and IntegritySwarm Ops Alert⁩ – (1553103)": ("Telegram" "TelegramDesktop")  2315x1312+1189+319  +1189+319
+        0x6e00814 "Qt NET_WM User Time Window": ()  1x1+-1+-1  +1188+318

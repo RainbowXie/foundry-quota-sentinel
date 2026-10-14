@@ -1,0 +1,20 @@
+pkg/sdk/auth/browserauth/cdp.go:123:// Page returns the page-level Client (Runtime.evaluate, Page.navigate,
+pkg/sdk/auth/commandcode.go:106:// RunCommandCodePage 注入凭据打开 CommandCode 账户用量页。
+pkg/sdk/auth/commandcode.go:107:func RunCommandCodePage(pageURL, cookie string) error {
+pkg/sdk/auth/kimi_page.go:17:// RunKimiPage 打开 Kimi 会员订阅页并回放鉴权状态，同时启动页面内 Token 自动轮换监听。
+pkg/sdk/auth/kimi_page.go:18:func RunKimiPage(pageURL, envelopeJSON string) error {
+pkg/sdk/auth/kimi_page.go:35:// RunKimiAddonPage 兼容旧版入口，直接定位到 membership 页面。
+pkg/sdk/auth/kimi_page.go:36:func RunKimiAddonPage(envelopeJSON string) error {
+pkg/sdk/auth/kimi_page.go:37:	return RunKimiPage(kimiMembershipURL, envelopeJSON)
+pkg/sdk/auth/opencode_test.go:239:// TestRunOpenCodePageRejectsMalformedWorkspaceURL 守住审阅证据里的具体形态：
+pkg/sdk/auth/opencode_test.go:241:func TestRunOpenCodePageRejectsMalformedWorkspaceURL(t *testing.T) {
+pkg/sdk/auth/opencode_test.go:248:	err := RunOpenCodePage("https://opencode.ai/console/https://opencode.ai/console/org_01JXYZ/go/go", "console_session=good")
+pkg/sdk/auth/opencode_test.go:324:func TestRunOpenCodeLoginSkipsOrgIDResolveOnLoginPage(t *testing.T) {
+pkg/sdk/auth/opencode.go:183:// RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+pkg/sdk/auth/opencode.go:184:func RunOpenCodePage(pageURL, cookie string) error {
+pkg/sdk/auth/ollama.go:125:// RunOllamaPage 注入 Cookie 和 User-Agent 打开指定的 Ollama 页面。
+pkg/sdk/auth/ollama.go:126:func RunOllamaPage(pageURL, cookieHeader, userAgent string) error {
+pkg/sdk/auth/ollama_test.go:115:func TestRunOllamaPageInjectsSessionBeforeNavigation(t *testing.T) {
+pkg/sdk/auth/ollama_test.go:131:func TestRunOllamaPageAppliesUserAgentBeforeNavigation(t *testing.T) {
+pkg/sdk/auth/deepseek_page.go:36:// RunDeepSeekPage 恢复持久化的 WebStore 并打开 DeepSeek 用量页面，若遭遇鉴权决定失效则等待用户关闭。
+pkg/sdk/auth/deepseek_page.go:37:func RunDeepSeekPage(pageURL, webStore string) error {

@@ -1,0 +1,141 @@
+	unavailable := QuotaUsage{Status: "unavailable", ResetDisplay: formatDurationCompact(0)}
+	return &QuotaData{
+		Rolling:   unavailable,
+		Weekly:    unavailable,
+		Lapsed:    true,
+		FetchedAt: time.Now(),
+	}
+}
+
+func extractUsageWindow(text, windowName string, required bool) (*QuotaUsage, error) {
+	objects, err := findAllUsageObjects(text, windowName)
+	if err != nil {
+		return nil, err
+	}
+	if len(objects) == 0 {
+		if required {
+			return nil, fmt.Errorf("failed to parse %s", windowName)
+		}
+		return nil, nil
+	}
+	usage, err := parseUsageObject(objects[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", windowName, err)
+	}
+	return &usage, nil
+}
+
+func findAllUsageObjects(text, windowName string) ([]string, error) {
+	var out []string
+	inString := false
+	escaped := false
+	for i := 0; i < len(text); {
+		c := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+		if c == '"' {
+			inString = true
+			i++
+			continue
+		}
+		prev := byte(0)
+		if i > 0 {
+			prev = text[i-1]
+		}
+		atBoundary := i == 0 || prev == '{' || prev == ',' || prev == ' ' || prev == '\t' || prev == '\n' || prev == '\r'
+		if !atBoundary || !strings.HasPrefix(text[i:], windowName) {
+			i++
+			continue
+		}
+		j := skipSpace(text, i+len(windowName))
+		if j >= len(text) || text[j] != ':' {
+			i += len(windowName)
+			continue
+		}
+		if len(out) > 0 {
+			return nil, fmt.Errorf("failed to parse %s: duplicate %s object", windowName, windowName)
+		}
+		j = skipSpace(text, j+1)
+		next, matched := matchRefAssignment(text, j)
+		if matched {
+			j = skipSpace(text, next)
+		} else if j < len(text) && text[j] == '$' {
+			return nil, fmt.Errorf("failed to parse %s: malformed reference assignment", windowName)
+		}
+		if j >= len(text) || text[j] != '{' {
+			return nil, fmt.Errorf("failed to parse %s: expected object value", windowName)
+		}
+		raw, ok := extractBoundedObject(text, j)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse %s: truncated object", windowName)
+		}
+		out = append(out, raw)
+		i = j + len(raw)
+	}
+	return out, nil
+}
+
+func matchRefAssignment(text string, i int) (int, bool) {
+	j := i
+	if j+1 >= len(text) || text[j] != '$' || text[j+1] != 'R' {
+		return i, false
+	}
+	j += 2
+	if j >= len(text) || text[j] != '[' {
+		return i, false
+	}
+	j++
+	digits := 0
+	for j < len(text) && text[j] >= '0' && text[j] <= '9' {
+		digits++
+		j++
+	}
+	if digits == 0 || j >= len(text) || text[j] != ']' {
+		return i, false
+	}
+	j = skipSpace(text, j+1)
+	if j >= len(text) || text[j] != '=' {
+		return i, false
+	}
+	return skipSpace(text, j+1), true
+}
+
+func extractBoundedObject(text string, open int) (string, bool) {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := open; i < len(text); i++ {
+		c := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return text[open : i+1], true
+			}
+		}
+	}
+	return "", false
+}

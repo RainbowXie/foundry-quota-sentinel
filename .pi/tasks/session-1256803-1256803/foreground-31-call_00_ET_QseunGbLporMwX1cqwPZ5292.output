@@ -1,0 +1,4 @@
+**Full Changelog**: https://github.com/RainbowXie/foundry-quota-sentinel/compare/v0.11.2...v0.11.3
+=== 版本号修正验证 (对比 v0.11.2) ===
+v0.11.2 deb 命名: ['foundry-quota-sentinel_0.11.1_amd64-webkit40.deb', 'foundry-quota-sentinel_0.11.1_amd64-webkit41.deb']
+v0.11.3 deb 命名: ['foundry-quota-sentinel_0.11.3_amd64-webkit40.deb', 'foundry-quota-sentinel_0.11.3_amd64-webkit41.deb']

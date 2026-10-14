@@ -1,0 +1,8 @@
+14:var version = "0.11.1"
+68:	case "version", "-v", "--version":
+69:		fmt.Println("foundry-quota-sentinel v" + version)
+=== 所有 .go 根目录文件的 version 引用 ===
+cmd_kimi.go:27:		"x_msh_version":   "x-msh-version",
+main.go:14:var version = "0.11.1"
+main.go:68:	case "version", "-v", "--version":
+main.go:69:		fmt.Println("foundry-quota-sentinel v" + version)

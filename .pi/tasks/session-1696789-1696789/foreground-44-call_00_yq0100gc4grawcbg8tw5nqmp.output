@@ -1,0 +1,19 @@
+Module:     github.com/ethan/quota-sdk-go
+Go Version: 1.23.0
+=== 正在校验独立导出的 SDK ===
+ok  	github.com/ethan/quota-sdk-go/auth	0.607s
+ok  	github.com/ethan/quota-sdk-go/auth/browserauth	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/commandcode	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/deepseek	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/kimi	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/ollama	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/opencode	(cached)
+ok  	github.com/ethan/quota-sdk-go/store	(cached)
+=== SDK 成功导出至 /mnt/data/Work/Projects/foundry-quota-sentinel/build/quota-sdk-go 且独立测试全绿 ===
+30:│   ├── opencode/         # Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支
+=== rebuild binaries ===
+-rwxrwxr-x 1 ethan ethan 11655464 10月  9 12:23 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 11579657 10月  9 12:23 build/fqs-cli
+build/fqs-cli:2
+build/foundry-quota-sentinel:2
+3

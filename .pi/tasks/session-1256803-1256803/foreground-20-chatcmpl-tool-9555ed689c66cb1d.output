@@ -1,0 +1,5 @@
+-rwxrwxr-x 1 ethan ethan 15M 10月  9 13:22 build/foundry-quota-sentinel
+-rwxrwxr-x 1 ethan ethan 15M 10月  9 13:22 build/fqs-cli
+--- 二进制中的旧接口残留检查 ---
+build/fqs-cli: 无旧接口残留
+build/foundry-quota-sentinel: 无旧接口残留

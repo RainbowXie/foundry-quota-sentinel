@@ -1,0 +1,12 @@
+741ba01 fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+549e481 fix(opencode): close Console v2 audit findings (32-bit clamp, auth host, anchored workspace id)
+c11b8aa fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+== staged (should be empty) ==
+(none)

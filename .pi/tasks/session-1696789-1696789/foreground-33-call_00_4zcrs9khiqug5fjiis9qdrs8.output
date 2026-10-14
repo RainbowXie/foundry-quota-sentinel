@@ -1,0 +1,11 @@
+internal/sidebar/sidebar_nogui.go:1://go:build nogui || (!windows && !darwin && !linux)
+internal/sidebar/sidebar_unix.go:1://go:build (darwin || linux) && !nogui
+internal/sidebar/sidebar_windows.go:1://go:build windows && !nogui
+====
+./main_locktest_nogui_test.go
+./main_kimi_test.go
+====
+0
+0
+OpenCode Console API (/console/api/go/status)
+OpenCode Console API (/console/api/go/status)

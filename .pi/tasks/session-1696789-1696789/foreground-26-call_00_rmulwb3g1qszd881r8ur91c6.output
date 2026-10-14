@@ -1,0 +1,29 @@
+=== CGO_ENABLED=0 pkg/sdk ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.611s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.087s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.013s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.005s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.013s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.056s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.016s
+ok  	foundry-quota-sentinel/pkg/sdk/store	1.367s
+=== GOARCH=386 ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.608s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.089s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.017s
+=== focused new tests ===
+=== RUN   TestOpenCodeCookieHeaderKeepsOnlyMainDomain
+--- PASS: TestOpenCodeCookieHeaderKeepsOnlyMainDomain (0.00s)
+=== RUN   TestOpenCodeCookieHeaderKeepsHostPrefixedSessionCookie
+--- PASS: TestOpenCodeCookieHeaderKeepsHostPrefixedSessionCookie (0.00s)
+=== RUN   TestOpenCodeCookieHeaderDropsUnsafeCookies
+--- PASS: TestOpenCodeCookieHeaderDropsUnsafeCookies (0.00s)
+=== RUN   TestShouldResolveOpenCodeOrgID
+--- PASS: TestShouldResolveOpenCodeOrgID (0.00s)
+=== RUN   TestRunOpenCodeLoginRateLimitsOrgIDResolve
+2026/10/09 12:19:55 opencode: 解析默认组织失败，继续等待页面跳转: orgs api unavailable
+--- PASS: TestRunOpenCodeLoginRateLimitsOrgIDResolve (0.30s)
+=== RUN   TestRunOpenCodeLoginReportsLastProbeError
+--- PASS: TestRunOpenCodeLoginReportsLastProbeError (0.00s)
+PASS
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.308s

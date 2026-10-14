@@ -1,0 +1,34 @@
+=== 1) gofmt -l pkg/sdk cmd_page.go ===
+pkg/sdk/auth/commandcode_test.go
+pkg/sdk/providers/commandcode/client.go
+pkg/sdk/providers/opencode/types.go
+=== 2) go vet -tags nogui ./... ===
+vet OK
+=== 3) go test -tags nogui ./... ===
+ok  	foundry-quota-sentinel/internal/config	0.348s
+ok  	foundry-quota-sentinel/internal/formatter	0.019s
+?   	foundry-quota-sentinel/internal/sidebar	[no test files]
+?   	foundry-quota-sentinel/internal/state	[no test files]
+?   	foundry-quota-sentinel/internal/storage	[no test files]
+ok  	foundry-quota-sentinel/internal/web	6.375s
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.615s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.115s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.022s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.010s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.027s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.063s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.036s
+ok  	foundry-quota-sentinel/pkg/sdk/store	0.083s
+=== 4) CGO_ENABLED=0 go test ./pkg/sdk/... ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.610s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.090s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.012s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.004s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.014s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.057s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.017s
+ok  	foundry-quota-sentinel/pkg/sdk/store	0.037s
+=== 5) GOARCH=386 ===
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.609s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.087s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.016s

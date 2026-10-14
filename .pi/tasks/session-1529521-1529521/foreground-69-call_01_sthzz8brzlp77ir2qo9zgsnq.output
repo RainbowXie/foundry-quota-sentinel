@@ -1,0 +1,21 @@
+  feature/deepseek-rich-cards
+  feature/multi-account-cards
+  feature/ollama-provider
+  feature/unified-browser-auth
+  gh-pages
+* master
+  remotes/origin/feature/ollama-provider
+  remotes/origin/feature/unified-browser-auth
+  remotes/origin/gh-pages
+  remotes/origin/master
+ cmd_config.go                             |  6 ++---
+ cmd_login.go                              |  2 +-
+ cmd_quota.go                              |  3 ++-
+ internal/formatter/table.go               |  4 +++-
+ internal/formatter/table_test.go          | 40 +++++++++++++++++++++++++++++++
+ internal/web/static/help.html             |  2 +-
+ pkg/sdk/providers/opencode/client.go      |  5 ++++
+ pkg/sdk/providers/opencode/client_test.go | 31 ++++++++++++++++++++++++
+ pkg/sdk/providers/opencode/parser.go      |  8 +++----
+ pkg/sdk/providers/opencode/parser_test.go | 40 +++++++++++++++++++++++++------
+ 10 files changed, 123 insertions(+), 18 deletions(-)

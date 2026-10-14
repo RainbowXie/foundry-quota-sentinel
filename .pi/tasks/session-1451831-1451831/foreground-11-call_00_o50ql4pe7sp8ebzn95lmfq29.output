@@ -1,0 +1,10 @@
+{"level":40,"time":1791515433779,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "error": "Target 'ParseQuotaResponse' not found",
+  "target": {
+    "name": "ParseQuotaResponse"
+  },
+  "direction": "upstream",
+  "impactedCount": 0,
+  "risk": "UNKNOWN"
+}

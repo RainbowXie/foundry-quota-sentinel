@@ -1,0 +1,14 @@
+pkg/sdk/providers/opencode/parser_test.go:292:		{name: "bom prefixed console body", body: "\ufeff" + consoleStatusBody},
+pkg/sdk/providers/opencode/client_test.go:64:	tr := &opencodeRecordingTransport{body: consoleStatusBody}
+pkg/sdk/providers/opencode/client_test.go:193:			tr := &opencodeRecordingTransport{body: consoleStatusBody}
+pkg/sdk/providers/opencode/parser_console_test.go:10:// consoleStatusBody 是一份最小可用的 Console v2 `/go/status` 响应：
+pkg/sdk/providers/opencode/parser_console_test.go:12:const consoleStatusBody = `{"subscriberUserId":"user_synthetic","product":"go","renewalProduct":"go","useBalance":false,"cancelAtPeriodEnd":false,"renewalPending":false,"access":{"startsAt":"2099-10-01T00:00:00.000Z","endsAt":"2099-11-01T00:00:00.000Z","meters":{"fiveHour":{"startsAt":null,"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"240000000"},"week":{"startsAt":"2099-10-05T00:00:00.000Z","resetsAt":"2099-10-12T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"600000000"}}}}`
+pkg/sdk/providers/opencode/parser_console_test.go:16:// consoleStatusFixture 用签名示例的字段顺序拼装响应体：顶层订阅字段与 access 包装层，
+pkg/sdk/providers/opencode/parser_console_test.go:18:func consoleStatusFixture(access any) string {
+pkg/sdk/providers/opencode/parser_console_test.go:117:	body := consoleStatusFixture(consoleMetersFixture(
+pkg/sdk/providers/opencode/parser_console_test.go:168:	body := consoleStatusFixture(consoleMetersFixture(
+pkg/sdk/providers/opencode/parser_console_test.go:191:	body := consoleStatusFixture(consoleMetersFixture(
+pkg/sdk/providers/opencode/parser_console_test.go:207:	body := consoleStatusFixture(consoleMetersFixture(
+pkg/sdk/providers/opencode/parser_console_test.go:253:		{name: "null access with subscription envelope", body: consoleStatusFixture(nil)},
+2026年 10月 09日 星期五 12:02:23 CST
+go version go1.26.8 linux/amd64

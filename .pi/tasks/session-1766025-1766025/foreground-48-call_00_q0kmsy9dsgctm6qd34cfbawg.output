@@ -1,0 +1,18 @@
+M  cmd_page.go
+M  pkg/sdk/auth/opencode.go
+M  pkg/sdk/auth/opencode_test.go
+M  pkg/sdk/providers/opencode/client.go
+M  pkg/sdk/providers/opencode/client_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md
+=== staged files ===
+cmd_page.go
+pkg/sdk/auth/opencode.go
+pkg/sdk/auth/opencode_test.go
+pkg/sdk/providers/opencode/client.go
+pkg/sdk/providers/opencode/client_test.go

@@ -1,0 +1,27 @@
+{"level":40,"time":1791523335050,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+变更：6 个文件，8 个符号
+受影响流程：16
+风险等级：critical
+
+已变更符号：
+  Symbol showConfigHint → cmd_config.go
+  Symbol cmdConfigInit → cmd_config.go
+  Symbol cmdWatch → cmd_quota.go
+  Symbol body → pkg/sdk/providers/opencode/client_test.go
+  Symbol bodyErr → pkg/sdk/providers/opencode/client_test.go
+  Symbol opencodeFakeTransport → pkg/sdk/providers/opencode/client_test.go
+  Symbol TestParseQuotaResponseConsoleMissingFiveHourResetsAtKey → pkg/sdk/providers/opencode/parser_console_test.go
+  Symbol TestParseQuotaResponseConsoleExhaustedMetersCapAt100 → pkg/sdk/providers/opencode/parser_console_test.go
+
+受影响执行流程：
+  • CmdConfigMain → ConfigDir (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → LockFileFD (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → FileLock (7 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → MigrateLegacyConfig (6 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → Config (6 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → Mask (4 步) — 已变更：cmdConfigInit
+  • CmdConfigMain → Profile (3 步) — 已变更：cmdConfigInit
+  • CmdWatch → SkipSpace (7 步) — 已变更：cmdWatch
+  • CmdWatch → QuotaData (6 步) — 已变更：cmdWatch
+  • CmdWatch → ConsoleResetInSec (6 步) — 已变更：cmdWatch
+... 以及另外 6 个

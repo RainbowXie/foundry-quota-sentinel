@@ -1,0 +1,5 @@
+./pkg/sdk/auth/opencode.go:160:// RunOpenCodePage 注入 Cookie 并打开指定的 OpenCode 账户页，保持浏览器常驻直到用户自行关闭。
+./pkg/sdk/auth/opencode.go:161:func RunOpenCodePage(pageURL, cookie string) error {
+./pkg/sdk/auth/opencode.go:162:	if err := validateOpenCodePageURL(pageURL); err != nil {
+./pkg/sdk/auth/opencode.go:331:func validateOpenCodePageURL(rawURL string) error {
+./cmd_page.go:136:		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {

@@ -1,0 +1,8 @@
+internal/web/commandcode_sidebar_test.go:37:		t.Fatalf("ccDoLogin must use loginShellPoll with fc, found:\n%s", s)
+internal/web/sidebar_shell_test.go:176:		"loginShellPoll(",
+internal/web/sidebar_shell_test.go:181:			t.Fatalf("login fill must use loginShellPoll + fq/fo, missing %q", want)
+internal/web/static/sidebar.html:1949:                        return loginShellPoll(
+internal/web/static/sidebar.html:2388:            // loginShellPoll polls a provider's shell endpoint until the
+internal/web/static/sidebar.html:2402:            function loginShellPoll(shellFn, fillFn, name, interval, maxTries) {
+internal/web/static/sidebar.html:2449:                        return loginShellPoll(
+internal/web/static/sidebar.html:2469:                    return loginShellPoll(

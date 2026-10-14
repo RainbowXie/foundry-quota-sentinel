@@ -1,0 +1,29 @@
+tcp   LISTEN 0      128                                          127.0.0.1:45363      0.0.0.0:*    users:(("code-07f806f999",pid=1968556,fd=9))                                          
+tcp   LISTEN 0      4096                                         127.0.0.1:11088      0.0.0.0:*    users:(("xray",pid=1270922,fd=4))                                                     
+tcp   LISTEN 0      50                                           127.0.0.1:10391      0.0.0.0:*    users:(("Enpass",pid=7371,fd=28))                                                     
+tcp   LISTEN 0      4096                                         127.0.0.1:8888       0.0.0.0:*    users:(("integrity-swarm",pid=2497848,fd=13))                                         
+tcp   LISTEN 0      2048                                         127.0.0.1:8392       0.0.0.0:*    users:(("python",pid=816915,fd=8))                                                    
+tcp   LISTEN 0      128                                          127.0.0.1:8384       0.0.0.0:*    users:(("syncthing",pid=1426,fd=16))                                                  
+tcp   LISTEN 0      10                                           127.0.0.1:9333       0.0.0.0:*    users:(("helium",pid=2366236,fd=77))                                                  
+tcp   LISTEN 0      4096                                         127.0.0.1:42449      0.0.0.0:*    users:(("agent-browser-l",pid=487523,fd=9))                                           
+tcp   LISTEN 0      4096                                         127.0.0.1:8080       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:37745      0.0.0.0:*    users:(("code-07f806f999",pid=803930,fd=11))                                          
+tcp   LISTEN 0      128                                          127.0.0.1:5037       0.0.0.0:*    users:(("adb",pid=3704334,fd=11))                                                     
+tcp   LISTEN 0      128                                          127.0.0.1:6010       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6011       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6012       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6014       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6015       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6016       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      128                                          127.0.0.1:6017       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      4096                                         127.0.0.1:3000       0.0.0.0:*                                                                                          
+tcp   LISTEN 0      4096                                         127.0.0.1:631        0.0.0.0:*                                                                                          
+tcp   LISTEN 0      10                                           127.0.0.1:33557      0.0.0.0:*    users:(("chrome",pid=487537,fd=77))                                                   
+tcp   LISTEN 0      4096                                         127.0.0.1:20241      0.0.0.0:*                                                                                          
+tcp   LISTEN 0      4096                                         127.0.0.1:19514      0.0.0.0:*    users:(("multica",pid=6508,fd=5))                                                     
+tcp   LISTEN 0      4096                                         127.0.0.1:50051      0.0.0.0:*    users:(("integrity-swarm",pid=2497848,fd=11))                                         
+tcp   LISTEN 0      4096                                         127.0.0.1:50052      0.0.0.0:*    users:(("integrity-swarm",pid=2497848,fd=12))                                         
+tcp   LISTEN 0      128                                          127.0.0.1:51199      0.0.0.0:*    users:(("ssh",pid=1949474,fd=5))                                                      
+tcp   LISTEN 0      8                                   [::ffff:127.0.0.1]:8901             *:*    users:(("java",pid=110484,fd=31))                                                     
+tcp   LISTEN 0      8                                   [::ffff:127.0.0.1]:8902             *:*    users:(("java",pid=1720529,fd=32))                                                    
+tcp   LISTEN 0      50                                  [::ffff:127.0.0.1]:39245            *:*    users:(("java",pid=1216399,fd=315))                                                   

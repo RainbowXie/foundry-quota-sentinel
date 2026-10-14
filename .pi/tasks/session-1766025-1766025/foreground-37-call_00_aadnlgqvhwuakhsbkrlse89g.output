@@ -1,0 +1,7 @@
+gofmt clean (no output above)
+  203 cmd_page.go
+  380 pkg/sdk/auth/opencode.go
+  441 pkg/sdk/auth/opencode_test.go
+  140 pkg/sdk/providers/opencode/client.go
+  310 pkg/sdk/providers/opencode/client_test.go
+ 1474 总计

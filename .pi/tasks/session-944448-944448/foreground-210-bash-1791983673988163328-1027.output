@@ -1,0 +1,4 @@
+=== RUN   TestOpenCodeGoErrorWithReLogin
+--- PASS: TestOpenCodeGoErrorWithReLogin (0.06s)
+PASS
+ok  	foundry-quota-sentinel/internal/web	0.063s

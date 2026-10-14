@@ -1,0 +1,41 @@
+), true ? __vite__mapDeps([61,1,9,5,50,10,22,59,17,13,62]) : void 0) }, "path": "/workspace/:id/billing/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/go/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-u_1dN74h.js"
+), true ? __vite__mapDeps([63,1,9,10,22,50,64,33]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-u_1dN74h.js"
+), true ? __vite__mapDeps([63,1,9,10,22,50,64,33]) : void 0) }, "path": "/workspace/:id/go/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/keys/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-B55uazTO.js"
+), true ? __vite__mapDeps([65,1,9,13,5,59,22,10,17,66]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-B55uazTO.js"
+), true ? __vite__mapDeps([65,1,9,13,5,59,22,10,17,66]) : void 0) }, "path": "/workspace/:id/keys/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/members/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-D3J_T9mC.js"
+), true ? __vite__mapDeps([67,1,9,5,12,13,14,59,10,22,17,68]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-D3J_T9mC.js"
+), true ? __vite__mapDeps([67,1,9,5,12,13,14,59,10,22,17,68]) : void 0) }, "path": "/workspace/:id/members/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/settings/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-jLEo40wu.js"
+), true ? __vite__mapDeps([69,1,9,5,59,10,22,17,70]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-jLEo40wu.js"
+), true ? __vite__mapDeps([69,1,9,5,59,10,22,17,70]) : void 0) }, "path": "/workspace/:id/settings/" }, { "page": true, "$component": { "src": "src/routes/workspace/[id]/usage/index.tsx?pick=default&pick=$css", "build": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Bg8LVko8.js"
+), true ? __vite__mapDeps([71,1,9,5,12,13,14,10,50,22,17,72]) : void 0), "import": () => __vitePreload(() => import(
+  /* @vite-ignore */
+  "./index-Bg8LVko8.js"
+), true ? __vite__mapDeps([71,1,9,5,12,13,14,10,50,22,17,72]) : void 0) }, "path": "/workspace/:id/usage/" }];
+const NODE_TYPES = {
+  NORMAL: 0,
+  WILDCARD: 1,
+  PLACEHOLDER: 2
+};
+function createRouter(options = {}) {
+  const ctx = {
+    options,
+    rootNode: createRadixNode(),
+    staticRoutesMap: {}

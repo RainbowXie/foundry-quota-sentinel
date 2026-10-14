@@ -1,0 +1,13 @@
+[master c11b8aa] fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+ 10 files changed, 123 insertions(+), 18 deletions(-)
+ create mode 100644 internal/formatter/table_test.go
+c11b8aa fix(opencode): fail closed on non-Seroval null and refresh Console v2 guidance
+1538230 feat(opencode): migrate to Console v2 quota API and console login flow
+b883a78 fix(store): remove unsafe pseudo-reentrancy and restore strict mutex contract
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md

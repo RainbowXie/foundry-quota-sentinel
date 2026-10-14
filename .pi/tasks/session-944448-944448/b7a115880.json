@@ -1,0 +1,19 @@
+{
+  "id": "b7a115880",
+  "name": "grep -rn \"validateOpenCodePageURL\" .",
+  "command": "grep -rn \"validateOpenCodePageURL\" .",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-944448-944448/foreground-76-bash-1791895255008772430-428.output",
+  "cwd": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+  "startTime": 1791895255410,
+  "endTime": 1791895375945,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 2763978,
+  "bytesWritten": 57744459,
+  "isAgent": false,
+  "error": "Output exceeded cap of 20.0MB; terminating task",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

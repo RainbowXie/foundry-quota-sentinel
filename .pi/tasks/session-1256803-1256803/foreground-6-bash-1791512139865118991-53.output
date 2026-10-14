@@ -1,0 +1,196 @@
+import { s as delegateEvents } from "./tr-Db0JsSoN.js";
+import { c as createServerReference } from "./server-runtime-Cf0dfMOw.js";
+/* empty css               */
+import { q as query } from "./query-jHzU-9wN.js";
+import { a as action } from "./action-SL_f8Aao.js";
+import "./common-D8m7xPMq.js";
+function redirect(url, init = 302) {
+  let responseInit;
+  let revalidate;
+  if (typeof init === "number") {
+    responseInit = {
+      status: init
+    };
+  } else {
+    ({
+      revalidate,
+      ...responseInit
+    } = init);
+    if (typeof responseInit.status === "undefined") {
+      responseInit.status = 302;
+    }
+  }
+  const headers = new Headers(responseInit.headers);
+  headers.set("Location", url);
+  revalidate !== void 0 && headers.set("X-Revalidate", revalidate.toString());
+  const response = new Response(null, {
+    ...responseInit,
+    headers
+  });
+  return response;
+}
+const queryGoReferral_query = createServerReference("2a0b2fef5fd2ec9eff0cb5d4955e4ada4eece21fac85591ed4c09630168d4844");
+query(queryGoReferral_query, "go.referral.get");
+const queryGoReferralUsagePreview_query = createServerReference("46625df0aecf05f270f7ae4612cde374d11350c8abaf8649027572228b8af150");
+query(queryGoReferralUsagePreview_query, "go.referral.usagePreview");
+const applyGoReferralReward_action = createServerReference("f386778c1b78eade3e6acff87c9284e02fcd86826463c080526143c4fe8fff23");
+action(applyGoReferralReward_action, "go.referral.reward.apply");
+delegateEvents(["click"]);
+const queryLiteSubscription_query = createServerReference("c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd");
+query(queryLiteSubscription_query, "lite.subscription.get");
+const queryLiteUsageDetails_query = createServerReference("ba154d05c4028a885b8c753f9def7e45d87eb982e65fa8b14254cbe636168914");
+query(queryLiteUsageDetails_query, "lite.subscription.usage");
+const createLiteCheckoutUrl_action = createServerReference("cbabaa5c4c213c60729203b45290235929597a87a8d02dc9d5e57b930c939234");
+action(createLiteCheckoutUrl_action, "liteCheckoutUrl");
+const createSessionUrl_action = createServerReference("62ed095777d5415e71394df8ceda4f1141f0ecd5e330f484e4eb5dcfc5b0f1df");
+action(createSessionUrl_action, "liteSessionUrl");
+const setLiteUseBalance_action = createServerReference("0c8d84b0a700eb0de440ca4c9105b42d6c9ede971d6bf592fa4f91bbeaaa1e6b");
+action(setLiteUseBalance_action, "setLiteUseBalance");
+const setGoProviderRouting_action = createServerReference("57e61af1bc9c8fa15e0c1a880a2a6754484afdd4a3bc4426b3fc02e3a7ff4d69");
+action(setGoProviderRouting_action, "go.providerRouting.set");
+const setGoAllowTraining_action = createServerReference("7537640d1486e48fd79c3abe2f88b8485c436bfc1eca1a5638135b199f050c1b");
+action(setGoAllowTraining_action, "go.allowTraining.set");
+delegateEvents(["click"]);
+function index() {
+  throw redirect("/console/go");
+}
+export {
+  index as default
+};
+
+import { a1 as onCleanup, _ as mergeProps, aa as splitProps, i as createComponent, D as Dynamic, q as createSignal, m as createMemo, af as untrack, l as createEffect, Z as memo } from "./tr-Db0JsSoN.js";
+import { a as access$1 } from "./U42ECMND-CpGP6a5I.js";
+const isNonNullable = (i) => i != null;
+const filterNonNullable = (arr) => arr.filter(isNonNullable);
+function chain(callbacks) {
+  return (...args) => {
+    for (const callback of callbacks) callback && callback(...args);
+  };
+}
+const access = (v) => typeof v === "function" && !v.length ? v() : v;
+const asArray = (value) => Array.isArray(value) ? value : value ? [value] : [];
+function accessWith(valueOrFn, ...args) {
+  return typeof valueOrFn === "function" ? valueOrFn(...args) : valueOrFn;
+}
+const tryOnCleanup = onCleanup;
+function handleDiffArray(current, prev, handleAdded, handleRemoved) {
+  const currLength = current.length;
+  const prevLength = prev.length;
+  let i = 0;
+  if (!prevLength) {
+    for (; i < currLength; i++) handleAdded(current[i]);
+    return;
+  }
+  if (!currLength) {
+    for (; i < prevLength; i++) handleRemoved(prev[i]);
+    return;
+  }
+  for (; i < prevLength; i++) {
+    if (prev[i] !== current[i]) break;
+  }
+  let prevEl;
+  let currEl;
+  prev = prev.slice(i);
+  current = current.slice(i);
+  for (prevEl of prev) {
+    if (!current.includes(prevEl)) handleRemoved(prevEl);
+  }
+  for (currEl of current) {
+    if (!prev.includes(currEl)) handleAdded(currEl);
+  }
+}
+const extractCSSregex = /((?:--)?(?:\w+-?)+)\s*:\s*([^;]*)/g;
+function stringStyleToObject(style) {
+  const object = {};
+  let match;
+  while (match = extractCSSregex.exec(style)) {
+    object[match[1]] = match[2];
+  }
+  return object;
+}
+function combineStyle(a, b) {
+  if (typeof a === "string") {
+    if (typeof b === "string") return `${a};${b}`;
+    a = stringStyleToObject(a);
+  } else if (typeof b === "string") {
+    b = stringStyleToObject(b);
+  }
+  return {
+    ...a,
+    ...b
+  };
+}
+function mergeRefs(...refs) {
+  return chain(refs);
+}
+function addItemToArray(array, item, index = -1) {
+  if (!(index in array)) {
+    return [...array, item];
+  }
+  return [...array.slice(0, index), item, ...array.slice(index)];
+}
+function removeItemFromArray(array, item) {
+  const updatedArray = [...array];
+  const index = updatedArray.indexOf(item);
+  if (index !== -1) {
+    updatedArray.splice(index, 1);
+  }
+  return updatedArray;
+}
+function isNumber(value) {
+  return typeof value === "number";
+}
+function isString(value) {
+  return Object.prototype.toString.call(value) === "[object String]";
+}
+function isFunction(value) {
+  return typeof value === "function";
+}
+function createGenerateId(baseId) {
+  return (suffix) => `${baseId()}-${suffix}`;
+}
+function contains(parent, child) {
+  if (!parent) {
+    return false;
+  }
+  return parent === child || parent.contains(child);
+}
+function getActiveElement(node, activeDescendant = false) {
+  const {
+    activeElement
+  } = getDocument(node);
+  if (!activeElement?.nodeName) {
+    return null;
+  }
+  if (isFrame(activeElement) && activeElement.contentDocument) {
+    return getActiveElement(activeElement.contentDocument.body, activeDescendant);
+  }
+  if (activeDescendant) {
+    const id = activeElement.getAttribute("aria-activedescendant");
+    if (id) {
+      const element = getDocument(activeElement).getElementById(id);
+      if (element) {
+        return element;
+      }
+    }
+  }
+  return activeElement;
+}
+function getDocument(node) {
+  return node ? node.ownerDocument || node : document;
+}
+function isFrame(element) {
+  return element.tagName === "IFRAME";
+}
+var EventKey = /* @__PURE__ */ ((EventKey2) => {
+  EventKey2["Escape"] = "Escape";
+  EventKey2["Enter"] = "Enter";
+  EventKey2["Tab"] = "Tab";
+  EventKey2["Space"] = " ";
+  EventKey2["ArrowDown"] = "ArrowDown";
+  EventKey2["ArrowLeft"] = "ArrowLeft";
+  EventKey2["ArrowRight"] = "ArrowRight";
+  EventKey2["ArrowUp"] = "ArrowUp";
+  EventKey2["End"] = "End";
+  EventKey2["Home"] = "Home";
+  EventKey2["PageDown"] = "P

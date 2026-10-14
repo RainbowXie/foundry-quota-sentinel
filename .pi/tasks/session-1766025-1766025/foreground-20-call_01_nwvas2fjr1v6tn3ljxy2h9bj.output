@@ -1,0 +1,11 @@
+{
+  "id": "opencode-quota-response-parsing",
+  "title": "opencode-quota-response-parsing",
+  "overview": "Structured, fail-closed parsing of the OpenCode Go quota response, a\nseroval-like serialization rather than plain JSON. The parser accepts the\nevidence-backed layout variations (reference-number drift, property order,\nwhitespace, unrelated extra properties, inline objects) while rejecting\nmissing, malformed, truncated, duplicated, negative, or unsupported data\nwithout fabricating values or substituting windows. All fixtures and\ndiagnostics stay free of authentication and account material.",
+  "requirementCount": 3,
+  "requirements": [
+    {
+      "text": "The system SHALL parse OpenCode Go rolling, weekly, and optional monthly quota objects without depending on seroval reference numbers, property order, insignificant whitespace, or unrelated additional properties. It MUST preserve each parsed status, reset duration, and usage percentage under the correct quota window.",
+      "scenarios": [
+        {
+          "rawText": "- **WHEN** a sanitized valid response moves each `$R[n]` reference and reorders `status`, `resetInSec`, and `usagePercent`\n- **THEN** the parser return

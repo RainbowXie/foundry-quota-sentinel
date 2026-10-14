@@ -1,0 +1,53 @@
+741ba01411662784abad352ee5aeb99f0358130a
+fix(opencode): close Console v2 review findings (org resolve hot loop, probe errors, docs)
+
+修复第三轮审查提出的 5 个 P2 问题（审查结论为无 P0/P1）：
+
+- /console/api/orgs 反查热循环：300ms 轮询原本每轮都重发，上游持续 401/429
+  或会话 Cookie 尚未生效时会形成 ~3 req/s 的请求压力并可能自我延续限流。
+  现由 shouldResolveOpenCodeOrgID 统一约束：最小重试间隔 5s，单次登录最多 5 次；
+  超过上限后只继续等待页面自身跳到 /console/<id>/go，不再向上游施压。
+  新增 TestShouldResolveOpenCodeOrgID 覆盖间隔与上限边界，
+  TestRunOpenCodeLoginRateLimitsOrgIDResolve 守住「两次轮询只反查一次」的回归。
+- CDP 探针错误被静默丢弃：urlErr/cookieErr 既不记录也不并入最终错误，持续失败时
+  用户只看到笼统的「未捕获到有效凭证」。现保留最后一次探针错误，经 openCodeCaptureErr
+  并入窗口关闭与登录超时的失败信息（%w 包装，可用 errors.Is 判定）。
+  新增 TestRunOpenCodeLoginReportsLastProbeError，覆盖页面地址与 Cookie 两条分支。
+- Cookie 过滤重复实现：filterOpenCodeCookies 与 openCodeCookieHeader 的三项判据
+  （域名匹配 / 排除 auth 子域 / 值安全）逐字相同，且前者无其他调用点也无单测。
+  现删除 filterOpenCodeCookies，过滤只保留在 openCodeCookieHeader 内，并补充
+  TestOpenCodeCookieHeaderDropsUnsafeCookies 继续守住三项判据。
+- internal/web/static/help.html:348 架构数据来源仍写已退役的
+  OpenCode Go RPC (/_server)，改为 OpenCode Console API (/console/api/go/status)；
+  同文件 156 行的「OpenCode Go 的 RPC 接口」一并改为 Console 接口说明。
+- pkg/sdk/README.md 包结构说明仍写「OpenCode 原生配额 RPC 获取与 Seroval 解析器」，
+  改为「Console v2 /console/api/go/status JSON 解析 + 旧 Seroval 兼容分支」
+  （该 README 随 export-sdk.sh 交付给 SDK 使用者）。
+
+验证：gofmt -l pkg/sdk cmd_page.go（本次改动文件均无输出，仅剩 HEAD 既存的 3 个
+Go 1.19+ 对齐漂移文件）、go vet -tags nogui ./...、go test -tags nogui ./...、
+CGO_ENABLED=0 go test ./pkg/sdk/...、GOARCH=386 go test
+./pkg/sdk/{auth,providers/opencode}/... 全绿；./scripts/export-sdk.sh 独立模块测试全绿；
+build/fqs-cli（nogui）与 build/foundry-quota-sentinel（CGO + webkit2gtk-4.1 shim）
+均重新构建。GitNexus impact：runOpenCodeLogin / openCodeCookieHeader /
+filterOpenCodeCookies 均 LOW；detect-changes 为 medium（集中在登录流程符号，未波及
+配额卡片等其他执行流程）。
+
+---
+549e481cfe862ec2d17a457d0aae927be70c3c63
+fix(opencode): close Console v2 audit findings (32-bit clamp, auth host, anchored workspace id)
+
+修复第三轮审查发现的 3 个 P2 问题：
+=== STATUS ===
+ M cmd_page.go
+ M pkg/sdk/auth/opencode.go
+ M pkg/sdk/auth/opencode_test.go
+ M pkg/sdk/providers/opencode/client.go
+ M pkg/sdk/providers/opencode/client_test.go
+?? .agents/
+?? .claude/
+?? .codex/
+?? .endless-supervisor/
+?? .pi/
+?? AGENTS.md
+?? CLAUDE.md

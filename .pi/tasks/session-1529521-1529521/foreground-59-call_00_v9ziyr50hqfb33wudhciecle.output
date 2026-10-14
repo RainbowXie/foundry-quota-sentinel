@@ -1,0 +1,6 @@
+=== FormatOpenCodeTable ===
+risk: LOW | impacted: 2 | epistemic: exact
+processes: ['main', 'cmdQuota']
+=== parseSerovalQuotaResponse ===
+risk: UNKNOWN | impacted: 0 | epistemic: None
+processes: []

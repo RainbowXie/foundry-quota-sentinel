@@ -1,0 +1,2 @@
+[master bac718b] fix(opencode): render lapsed notice in CLI table and watch views
+ 3 files changed, 37 insertions(+), 6 deletions(-)

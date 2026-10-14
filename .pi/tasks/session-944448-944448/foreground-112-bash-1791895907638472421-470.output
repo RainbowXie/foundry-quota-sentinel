@@ -1,0 +1,3 @@
+oc_locale err: 'utf-8' codec can't decode byte 0xf3 in position 1: invalid continuation byte
+__Host-console_session err: 'utf-8' codec can't decode byte 0xf3 in position 1: invalid continuation byte
+__stripe_mid err: 'utf-8' codec can't decode byte 0xa0 in position 7: invalid start byte

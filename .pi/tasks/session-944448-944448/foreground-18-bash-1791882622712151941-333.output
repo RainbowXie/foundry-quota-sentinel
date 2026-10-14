@@ -1,0 +1,51 @@
+1629-            // the container is reset to a non-data state (error-only, or
+1630-            // a deliberately emptied container). stale-while-refresh:
+1631-            // renderProviderShells renders loading shells ONLY when
+1632-            // !containerHasData[provider], so a periodic or manual
+1633-            // refresh never replaces visible data with a "加载中"
+1634-            // placeholder — the old data stays until the fill replaces it.
+1635-            var containerHasData = {}; // provider -> bool
+1636-
+1637-            // markContainerData(provider, hasData) is the single write
+1638-            // point for the data-state flag, so every transition is
+1639-            // auditable. fill success -> true; error-only -> false.
+1640-            function markContainerData(provider, hasData) {
+1641-                containerHasData[provider] = !!hasData;
+1642-            }
+1643-
+1644-            function rearmProviderRefresh(provider) {
+1645-                var st = refreshState[provider];
+1646-                if (!st) return;
+1647-                st.busy = false;
+1648-                st.promise = null;
+1649-                st.timer = setTimeout(function () {
+1650-                    scheduleProviderRefresh(provider, st.fn);
+1651-                }, REFRESH_DELAY_MS);
+1652-            }
+1653-
+1654:            function scheduleProviderRefresh(provider, fn) {
+1655-                var st = refreshState[provider];
+1656-                if (!st) {
+1657-                    st = refreshState[provider] = {
+1658-                        busy: false,
+1659-                        promise: null,
+1660-                        timer: 0,
+1661-                        fn: fn
+1662-                    };
+1663-                }
+1664-                if (st.busy) {
+1665-                    // Single-flight: join the in-flight refresh.
+1666-                    return st.promise;
+1667-                }
+1668-                // Idle: cancel this provider's previous next-run timer.
+1669-                if (st.timer) {
+1670-                    clearTimeout(st.timer);
+1671-                    st.timer = 0;
+1672-                }
+1673-                st.busy = true;
+1674-                // fn runs synchronously so an explicit trigger's effect is
+1675-                // immediate; the returned promise is adopted for single-flight.
+1676-                var p;
+1677-                try {
+1678-                    p = Promise.resolve(fn());
+1679-                } catch (e) {

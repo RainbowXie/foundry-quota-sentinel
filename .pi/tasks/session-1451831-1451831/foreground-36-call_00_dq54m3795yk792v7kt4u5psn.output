@@ -1,0 +1,20 @@
+pkg/sdk/auth/browserauth/cdp_test.go:33:	// model a per-cookie injection failure (e.g. a __Host- cookie
+pkg/sdk/auth/browserauth/cdp_test.go:176:				// __Host- cookies must not carry a domain and must be
+pkg/sdk/auth/browserauth/cdp_test.go:178:				if strings.HasPrefix(name, "__Host-") && (domain != "" || url == "") {
+pkg/sdk/auth/browserauth/cdp_test.go:320:// TestSetCookiesStripsDomainForHostScopedCookies proves a __Host-
+pkg/sdk/auth/browserauth/cdp_test.go:322:// Chrome rejects __Host- cookies that set a domain; replaying the
+pkg/sdk/auth/browserauth/cdp_test.go:334:		{Name: "__Host-session", Value: "v", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+pkg/sdk/auth/browserauth/cdp_test.go:337:		t.Fatalf("SetCookies failed for __Host- cookie: %v", err)
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:10:// (e.g. a __Host- cookie Chrome refuses). The good cookie is still
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:17:	server.rejectStorageCookieName = "__Host-bad"
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:25:		{Name: "__Host-bad", Value: "x", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:32:	if len(result.Failed) != 1 || result.Failed[0] != "__Host-bad" {
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:33:		t.Fatalf("expected failed=[__Host-bad], got %v", result.Failed)
+pkg/sdk/auth/browserauth/cdp_test.go:33:	// model a per-cookie injection failure (e.g. a __Host- cookie
+pkg/sdk/auth/browserauth/cdp_test.go:176:				// __Host- cookies must not carry a domain and must be
+pkg/sdk/auth/browserauth/cdp_test.go:178:				if strings.HasPrefix(name, "__Host-") && (domain != "" || url == "") {
+pkg/sdk/auth/browserauth/cdp_test.go:320:// TestSetCookiesStripsDomainForHostScopedCookies proves a __Host-
+pkg/sdk/auth/browserauth/cdp_test.go:322:// Chrome rejects __Host- cookies that set a domain; replaying the
+pkg/sdk/auth/browserauth/cdp_test.go:334:		{Name: "__Host-session", Value: "v", Domain: "platform.deepseek.com", Path: "/", Secure: true, HTTPOnly: true},
+pkg/sdk/auth/browserauth/cdp_test.go:337:		t.Fatalf("SetCookies failed for __Host- cookie: %v", err)
+pkg/sdk/auth/browserauth/cookies_besteffort_test.go:10:// (e.g. a __Host- cookie Chrome refuses). The good cookie is still

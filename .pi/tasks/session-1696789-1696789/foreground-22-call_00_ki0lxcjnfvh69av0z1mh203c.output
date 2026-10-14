@@ -1,0 +1,46 @@
+      远期（如 2099 年夹具，约 2.5×10⁹ 秒）倒计时溢出成负值，翻转“倒计时非负”契约。
+      现钳位到 math.MaxInt32，并新增 TestParseQuotaResponseConsoleClampsFarFutureResetsAt
+      （GOARCH=386 下未钳位实测得到 -1139293697，钳位后为 2147483647）。
+    - 账户页 host 策略不一致：validateOpenCodePageURL 此前只校验 opencode.ai 根域，
+      会放行 auth.opencode.ai，与 openCodeWorkspaceID/openCodeConsoleURL 的排除策略矛盾。
+      现显式排除 auth 子域，并新增 TestValidateOpenCodePageURL 表驱动用例。
+    - 工作区 ID 提取未锚定：openCodeWorkspaceRe 从任意路径抓 org_/wrk_ 字样，会在文档页等
+      非 console 路由提取出错误 ID。现锚定为 ^/console/((?:org|wrk)_[a-zA-Z0-9]+)(?:/|$)，
+      并补充非 console 路由与无尾段路径用例。
+    
+    验证：go vet -tags nogui ./...、go test -tags nogui ./...、CGO_ENABLED=0 go test ./pkg/sdk/...、
+    GOARCH=386 go test ./pkg/sdk/{auth,providers/opencode}/... 全绿；./scripts/export-sdk.sh
+    独立模块测试全绿；build/fqs-cli（nogui）与 build/foundry-quota-sentinel（CGO + webkit2gtk-4.1）
+    均重新构建。
+
+ pkg/sdk/auth/opencode.go                          | 18 ++++++++++---
+ pkg/sdk/auth/opencode_test.go                     | 33 +++++++++++++++++++++++
+ pkg/sdk/providers/opencode/parser_console.go      |  9 +++++--
+ pkg/sdk/providers/opencode/parser_console_test.go | 22 +++++++++++++++
+ 4 files changed, 76 insertions(+), 6 deletions(-)
+==== c11b8aa
+      WorkspaceID 格式，手工粘贴的 URL 不再被当作 x-org-id 发往上游。
+      新增 TestOpenCodeFetchQuotaRejectsMalformedWorkspaceID 覆盖 7 种非法 ID。
+    - P2 Monthly 缺失被渲染成“无限额度”这一正向断言：CLI 表格与 watch 视图
+      改为“未提供/无月窗口”，并新增 internal/formatter/table_test.go 守住口径。
+    
+    验证：go test -tags nogui ./...、CGO_ENABLED=0 go test ./pkg/sdk/...、
+    go vet -tags nogui ./...、./scripts/export-sdk.sh 全绿；CLI（-tags nogui）
+    与 GUI（webkit2gtk 4.1 shim, CGO）二进制均已重新构建。
+
+ cmd_config.go                             |  6 ++---
+ cmd_login.go                              |  2 +-
+ cmd_quota.go                              |  3 ++-
+ internal/formatter/table.go               |  4 +++-
+ internal/formatter/table_test.go          | 40 +++++++++++++++++++++++++++++++
+ internal/web/static/help.html             |  2 +-
+ pkg/sdk/providers/opencode/client.go      |  5 ++++
+ pkg/sdk/providers/opencode/client_test.go | 31 ++++++++++++++++++++++++
+ pkg/sdk/providers/opencode/parser.go      |  8 +++----
+ pkg/sdk/providers/opencode/parser_test.go | 40 +++++++++++++++++++++++++------
+ 10 files changed, 123 insertions(+), 18 deletions(-)
+==== scripts
+build-deb.sh
+build-linux.sh
+export-sdk.sh
+pack-deb.sh

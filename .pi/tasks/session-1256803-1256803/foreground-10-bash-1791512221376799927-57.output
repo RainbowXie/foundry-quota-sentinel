@@ -1,0 +1,113 @@
+    const result = await enrollAction(params.id);
+    if (!result.error) {
+      setStore("enrolled", true);
+    }
+  }
+  return [createComponent(Show, {
+    get when() {
+      return subscription();
+    },
+    children: (sub) => (() => {
+      var _el$10 = getNextElement(_tmpl$3$1), _el$11 = _el$10.firstChild, _el$12 = _el$11.firstChild, _el$13 = _el$12.nextSibling, _el$14 = _el$13.nextSibling, _el$15 = _el$11.nextSibling, _el$16 = _el$15.firstChild, _el$17 = _el$16.firstChild, _el$18 = _el$17.firstChild, _el$19 = _el$18.nextSibling, _el$21 = _el$19.firstChild, [_el$22, _co$2] = getNextMarker(_el$21.nextSibling);
+      _el$22.nextSibling;
+      var _el$23 = _el$17.nextSibling, _el$24 = _el$23.firstChild, _el$25 = _el$23.nextSibling, _el$27 = _el$25.firstChild, [_el$28, _co$3] = getNextMarker(_el$27.nextSibling), _el$26 = _el$28.nextSibling, _el$29 = _el$26.nextSibling, [_el$30, _co$4] = getNextMarker(_el$29.nextSibling), _el$31 = _el$16.nextSibling, _el$32 = _el$31.firstChild, _el$33 = _el$32.firstChild, _el$34 = _el$33.nextSibling, _el$36 = _el$34.firstChild, [_el$37, _co$5] = getNextMarker(_el$36.nextSibling);
+      _el$37.nextSibling;
+      var _el$38 = _el$32.nextSibling, _el$39 = _el$38.firstChild, _el$40 = _el$38.nextSibling, _el$42 = _el$40.firstChild, [_el$43, _co$6] = getNextMarker(_el$42.nextSibling), _el$41 = _el$43.nextSibling, _el$44 = _el$41.nextSibling, [_el$45, _co$7] = getNextMarker(_el$44.nextSibling), _el$46 = _el$15.nextSibling, _el$47 = _el$46.firstChild, _el$48 = _el$47.nextSibling, _el$49 = _el$48.nextSibling, _el$50 = _el$49.nextSibling, _el$51 = _el$50.firstChild;
+      insert(_el$12, () => i18n.t("workspace.black.subscription.title"));
+      insert(_el$13, () => i18n.t("workspace.black.subscription.message", {
+        plan: sub().plan
+      }));
+      insert(_el$14, () => i18n.t("workspace.black.subscription.ending"));
+      insert(_el$18, () => i18n.t("workspace.black.subscription.rollingUsage"));
+      insert(_el$19, () => sub().rollingUsage.usagePercent, _el$22, _co$2);
+      insert(_el$25, () => i18n.t("workspace.black.subscription.resetsIn"), _el$28, _co$3);
+      insert(_el$25, () => formatResetTime(sub().rollingUsage.resetInSec, i18n, blackResetTimeKeys), _el$30, _co$4);
+      insert(_el$33, () => i18n.t("workspace.black.subscription.weeklyUsage"));
+      insert(_el$34, () => sub().weeklyUsage.usagePercent, _el$37, _co$5);
+      insert(_el$40, () => i18n.t("workspace.black.subscription.resetsIn"), _el$43, _co$6);
+      insert(_el$40, () => formatResetTime(sub().weeklyUsage.resetInSec, i18n, blackResetTimeKeys), _el$45, _co$7);
+      setAttribute(_el$46, "action", setUseBalance);
+      insert(_el$47, () => i18n.t("workspace.black.subscription.useBalance"));
+      _el$51.addEventListener("change", (e) => e.currentTarget.form?.requestSubmit());
+      createRenderEffect((_p$) => {
+        var _v$3 = styles$1.root, _v$4 = `${sub().rollingUsage.usagePercent}%`, _v$5 = `${sub().weeklyUsage.usagePercent}%`, _v$6 = useBalanceSubmission.pending;
+        _v$3 !== _p$.e && className(_el$10, _p$.e = _v$3);
+        _v$4 !== _p$.t && setStyleProperty(_el$24, "width", _p$.t = _v$4);
+        _v$5 !== _p$.a && setStyleProperty(_el$39, "width", _p$.a = _v$5);
+        _v$6 !== _p$.o && setProperty(_el$51, "disabled", _p$.o = _v$6);
+        return _p$;
+      }, {
+        e: void 0,
+        t: void 0,
+        a: void 0,
+        o: void 0
+      });
+      createRenderEffect(() => setProperty(_el$48, "value", params.id));
+      createRenderEffect(() => setProperty(_el$49, "value", sub().useBalance ? "false" : "true"));
+      createRenderEffect(() => setProperty(_el$51, "checked", sub().useBalance));
+      return _el$10;
+    })()
+  }), createComponent(Show, {
+    get when() {
+      return billing()?.timeSubscriptionBooked;
+    },
+=== index-u_1dN74h.js full ===
+import { s as delegateEvents } from "./tr-Db0JsSoN.js";
+import { c as createServerReference } from "./server-runtime-Cf0dfMOw.js";
+/* empty css               */
+import { q as query } from "./query-jHzU-9wN.js";
+import { a as action } from "./action-SL_f8Aao.js";
+import "./common-D8m7xPMq.js";
+function redirect(url, init = 302) {
+  let responseInit;
+  let revalidate;
+  if (typeof init === "number") {
+    responseInit = {
+      status: init
+    };
+  } else {
+    ({
+      revalidate,
+      ...responseInit
+    } = init);
+    if (typeof responseInit.status === "undefined") {
+      responseInit.status = 302;
+    }
+  }
+  const headers = new Headers(responseInit.headers);
+  headers.set("Location", url);
+  revalidate !== void 0 && headers.set("X-Revalidate", revalidate.toString());
+  const response = new Response(null, {
+    ...responseInit,
+    headers
+  });
+  return response;
+}
+const queryGoReferral_query = createServerReference("2a0b2fef5fd2ec9eff0cb5d4955e4ada4eece21fac85591ed4c09630168d4844");
+query(queryGoReferral_query, "go.referral.get");
+const queryGoReferralUsagePreview_query = createServerReference("46625df0aecf05f270f7ae4612cde374d11350c8abaf8649027572228b8af150");
+query(queryGoReferralUsagePreview_query, "go.referral.usagePreview");
+const applyGoReferralReward_action = createServerReference("f386778c1b78eade3e6acff87c9284e02fcd86826463c080526143c4fe8fff23");
+action(applyGoReferralReward_action, "go.referral.reward.apply");
+delegateEvents(["click"]);
+const queryLiteSubscription_query = createServerReference("c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd");
+query(queryLiteSubscription_query, "lite.subscription.get");
+const queryLiteUsageDetails_query = createServerReference("ba154d05c4028a885b8c753f9def7e45d87eb982e65fa8b14254cbe636168914");
+query(queryLiteUsageDetails_query, "lite.subscription.usage");
+const createLiteCheckoutUrl_action = createServerReference("cbabaa5c4c213c60729203b45290235929597a87a8d02dc9d5e57b930c939234");
+action(createLiteCheckoutUrl_action, "liteCheckoutUrl");
+const createSessionUrl_action = createServerReference("62ed095777d5415e71394df8ceda4f1141f0ecd5e330f484e4eb5dcfc5b0f1df");
+action(createSessionUrl_action, "liteSessionUrl");
+const setLiteUseBalance_action = createServerReference("0c8d84b0a700eb0de440ca4c9105b42d6c9ede971d6bf592fa4f91bbeaaa1e6b");
+action(setLiteUseBalance_action, "setLiteUseBalance");
+const setGoProviderRouting_action = createServerReference("57e61af1bc9c8fa15e0c1a880a2a6754484afdd4a3bc4426b3fc02e3a7ff4d69");
+action(setGoProviderRouting_action, "go.providerRouting.set");
+const setGoAllowTraining_action = createServerReference("7537640d1486e48fd79c3abe2f88b8485c436bfc1eca1a5638135b199f050c1b");
+action(setGoAllowTraining_action, "go.allowTraining.set");
+delegateEvents(["click"]);
+function index() {
+  throw redirect("/console/go");
+}
+export {
+  index as default
+};

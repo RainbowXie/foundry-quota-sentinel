@@ -1,0 +1,13 @@
+24:func TestParseQuotaResponseREDFixtureNowParses(t *testing.T) {
+37:func TestParseQuotaResponseAcceptedShapes(t *testing.T) {
+89:func TestParseQuotaResponseRejectsMalformed(t *testing.T) {
+131:func TestParseQuotaResponseAcceptsAnyNonEmptyStatus(t *testing.T) {
+173:func TestParseQuotaResponseRejectsNonStringOrEmptyStatus(t *testing.T) {
+196:func TestParseQuotaResponseAcceptsFractionalUsagePercent(t *testing.T) {
+220:func TestParseQuotaResponseRejectsMalformedUsagePercent(t *testing.T) {
+227:		{name: "null usagePercent", body: `{rollingUsage:{status:"ok",resetInSec:300,usagePercent:null},weeklyUsage:{status:"ok",resetInSec:604800,usagePercent:80}}`},
+245:func TestParseQuotaResponseExhaustedRollingParses(t *testing.T) {
+259:func TestParseQuotaResponseLapsedSubscriptionMarksUnavailable(t *testing.T) {
+260:	real := `;0x0000002e;((self.$R=self.$R||{})["server-fn:3"]=[],null)`
+268:	if !got.Lapsed {
+269:		t.Fatal("lapsed subscription must mark QuotaData.Lapsed")

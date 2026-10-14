@@ -1,0 +1,60 @@
+145:		envelope = append(envelope, cookieParam(cookie))
+146-	}
+147-	start := time.Now()
+148-	if _, err := c.Call(ctx, "Storage.setCookies", map[string]any{"cookies": envelope}); err != nil {
+149-		return fmt.Errorf("注入 cookie 失败（耗时 %s）: %w", time.Since(start).Round(time.Millisecond), err)
+150-	}
+151-	log.Printf("browserauth: Storage.setCookies 批量注入成功（%d 个，耗时 %s）", len(envelope), time.Since(start).Round(time.Millisecond))
+152-	return nil
+153-}
+154-
+155-// SetCookiesBestEffort injects cookies one Storage.setCookies call at a
+156-// time using the {cookies:[...]} envelope, degrading rather than
+157-// aborting. A cookie Chrome rejects (e.g. a __Host- cookie captured
+158-// with a Domain, which Storage.setCookies refuses) is logged by name
+159-// and value length and skipped; the remaining cookies are still set.
+160-// The account-page browser must stay open until the user closes it, so
+161-// a non-fatal cookie failure must not bubble up as a flow error.
+162-//
+163-// CookieInjectionResult reports how many cookies were injected and
+164-// which names failed, by name only — no value is ever logged. The
+165-// caller decides whether an all-failed result is fatal.
+166-type CookieInjectionResult struct {
+167-	Injected int
+168-	Failed   []string
+169-}
+170-
+171-func (c *Client) SetCookiesBestEffort(ctx context.Context, cookies []Cookie) CookieInjectionResult {
+172-	var result CookieInjectionResult
+173-	for _, cookie := range cookies {
+174-		if err := validateCookie(cookie); err != nil {
+175-			log.Printf("browserauth: 跳过 cookie %q（长度 %d）: %v", cookie.Name, len(cookie.Value), err)
+--
+181:			"cookies": []map[string]any{cookieParam(cookie)},
+182-		}); err != nil {
+183-			log.Printf("browserauth: 注入 cookie %q 失败（长度 %d，耗时 %s）: %v", cookie.Name, len(cookie.Value), time.Since(start).Round(time.Millisecond), err)
+184-			result.Failed = append(result.Failed, cookie.Name)
+185-			continue
+186-		}
+187-		log.Printf("browserauth: 注入 cookie %q 成功（耗时 %s）", cookie.Name, time.Since(start).Round(time.Millisecond))
+188-		result.Injected++
+189-	}
+190-	return result
+191-}
+192-
+193:// cookieParam builds the Storage.setCookies CookieParam for one cookie.
+194-// __Host- prefixed cookies must not carry a Domain and must be scoped
+195-// to an https URL instead; Chrome rejects a __Host- cookie that sets a
+196-// domain. Non-host cookies keep their captured Domain.
+197:func cookieParam(cookie Cookie) map[string]any {
+198-	domain := cookie.Domain
+199-	url := ""
+200-	if strings.HasPrefix(cookie.Name, "__Host-") {
+201-		domain = ""
+202-		url = "https://" + strings.TrimPrefix(cookie.Domain, ".")
+203-	}
+204-	params := map[string]any{
+205-		"name":     cookie.Name,
+206-		"value":    cookie.Value,
+207-		"secure":   cookie.Secure,
+208-		"httpOnly": cookie.HTTPOnly,

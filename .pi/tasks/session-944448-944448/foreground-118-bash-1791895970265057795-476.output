@@ -1,0 +1,2 @@
+ethan    2795319  0.0  0.0  13040  3656 ?        Ss   20:52   0:00 bash -c ps aux | grep -iE "edge|edg"
+ethan    2795321  0.0  0.0  12264  2504 ?        S    20:52   0:00 grep -iE edge|edg

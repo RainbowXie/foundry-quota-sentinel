@@ -1,0 +1,11 @@
+{"level":40,"time":1791518765408,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+变更：4 个文件，5 个符号
+受影响流程：0
+风险等级：low
+
+已变更符号：
+  Symbol openCodeCookieHeader → pkg/sdk/auth/opencode.go
+  Symbol Exited → pkg/sdk/auth/opencode.go
+  Symbol Close → pkg/sdk/auth/opencode.go
+  Symbol Wait → pkg/sdk/auth/opencode.go
+  Symbol openCodeLoginBrowser → pkg/sdk/auth/opencode.go

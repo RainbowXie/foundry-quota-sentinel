@@ -574,6 +574,7 @@
             /* Provider-specific action classes: delegation hooks only; the
                shared .qact styles apply to both. */
             .kimiLogin,
+            .ocLogin,
             .olLogin {
                 color: var(--text-sec);
             }
@@ -1434,7 +1435,9 @@
                     error: a.error,
                     rows: []
                 };
-                if (a.success && a.quota) {
+                if (!a.success) {
+                    view.errorAction = { label: "重新登录", class: "ocLogin" };
+                } else if (a.quota) {
                     var d = a.quota;
                     // Lapsed subscription (OBSERVED 2026-08-19): the quota
                     // RPC returns null → backend marks QuotaData.lapsed.
@@ -2475,6 +2478,13 @@
                         fo, name, 1000, 250);
                 });
             }
+            document
+                .getElementById("accountCards")
+                .addEventListener("click", function (e) {
+                    var t = e.target;
+                    if (t.classList.contains("ocLogin"))
+                        ocDoLogin(t.getAttribute("data-name"));
+                });
             document
                 .getElementById("dsCards")
                 .addEventListener("click", function (e) {

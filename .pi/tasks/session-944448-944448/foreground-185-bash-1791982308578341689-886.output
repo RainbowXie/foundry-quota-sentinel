@@ -1,0 +1,5 @@
+internal/web/quota_card_dialog_test.go:145:	for _, fn := range []string{"ocDoLogin", "dsDoLogin", "olDoLogin", "kimiDoLogin"} {
+internal/web/sidebar_shell_test.go:165:	// ocDoLogin / olDoLogin must pass the single-flight wrapper (fq/fo),
+internal/web/sidebar_shell_test.go:293:		{Op: "call", Fn: "ocDoLogin"}, // fire-and-forget login; account never lands
+internal/web/static/sidebar.html:2434:            function ocDoLogin(name) {
+internal/web/static/sidebar.html:2514:                { type: "opencode", label: "OpenCode Go", defaultName: "OpenCode", login: "ocDoLogin", refresh: "fq" },

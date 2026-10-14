@@ -1,0 +1,40 @@
+{"level":40,"time":1791520412750,"name":"gitnexus","msg":"GitNexus: VECTOR extension unavailable; continuing without VECTOR features. load-only policy (no install attempted); LOAD VECTOR failed: Binder exception: Extension: vector is an official extension and has not been installed. You can install it by: install vector."}
+{
+  "target": {
+    "id": "Function:cmd_page.go:cmdOpenPage",
+    "name": "cmdOpenPage",
+    "type": "Function",
+    "filePath": "cmd_page.go"
+  },
+  "direction": "upstream",
+  "impactedCount": 1,
+  "risk": "LOW",
+  "epistemic": "exact",
+  "summary": {
+    "direct": 1,
+    "processes_affected": 1,
+    "modules_affected": 1
+  },
+  "byDepthCounts": {
+    "1": 1
+  },
+  "affected_processes": [
+    {
+      "name": "main",
+      "type": "Function",
+      "filePath": "main.go",
+      "affected_process_count": 12,
+      "total_hits": 12,
+      "earliest_broken_step": 1
+    }
+  ],
+  "affected_modules": [
+    {
+      "name": "Web",
+      "hits": 1,
+      "impact": "direct"
+    }
+  ],
+  "byDepth": {
+    "1": [
+      {

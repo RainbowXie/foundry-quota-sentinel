@@ -1,0 +1,5 @@
+cmd_config.go:200:		c.AddProfile(name, p)
+cmd_config.go:252:		c.AddProfile(name, p)
+cmd_login.go:38:		c.AddProfile(name, config.Profile{Cookie: cookie, WorkspaceID: wsid})
+internal/config/config.go:208:func (c *Config) AddProfile(name string, p Profile) {
+Binary file ocgt-monitor matches

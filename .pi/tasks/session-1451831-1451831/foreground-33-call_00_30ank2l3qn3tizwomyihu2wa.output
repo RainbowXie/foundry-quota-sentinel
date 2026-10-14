@@ -1,0 +1,5 @@
+--- FAIL: TestParseQuotaResponseConsoleExhaustedMetersCapAt100 (0.00s)
+    parser_console_test.go:153: used > limit must parse as exhausted, got: meters.week resetsAt is required
+FAIL
+FAIL	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.008s
+FAIL

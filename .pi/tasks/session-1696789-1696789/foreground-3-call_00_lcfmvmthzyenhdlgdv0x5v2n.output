@@ -1,0 +1,19 @@
+./pkg/sdk/providers/opencode/client.go:42:// OpenCode 已将旧版 /_server Seroval RPC 替换为 Console REST API，旧接口会 302 到鉴权页，
+./build/quota-sdk-go/providers/opencode/client.go:42:// OpenCode 已将旧版 /_server Seroval RPC 替换为 Console REST API，旧接口会 302 到鉴权页，
+./openspec/changes/update-opencode-console-v2/design.md:6:   - 旧版 RPC 接口 `/_server?id=c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd` 已返回 `302 Found -> /auth/authorize` 并不再服务新控制台。
+./openspec/changes/update-opencode-console-v2/proposal.md:3:OpenCode 官方 Web 端已完成 v2 架构重构：原有的 SolidStart Seroval RPC 接口（`https://opencode.ai/_server?id=c7389bd...`）与旧版路由（`/workspace/{wrk_...}/go`）已废弃并强制重定向至新版 `/console/go` 控制台。这导致当前基于旧 RPC 与 Seroval 文本解析的 OpenCode 配额获取与浏览器登录全部失效。需要立即适配新版 OpenCode Console v2 的 REST JSON 接口（`/console/api/go/status`）与新版登录/会话恢复机制。
+./openspec/changes/update-opencode-console-v2/proposal.md:7:- **BREAKING**: OpenCode 配额查询接口从旧版 `GET /_server?id=...`（Seroval 响应）切换为新版 Console REST API `GET https://opencode.ai/console/api/go/status`，并通过请求头 `x-org-id: <org_...|wrk_...>` 传递工作区/组织 ID。
+./internal/web/static/help.html:348:OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
+====
+./pkg/sdk/README.md:30:│   ├── opencode/         # OpenCode 原生配额 RPC 获取与 Seroval 解析器
+./build/quota-sdk-go/README.md:30:│   ├── opencode/         # OpenCode 原生配额 RPC 获取与 Seroval 解析器
+./openspec/specs/opencode-quota-response-parsing/spec.md:26:#### Scenario: Seroval object is inline
+./openspec/changes/archive/2026-08-25-opencode-exhausted-status/tasks.md:3:- [x] 1.1 `internal/quota/opencode.go` 的 `parseUsageObject` status 分支：去掉 `supportedQuotaStatus` 白名单检查，改为"必须是合法 seroval 字符串且非空"（`parseSerovalString` ok 且 `s != ""`）
+./openspec/changes/archive/2026-08-25-opencode-exhausted-status/design.md:65:- [上游 status 值本身格式漂移（如变成非字符串）] → `parseSerovalString`
+./openspec/changes/archive/2026-08-03-stabilize-opencode-quota-refresh/specs/opencode-quota-response-parsing/spec.md:14:#### Scenario: Seroval object is inline
+./openspec/changes/update-opencode-console-v2/design.md:55:- 在 `ParseQuotaResponse` 中支持新版 `/console/api/go/status` JSON 格式解析，同时保留对旧版 Seroval 文本的兼容解析分支，确保历史回归测试与新版 JSON 测试双全绿。
+./openspec/changes/update-opencode-console-v2/design.md:73:- **选择**: `ParseQuotaResponse(text)` 先检测输入是否为新版 Console JSON（如包含 `"meters"`、`"access"` 或顶层 `null` JSON 对象），若是则走新版 JSON 解析器 ` parseConsoleStatusJSON`；若包含 `rollingUsage` / `weeklyUsage` 或 `$R` 则走原有 Seroval 解析器。
+./openspec/changes/update-opencode-console-v2/design.md:74:- **理由**: 既能无缝支持线上最新 Console v2 JSON 响应，又不破坏现有的 Seroval 边界安全回归测试套件。
+./openspec/changes/update-opencode-console-v2/proposal.md:3:OpenCode 官方 Web 端已完成 v2 架构重构：原有的 SolidStart Seroval RPC 接口（`https://opencode.ai/_server?id=c7389bd...`）与旧版路由（`/workspace/{wrk_...}/go`）已废弃并强制重定向至新版 `/console/go` 控制台。这导致当前基于旧 RPC 与 Seroval 文本解析的 OpenCode 配额获取与浏览器登录全部失效。需要立即适配新版 OpenCode Console v2 的 REST JSON 接口（`/console/api/go/status`）与新版登录/会话恢复机制。
+./openspec/changes/update-opencode-console-v2/proposal.md:7:- **BREAKING**: OpenCode 配额查询接口从旧版 `GET /_server?id=...`（Seroval 响应）切换为新版 Console REST API `GET https://opencode.ai/console/api/go/status`，并通过请求头 `x-org-id: <org_...|wrk_...>` 传递工作区/组织 ID。
+./openspec/changes/update-opencode-console-v2/proposal.md:20:- `opencode-quota-response-parsing`: 将 OpenCode Go 配额响应解析从旧版 Seroval 格式更新为新版 Console `/console/api/go/status` 标准 JSON 结构（基于 `usedMicroCents` / `limitMicroCents` 与 ISO-8601 `resetsAt` 的 fail-closed 解析，同时向下兼容旧格式测试或全面切换至新 JSON 契约）。

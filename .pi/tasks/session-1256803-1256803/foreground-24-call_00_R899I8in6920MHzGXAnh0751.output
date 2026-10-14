@@ -1,0 +1,34 @@
+=== version 变量使用位置 ===
+./.pi/skills/openspec-verify-change/SKILL.md:9:  version: "1.0"
+./.pi/skills/openspec-sync-specs/SKILL.md:9:  version: "1.0"
+./.pi/skills/openspec-archive-change/SKILL.md:9:  version: "1.0"
+./.pi/skills/openspec-apply-change/SKILL.md:9:  version: "1.0"
+./.pi/skills/openspec-propose/SKILL.md:9:  version: "1.0"
+./.pi/skills/openspec-explore/SKILL.md:9:  version: "1.0"
+./pkg/sdk/providers/deepseek/web_querier.go:27:	req.Header.Set("x-client-version", "1.0.0")
+./pkg/sdk/providers/deepseek/web_querier.go:28:	req.Header.Set("x-app-version", "1.0.0")
+./pkg/sdk/providers/kimi/envelope.go:30:	Version int               `json:"version"`
+./pkg/sdk/providers/kimi/envelope.go:90:		Version int               `json:"version"`
+./pkg/sdk/auth/browserauth/cdp_test.go:18:// browserauth uses: a /json/version endpoint that returns a browser WebSocket
+./pkg/sdk/auth/browserauth/cdp_test.go:46:	mux.HandleFunc("/json/version", func(w http.ResponseWriter, r *http.Request) {
+./pkg/sdk/auth/browserauth/cdp_concurrency_test.go:45:	mux.HandleFunc("/json/version", func(w http.ResponseWriter, r *http.Request) {
+./pkg/sdk/auth/browserauth/cdp_concurrency_test.go:284:	mux.HandleFunc("/json/version", func(w http.ResponseWriter, r *http.Request) {
+./pkg/sdk/auth/browserauth/cdp_concurrency_test.go:361:	mux.HandleFunc("/json/version", func(w http.ResponseWriter, r *http.Request) {
+./pkg/sdk/auth/browserauth/cdp.go:184:	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+debugAddress+"/json/version", nil)
+./pkg/sdk/auth/browserauth/cdp.go:200:	var version struct {
+./pkg/sdk/auth/browserauth/cdp.go:204:	if err := json.Unmarshal(data, &version); err != nil {
+./pkg/sdk/auth/browserauth/cdp.go:207:	log.Printf("browserauth: DevTools 版本信息 browser=%s", version.Browser)
+./pkg/sdk/auth/browserauth/cdp.go:208:	if !isLoopbackWebSocketURL(version.WebSocketDebuggerURL) {
+
+=== README 版本引用 ===
+README.md:8:  <img src="https://img.shields.io/badge/version-0.11.0-4466FF?style=flat-square" alt="version">
+README_EN.md:8:  <img src="https://img.shields.io/badge/version-0.11.0-4466FF?style=flat-square" alt="version">
+
+=== pack-deb.sh 是否存在 ===
+总计 24
+drwxrwxr-x  2 ethan ethan 4096  9月  7 09:00 .
+drwxrwxr-x 20 ethan ethan 4096  9月  7 19:59 ..
+-rwxrwxr-x  1 ethan ethan 1425  6月 30 14:36 build-deb.sh
+-rwxrwxr-x  1 ethan ethan 3545  8月 25 23:13 build-linux.sh
+-rwxrwxr-x  1 ethan ethan 2415 10月  9 13:21 export-sdk.sh
+-rwxrwxr-x  1 ethan ethan 1428  6月 30 14:36 pack-deb.sh

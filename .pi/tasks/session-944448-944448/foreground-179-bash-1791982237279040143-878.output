@@ -1,0 +1,15 @@
+internal/web/kimi_card_test.go:477:	// must carry that class (a pre-existing bug rendered .olLogin, which
+internal/web/kimi_card_test.go:483:	if strings.Contains(out, "olLogin") {
+internal/web/kimi_card_test.go:484:		t.Fatal("Kimi error affordance must not reuse the ollama olLogin class — the kimiCards delegation never matches it (dead control)")
+internal/web/quota_card_adapter_test.go:167:	if !strings.Contains(result, "olLogin") {
+internal/web/quota_card_adapter_test.go:168:		t.Error("Ollama error card must have olLogin action button")
+internal/web/quota_card_dialog_test.go:31:// delegation is keyed by declarative action classes (olLogin/kimiLogin)
+internal/web/quota_card_dialog_test.go:39:		{"olLogin", "olDoLogin"},
+internal/web/quota_card_structure_test.go:285:// every provider's re-login action (Ollama's olLogin included) is themed
+internal/web/quota_card_structure_test.go:295:	for _, hook := range []string{".kimiLogin,", ".olLogin"} {
+internal/web/static/sidebar.html:551:               (Ollama's olLogin included) so no provider falls back to the
+internal/web/static/sidebar.html:553:               (.kimiLogin/.olLogin) remain for event delegation; the
+internal/web/static/sidebar.html:577:            .olLogin {
+internal/web/static/sidebar.html:1371:                    // kimiLogin/olLogin) is retained for per-container
+internal/web/static/sidebar.html:1489:                    view.errorAction = { label: "重新登录", class: "olLogin" };
+internal/web/static/sidebar.html:2489:                    if (t.classList.contains("olLogin"))

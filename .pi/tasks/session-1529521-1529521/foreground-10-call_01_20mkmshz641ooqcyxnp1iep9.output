@@ -1,0 +1,5 @@
+./pkg/sdk/providers/opencode/parser.go:51:	if monthlyRaw != nil && monthlyRaw.Status != "unlimited" {
+./pkg/sdk/providers/opencode/parser.go:254:		if status == "ok" || status == "unlimited" {
+./cmd_quota.go:123:				fmt.Println("  Monthly: 无限额度")
+./internal/formatter/table.go:26:		sb.WriteString("  Monthly: 无限额度\n")
+./internal/formatter/table.go:80:		sb.WriteString("  月用量:     无限额度\n")

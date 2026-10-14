@@ -1,0 +1,20 @@
+ok  	foundry-quota-sentinel	3.755s
+?   	foundry-quota-sentinel/cmd/cdpprobe	[no test files]
+ok  	foundry-quota-sentinel/internal/config	0.322s
+ok  	foundry-quota-sentinel/internal/formatter	0.010s
+?   	foundry-quota-sentinel/internal/sidebar	[no test files]
+?   	foundry-quota-sentinel/internal/state	[no test files]
+?   	foundry-quota-sentinel/internal/storage	[no test files]
+ok  	foundry-quota-sentinel/internal/web	5.799s
+ok  	foundry-quota-sentinel/pkg/sdk/auth	0.313s
+ok  	foundry-quota-sentinel/pkg/sdk/auth/browserauth	0.097s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/commandcode	0.025s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/deepseek	0.012s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/kimi	0.017s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.058s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.027s
+ok  	foundry-quota-sentinel/pkg/sdk/store	0.072s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/ollama	0.056s
+ok  	foundry-quota-sentinel/pkg/sdk/providers/opencode	0.016s
+ok  	foundry-quota-sentinel/pkg/sdk/store	0.038s
+VET OK

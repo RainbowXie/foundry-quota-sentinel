@@ -1,0 +1,22 @@
+=== 正在导出 SDK 到: build/quota-sdk-go ===
+Module:     github.com/ethan/quota-sdk-go
+Go Version: 1.26.0
+=== 正在校验独立导出的 SDK ===
+ok  	github.com/ethan/quota-sdk-go/auth	(cached)
+ok  	github.com/ethan/quota-sdk-go/auth/browserauth	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/commandcode	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/deepseek	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/kimi	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/ollama	(cached)
+ok  	github.com/ethan/quota-sdk-go/providers/opencode	(cached)
+ok  	github.com/ethan/quota-sdk-go/store	(cached)
+=== SDK 成功导出至 build/quota-sdk-go 且独立测试全绿 ===
+=== generated go.mod ===
+module github.com/ethan/quota-sdk-go
+
+go 1.26.0
+
+require (
+	github.com/gorilla/websocket v1.5.3
+	golang.org/x/sys v0.45.0
+)

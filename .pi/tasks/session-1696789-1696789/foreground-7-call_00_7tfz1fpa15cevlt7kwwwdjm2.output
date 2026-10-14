@@ -1,0 +1,2 @@
+188:<tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
+392:<p style="font-size:12px;margin:6px 0 0;color:var(--text-ter)">Cookie 可能过期。重新登录 opencode.ai 复制 Cookie，运行 <code>config init</code> 更新。</p>

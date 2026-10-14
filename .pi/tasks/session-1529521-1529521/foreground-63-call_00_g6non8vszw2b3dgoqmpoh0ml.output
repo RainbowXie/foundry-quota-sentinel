@@ -1,0 +1,13 @@
+./cmd_config.go:18:func showConfigHint() {
+./cmd_config.go-19-	fmt.Println("\n---")
+./cmd_config.go-20-	hasCookie, hasWS, _ := config.HasEnvVars()
+./cmd_config.go-21-	if hasCookie && hasWS {
+./cmd_config.go-22-		fmt.Println("环境变量已设置，但查询失败，请检查值是否有效。")
+./cmd_config.go-23-		return
+./cmd_config.go-24-	}
+./cmd_config.go-25-	if p, ok := cfg.GetActiveProfile(); ok && p.Cookie != "" && p.WorkspaceID != "" {
+./cmd_config.go-26-		fmt.Println("配置文件已有凭证，但查询失败，请检查值是否有效。")
+./cmd_config.go-27-		return
+./cmd_config.go-28-	}
+./cmd_config.go-29-	fmt.Println("还没有配置凭证！请任选一种方式：")
+./cmd_config.go-30-	fmt.Println("  方式一：设置环境变量")

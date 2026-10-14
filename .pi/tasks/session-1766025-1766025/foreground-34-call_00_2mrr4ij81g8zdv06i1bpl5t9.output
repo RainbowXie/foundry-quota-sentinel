@@ -1,0 +1,7 @@
+build/foundry-quota-sentinel: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=8e45bf406b98742fede86a02641270cdbae1a52e, for GNU/Linux 3.2.0, stripped
+build/fqs-cli:                ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, Go BuildID=sjIFcVH2wzKYSwtWPVuy/8gEdkbrWjEKEykwj2H7I/2VpEd4w3no5X--RDlmj1/dldrOZd0d99xqoVy7l4s, BuildID[sha1]=f0ad1ae735b47de142371863baaa1f5206c234b7, stripped
+=== ldd gui ===
+	libwebkit2gtk-4.1.so.0 => /lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0 (0x0000747623e00000)
+	libgtk-3.so.0 => /lib/x86_64-linux-gnu/libgtk-3.so.0 (0x0000747623600000)
+	libjavascriptcoregtk-4.1.so.0 => /lib/x86_64-linux-gnu/libjavascriptcoregtk-4.1.so.0 (0x0000747621600000)
+=== ldd cli ===

@@ -1,0 +1,19 @@
+{
+  "id": "b72301539",
+  "name": "grep -rn \"browserauth\" .",
+  "command": "grep -rn \"browserauth\" .",
+  "status": "failed",
+  "outputPath": ".pi/tasks/session-944448-944448/foreground-50-bash-1791883149208615982-382.output",
+  "cwd": "/mnt/data/Work/Projects/foundry-quota-sentinel",
+  "startTime": 1791883149249,
+  "endTime": 1791883269985,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 2235547,
+  "bytesWritten": 53682582,
+  "isAgent": false,
+  "error": "Output exceeded cap of 20.0MB; terminating task",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true
+}

@@ -1,0 +1,74 @@
+diff --git a/cmd_quota.go b/cmd_quota.go
+index e408c55..833112e 100644
+--- a/cmd_quota.go
++++ b/cmd_quota.go
+@@ -115,13 +115,18 @@ func cmdWatch() {
+ 		fmt.Printf("\n[%s] OpenCode Go 实时监控\n", time.Now().Format("15:04:05"))
+ 		if qd, err := q.FetchQuota(); err == nil {
+ 			fmt.Println("\n【套餐额度】（涵盖所有模型）")
+-			fmt.Printf("  Rolling: %s  reset in %s\n", formatter.ProgressBar(qd.Rolling.UsagePercent, 25), qd.Rolling.ResetDisplay)
+-			fmt.Printf("  Weekly:  %s  reset in %s\n", formatter.ProgressBar(qd.Weekly.UsagePercent, 25), qd.Weekly.ResetDisplay)
+-			if qd.Monthly != nil {
+-				fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
++			if qd.Lapsed {
++				// 订阅失效状态避免渲染 0% 虚假空指标。
++				fmt.Println("  OpenCode Go 订阅已失效")
+ 			} else {
+-				// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
+-				fmt.Println("  Monthly: 未提供/无月窗口")
++				fmt.Printf("  Rolling: %s  reset in %s\n", formatter.ProgressBar(qd.Rolling.UsagePercent, 25), qd.Rolling.ResetDisplay)
++				fmt.Printf("  Weekly:  %s  reset in %s\n", formatter.ProgressBar(qd.Weekly.UsagePercent, 25), qd.Weekly.ResetDisplay)
++				if qd.Monthly != nil {
++					fmt.Printf("  Monthly: %s  reset in %s\n", formatter.ProgressBar(qd.Monthly.UsagePercent, 25), qd.Monthly.ResetDisplay)
++				} else {
++					// 与 formatter.FormatOpenCodeTable 保持一致：缺省月窗口不等于无限额度。
++					fmt.Println("  Monthly: 未提供/无月窗口")
++				}
+ 			}
+ 		} else {
+ 			fmt.Printf("\n【套餐额度】查询失败: %v\n", err)
+diff --git a/internal/formatter/table.go b/internal/formatter/table.go
+index 43cbd8e..327dda1 100644
+--- a/internal/formatter/table.go
++++ b/internal/formatter/table.go
+@@ -18,6 +18,14 @@ func FormatOpenCodeTable(data *opencode.QuotaData) string {
+ 	sb.WriteString("  OpenCode Go 套餐额度\n")
+ 	sb.WriteString("  (涵盖所有通过套餐使用的模型)\n")
+ 	sb.WriteString("----------------------------------------\n")
++	if data.Lapsed {
++		// 与 Web 卡片（sidebar.html .qlapse）保持对齐：
++		// 订阅失效时不展示假的 0% 进度条或 0s 重置倒计时，明确标示订阅状态。
++		sb.WriteString("  OpenCode Go 订阅已失效\n")
++		sb.WriteString("========================================\n")
++		sb.WriteString(fmt.Sprintf("\n查询时间: %s\n", data.FetchedAt.Format("2006-01-02 15:04:05")))
++		return sb.String()
++	}
+ 	sb.WriteString(fmt.Sprintf("  Rolling: %s  reset in %s\n", ProgressBar(data.Rolling.UsagePercent, 18), data.Rolling.ResetDisplay))
+ 	sb.WriteString(fmt.Sprintf("  Weekly:  %s  reset in %s\n", ProgressBar(data.Weekly.UsagePercent, 18), data.Weekly.ResetDisplay))
+ 	if data.Monthly != nil {
+diff --git a/internal/formatter/table_test.go b/internal/formatter/table_test.go
+index 3781a9d..7ec4a7c 100644
+--- a/internal/formatter/table_test.go
++++ b/internal/formatter/table_test.go
+@@ -38,3 +38,21 @@ func TestFormatOpenCodeTableRendersPresentMonthly(t *testing.T) {
+ 		t.Fatalf("present monthly must not be reported as absent, got:\n%s", out)
+ 	}
+ }
++
++// TestFormatOpenCodeTableLapsedSubscriptionRendersNotice 验证订阅失效时展示明确提示，
++// 且不得输出假空指标或虚假的重置时间倒计时。
++func TestFormatOpenCodeTableLapsedSubscriptionRendersNotice(t *testing.T) {
++	data := &opencode.QuotaData{
++		Rolling: opencode.QuotaUsage{Status: "unavailable", UsagePercent: 0, ResetDisplay: "0s"},
++		Weekly:  opencode.QuotaUsage{Status: "unavailable", UsagePercent: 0, ResetDisplay: "0s"},
++		Lapsed:  true,
++	}
++	out := FormatOpenCodeTable(data)
++	if !strings.Contains(out, "OpenCode Go 订阅已失效") {
++		t.Fatalf("lapsed subscription must render notice, got:\n%s", out)
++	}
++	if strings.Contains(out, "Rolling:") || strings.Contains(out, "Weekly:") {
++		t.Fatalf("lapsed subscription must not render normal meter rows, got:\n%s", out)
++	}
++}
++

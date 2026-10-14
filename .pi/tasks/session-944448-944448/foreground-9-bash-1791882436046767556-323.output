@@ -1,0 +1,41 @@
+1715-            }
+1716-
+1717-            // renderProviderShells renders one shell card per account into
+1718-            // the given container element id, sorted by name (server already
+1719-            // sorts; this is defensive). Empty account list clears the box.
+1720-            //
+1721-            // SHELL GUARD (data-state, stale-while-refresh): shells render
+1722-            // ONLY when the container has no real data yet
+1723-            // (!containerHasData[provider]).
+1724-            //   - Periodic / manual refresh with data: containerHasData is
+1725-            //     true (set by the last successful fill) -> NO shells render
+1726-            //     -> the old data stays visible until the fill replaces it.
+1727-            //     No "加载中" flash on refresh.
+1728-            //   - First load / new account whose fill has not settled:
+1729-            //     containerHasData is false -> shells render immediately
+1730-            //     (the card-shell-first promise), then the fill replaces
+1731-            //     them and sets containerHasData=true.
+1732-            // The flag is maintained in memory (markContainerData), not
+1733-            // derived from innerHTML, because both shells and real cards
+1734-            // carry data-name — parsing the DOM cannot distinguish them.
+1735:            function renderProviderShells(containerId, provider, providerLabel, shells) {
+1736-                var box = document.getElementById(containerId);
+1737-                if (!box) return;
+1738-                // stale-while-refresh: when the container already shows
+1739-                // real data, never render loading shells over it. The
+1740-                // fill (next in the refresh chain) replaces in place.
+1741-                if (containerHasData[provider]) {
+1742-                    return;
+1743-                }
+1744-                var html = String(box.innerHTML || "");
+1745-                var hasCard = html.indexOf('class="acard"') >= 0;
+1746-                // Pure error state = qerr with no cards (match both
+1747-                // class="qerr" and class=qerr — the error renderer uses
+1748-                // the unquoted form).
+1749-                var hasErr = !hasCard &&
+1750-                    (html.indexOf('class="qerr"') >= 0 || html.indexOf('class=qerr') >= 0);
+1751-
+1752-                if (!shells || !shells.length) {
+1753-                    // Empty account list: NEVER wipe existing cards, and
+1754-                    // keep a pure error state until the fill replaces it
+1755-                    // (the fill's overall replacement removes the qerr).

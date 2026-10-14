@@ -1,0 +1,38 @@
+cmd_page.go:72:		if saveErr := config.SaveKimiTokens(name, rotated.AccessToken, rotated.RefreshToken); saveErr != nil {
+cmd_page.go:87:func kimiPageRotationSaver(name string) func(prevAccess, prevRefresh, newAccess, newRefresh string) (bool, error) {
+cmd_page.go:101:		if err := config.SaveKimiTokens(name, newAccess, newRefresh); err != nil {
+cmd_page.go:180:		auth.KimiPageRotationSave = kimiPageRotationSaver(name)
+internal/config/config.go:62:// SaveWindowSize 持久化窗口大小（重载 config 再写，避免覆盖其它字段）。
+internal/config/config.go:66:func SaveWindowSize(w, h int) {
+internal/config/config.go:75:// configPathMu because Load/Save may run concurrently (e.g. window-size save
+internal/config/config.go:159:func (c *Config) Save() error {
+internal/config/config_test.go:92:// TestUpsertDeepSeekAccountGenerationStableAcrossUnrelatedSave proofs
+internal/config/config_test.go:96:func TestUpsertDeepSeekAccountGenerationStableAcrossUnrelatedSave(t *testing.T) {
+internal/config/config_test.go:100:	// Simulate SaveWindowSize: rewrites config but never touches
+internal/config/config_test.go:108:// TestSaveAtomic (hardening) is a regression guard for Save's atomic
+internal/config/config_test.go:109:// temp+rename write. It hammers concurrent Save + read and asserts no reader
+internal/config/config_test.go:116:func TestSaveAtomic(t *testing.T) {
+internal/config/config_test.go:130:	// Writer: hammer Save with a mutating field each iteration. Each save uses
+internal/config/config_test.go:143:			_ = snap.Save()
+internal/config/config_test.go:172:		t.Fatal("Save produced a torn/partial file visible to a reader — must be atomic (temp+rename)")
+internal/config/kimi_test.go:191:// TestSaveKimiTokensConcurrentNoLostUpdate (hardening) proves that concurrent
+internal/config/kimi_test.go:196:// with a stale snapshot. RED: the old Load→modify→Save (unsynchronized, stale
+internal/config/kimi_test.go:198:func TestSaveKimiTokensConcurrentNoLostUpdate(t *testing.T) {
+internal/config/kimi_test.go:217:	if err := seed.Save(); err != nil {
+internal/config/kimi_test.go:222:	// window under an unsynchronized Load→modify→Save is a classic check-then-
+internal/config/kimi_test.go:234:				if err := SaveKimiTokens(name, name+"-rotated-access-"+strconv.Itoa(i), name+"-rotated-refresh-"+strconv.Itoa(i)); err != nil {
+internal/config/kimi_test.go:235:					t.Errorf("SaveKimiTokens(%s): %v", name, err)
+internal/config/kimi_test.go:264:// persist. The old unsynchronized paths each did Load→modify→Save on the whole
+internal/config/kimi_test.go:284:	if err := seed.Save(); err != nil {
+internal/config/kimi_test.go:294:			if err := SaveKimiTokens("work", "rotated-access-"+strconv.Itoa(i), "rotated-refresh-"+strconv.Itoa(i)); err != nil {
+internal/config/kimi_test.go:295:				t.Errorf("SaveKimiTokens: %v", err)
+internal/config/kimi_test.go:303:			SaveWindowSize(200+i, 200+i)
+internal/config/kimi.go:70:// Every writer does Load→modify→Save on the whole config; without a shared
+internal/config/kimi.go:89:// SaveKimiTokens atomically persists rotated access + refresh tokens for one
+internal/config/kimi.go:91:// the CLI (kimiPersistRotated) and the web server (SetKimiRefreshSave): through
+internal/config/kimi.go:97:func SaveKimiTokens(name, accessToken, refreshToken string) error {
+internal/config/flock.go:14:// Load→Mutate→Save concurrently can overwrite each other's freshly-rotated
+internal/config/flock.go:16:// Load→Save critical section transactional across processes too.
+internal/config/flock.go:94:// concurrent writers serialize too. fn runs Load→mutate→Save inside; the
+internal/config/flock.go:96:// the in-process mutex — use the bare Load/Save inside fn instead).
+internal/config/flock.go:113:	return c.Save()

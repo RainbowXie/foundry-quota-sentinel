@@ -1,0 +1,17 @@
+== full diff for my test file ==
+diff pkg/sdk/auth/opencode_test.go.orig pkg/sdk/auth/opencode_test.go
+--- pkg/sdk/auth/opencode_test.go.orig
++++ pkg/sdk/auth/opencode_test.go
+@@ -33,7 +33,7 @@
+ 	}
+ 	return b.cdp, nil
+ }
+-func (b *fakeOpenCodeBrowser) Exited() bool                             { return b.exited }
++func (b *fakeOpenCodeBrowser) Exited() bool { return b.exited }
+ func (b *fakeOpenCodeBrowser) Wait() error {
+ 	b.operations = append(b.operations, "wait")
+ 	return nil
+== HEAD version gofmt status ==
+(HEAD version unformatted too)
+== go version ==
+go version go1.26.8 linux/amd64

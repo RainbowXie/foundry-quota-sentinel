@@ -1,0 +1,61 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"sort"
+	"time"
+
+	"foundry-quota-sentinel/internal/formatter"
+	"foundry-quota-sentinel/internal/storage"
+	"foundry-quota-sentinel/pkg/sdk/providers/deepseek"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
+)
+
+func makeQuotaQuerier() *opencode.OpenCodeQuerier {
+	q := opencode.NewOpenCodeQuerier()
+	if q.Cookie == "" || q.WorkspaceID == "" {
+		if p, ok := cfg.GetActiveProfile(); ok {
+			if q.Cookie == "" {
+				q.Cookie = p.Cookie
+			}
+			if q.WorkspaceID == "" {
+				q.WorkspaceID = p.WorkspaceID
+			}
+		}
+	}
+	return q
+}
+
+func makeDeepSeekQuerier() *deepseek.DeepSeekQuerier {
+=== cmd_login.go imports ===
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"foundry-quota-sentinel/internal/config"
+	"foundry-quota-sentinel/pkg/sdk/auth"
+	"foundry-quota-sentinel/pkg/sdk/providers/commandcode"
+	"foundry-quota-sentinel/pkg/sdk/providers/deepseek"
+	"foundry-quota-sentinel/pkg/sdk/providers/kimi"
+	"foundry-quota-sentinel/pkg/sdk/providers/ollama"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
+)
+
+func cmdLoginOpenCode() {
+	name := ""
+	if len(os.Args) > 2 {
+		name = strings.TrimSpace(os.Args[2])
+	}
+	fmt.Println("正在打开 OpenCode Go 登录窗口，请登录后进入 Go 订阅用量页（/console/go）…")
+	validate := func(cookie, wsid string) bool {
+		q := &opencode.OpenCodeQuerier{Cookie: cookie, WorkspaceID: wsid}
+		_, err := q.FetchQuota()
+		return err == nil
+	}
+	cookie, wsid, err := auth.RunOpenCodeLogin(validate)
+	if err != nil {

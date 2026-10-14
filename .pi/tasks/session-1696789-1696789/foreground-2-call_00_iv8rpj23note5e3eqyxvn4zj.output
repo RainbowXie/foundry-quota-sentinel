@@ -1,0 +1,75 @@
+<!-- ══════════ WEB DASHBOARD ══════════ -->
+<h2 id=web><span class=nr>06</span>网页面板 <span class=en>Web Dashboard</span></h2>
+<p>运行 <code>serve</code> 命令启动 HTTP 服务器，浏览器访问 <code>http://127.0.0.1:8788</code> 即可打开面板。</p>
+
+<pre>foundry-quota-sentinel serve</pre>
+
+<p>也可通过 <code>FQS_PORT</code> 环境变量自定义端口：</p>
+<pre><span class=cmd>set</span> <span class=str>FQS_PORT</span>=<span class=num>9090</span>
+foundry-quota-sentinel serve</pre>
+
+<p>网页面板与侧边栏共享同一套 API 后端，数据一致。</p>
+
+<!-- ══════════ ARCHITECTURE ══════════ -->
+<h2 id=arch><span class=nr>07</span>架构说明 <span class=en>Architecture</span></h2>
+
+<div class=card>
+<pre style="border:none;padding:0;margin:0;background:transparent;font-size:13px;line-height:2.2;color:var(--text-sec)">
+<span class=c style=color:var(--text-ter)>数据来源</span>
+OpenCode Go RPC (/_server)     &rarr;  quota    // 套餐额度
+DeepSeek API (/user/balance)   &rarr;  balance  // 账户余额
+ocgt JSONL 日志文件             &rarr;  history  // Token 消耗历史
+
+<span class=c style=color:var(--text-ter)>使用模式</span>
+CLI   &rarr;  <code style=font-size:12px>foundry-quota-sentinel quota|balance|history</code>
+Web   &rarr;  <code style=font-size:12px>foundry-quota-sentinel serve</code>        &rarr;  http://127.0.0.1:8788
+Panel &rarr;  <code style=font-size:12px>双击 exe</code> 或 <code style=font-size:12px>serve --sidebar</code>  &rarr;  WebView2</pre>
+</div>
+
+<details>
+<summary>项目结构</summary>
+<div class=dw>
+----
+```text
+pkg/sdk/
+├── auth/
+│   ├── browserauth/      # 纯 Go CDP 协议客户端、浏览器发现与进程生命周期管理
+│   ├── opencode.go       # OpenCode 登录拦截与账户页
+│   ├── deepseek_*.go     # DeepSeek 登录拦截、凭据提取与 Storage 回放
+│   ├── kimi_*.go         # Kimi 登录拦截、凭据信封与页面内 Token 轮换监听
+│   ├── commandcode.go    # CommandCode 登录拦截与凭据回放
+│   └── ollama.go         # Ollama 登录拦截与凭据回放
+├── providers/
+│   ├── opencode/         # OpenCode 原生配额 RPC 获取与 Seroval 解析器
+│   ├── deepseek/         # DeepSeek API 余额与 Web 钱包/按天明细获取
+│   ├── kimi/             # Kimi 原生配额获取、自动双 Token 轮换与信封模型
+│   ├── commandcode/      # CommandCode 原生配额与月度计算
+│   └── ollama/           # Ollama HTML 页面配额解析器
+└── store/
+    ├── store.go          # TokenStore 存储与锁接口定义
+    ├── flock*.go         # Unix/Windows 跨进程排他文件锁
+    └── json_store.go     # 基于本地 JSON 的原子并发存储实现
+```
+
+----
+<div class=step-n>2</div>
+<div class=step-b>
+<h3>配置凭证 <span class=en>Set up credentials</span></h3>
+<p>打开终端（CMD），运行配置向导：<span class=en>Open a terminal and run the setup wizard.</span></p>
+<pre>foundry-quota-sentinel config init</pre>
+<p>按提示输入以下信息。DeepSeek Key 可不填（余额功能不可用）。<span class=en>Follow the prompts. DeepSeek key is optional.</span></p>
+<table>
+<tr><th>项目</th><th>获取方式</th></tr>
+<tr><td>Cookie</td><td>登录 opencode.ai → <kbd>F12</kbd> → Application → Cookies → 复制完整 Cookie 字符串</td></tr>
+<tr><td>Workspace ID</td><td><code>org_xxx</code> 或 <code>wrk_xxx</code> 格式，从浏览器 <code>/console/&lt;id&gt;/go</code> 地址栏中获取</td></tr>
+<tr><td>DeepSeek API Key</td><td>（可选）platform.deepseek.com API Keys 页面</td></tr>
+</table>
+</div>
+</div>
+
+<div class=step>
+<div class=step-n>3</div>
+<div class=step-b>
+<h3>双击运行 <span class=en>Double-click to launch</span></h3>
+<p>直接双击 <code>foundry-quota-sentinel.exe</code>，桌面侧边栏即刻启动，无需终端。<span class=en>Just double-click the exe — the sidebar appears on your right screen edge.</span></p>
+<p style="color:var(--text-ter);font-size:12px">也可在终端运行 <code>foundry-quota-sentinel serve --sidebar</code> 或 <code>foundry-quota-sentinel quota</code> 等命令。<span class=en>CLI commands are also available from the terminal.</span></p>
