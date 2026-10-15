@@ -49,8 +49,11 @@ var resolveOpenCodeOrgID = func(cookie string) (string, error) {
 // openCodeCookieHeader 是 Cookie 过滤与拼装的唯一实现：同一个结果既用于保存凭据，
 // 也用于直接请求 Console API，因此排除 auth.opencode.ai（授权流程专用）与含不安全字符的
 // Cookie 必须只发生一次，避免两处过滤逻辑日后漂移出不一致的白名单。
+// 此外对相同名称的 Cookie 进行去重，保留最新/首次合法项，避免浏览器有多条不同路径或域名的
+// 同名 Cookie 时拼出重复键值对导致 openCodeSavedCookies 校验失败。
 func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 	parts := make([]string, 0, len(cookies))
+	seen := make(map[string]bool)
 	for _, cookie := range cookies {
 		if !browserauth.CookieDomainMatches(cookie.Domain, openCodeHost) {
 			continue
@@ -61,6 +64,10 @@ func openCodeCookieHeader(cookies []browserauth.Cookie) string {
 		if !openCodeCookieValueSafe(cookie) {
 			continue
 		}
+		if seen[cookie.Name] {
+			continue
+		}
+		seen[cookie.Name] = true
 		parts = append(parts, cookie.Name+"="+cookie.Value)
 	}
 	return strings.Join(parts, "; ")
