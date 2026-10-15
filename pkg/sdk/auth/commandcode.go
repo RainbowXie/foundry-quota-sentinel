@@ -281,6 +281,7 @@ func commandCodeUserNameFromSession(cookieHeader string) string {
 
 func commandCodeCookieHeader(cookies []browserauth.Cookie) string {
 	parts := make([]string, 0, len(cookies))
+	seen := make(map[string]bool)
 	for _, cookie := range cookies {
 		if !browserauth.CookieDomainMatches(cookie.Domain, commandCodeHost) {
 			continue
@@ -288,6 +289,10 @@ func commandCodeCookieHeader(cookies []browserauth.Cookie) string {
 		if !openCodeCookieValueSafe(cookie) {
 			continue
 		}
+		if seen[cookie.Name] {
+			continue
+		}
+		seen[cookie.Name] = true
 		parts = append(parts, cookie.Name+"="+cookie.Value)
 	}
 	return strings.Join(parts, "; ")
@@ -326,7 +331,7 @@ func commandCodeSavedCookies(cookieHeader string) ([]browserauth.Cookie, error) 
 			return nil, fmt.Errorf("CommandCode 登录状态无效")
 		}
 		if seen[name] {
-			return nil, fmt.Errorf("CommandCode 登录状态无效")
+			continue
 		}
 		seen[name] = true
 		out = append(out, browserauth.Cookie{
