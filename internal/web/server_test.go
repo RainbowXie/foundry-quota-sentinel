@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"foundry-quota-sentinel/pkg/sdk/providers/ollama"
+	"foundry-quota-sentinel/pkg/sdk/providers/opencode"
 )
 
 func TestOllamaCardsReturnsSortedQuotaResults(t *testing.T) {
@@ -528,6 +529,47 @@ func TestOpenCodeAccountsEndpointReturnsConfigImmediately(t *testing.T) {
 	// No credential fields may leak.
 	if strings.Contains(w.Body.String(), "c\"") || strings.Contains(w.Body.String(), "\"w\"") {
 		t.Fatalf("shell response must not leak credentials: %s", w.Body.String())
+	}
+}
+
+// TestOpenCodeMultiWorkspaceExpandsCards proves that an account with cached multiple
+// organizations emits one shell per workspace formatted as <AccountName>/<WorkspaceName>.
+func TestOpenCodeMultiWorkspaceExpandsCards(t *testing.T) {
+	srv := NewServer(nil)
+	srv.SetAccountsProvider(func() []Account {
+		return []Account{{Name: "yahqnt@ethanxie.top", Cookie: "test_cookie", WorkspaceID: "org_1"}}
+	})
+	srv.openCodeOrgCacheMu.Lock()
+	srv.openCodeOrgCache["test_cookie"] = openCodeOrgEntry{
+		orgs: []opencode.Organization{
+			{ID: "org_1", Name: "Personal"},
+			{ID: "org_2", Name: "Personal2"},
+		},
+		fetchedAt: time.Now(),
+	}
+	srv.openCodeOrgCacheMu.Unlock()
+
+	r := httptest.NewRequest(http.MethodGet, "/api/opencode/accounts", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	var got struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Name    string `json:"name"`
+			Pending bool   `json:"pending"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Data) != 2 {
+		t.Fatalf("expected 2 shells for 2 workspaces, got %d (%v)", len(got.Data), got.Data)
+	}
+	if got.Data[0].Name != "yahqnt@ethanxie.top/Personal" || got.Data[1].Name != "yahqnt@ethanxie.top/Personal2" {
+		t.Fatalf("expected workspace-formatted names, got %v", got.Data)
 	}
 }
 

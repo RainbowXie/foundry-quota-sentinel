@@ -76,6 +76,33 @@ func TestOpenCodeGoErrorWithReLogin(t *testing.T) {
 	}
 }
 
+// TestOpenCodeGoMultiWorkspaceCardNaming proves the OpenCode Go card properly
+// displays the <account>/<workspace> naming convention when rendered via the shared foundation.
+func TestOpenCodeGoMultiWorkspaceCardNaming(t *testing.T) {
+	dto := map[string]any{
+		"name":    "yahqnt@ethanxie.top/Personal",
+		"success": true,
+		"quota": map[string]any{
+			"rolling": map[string]any{"usage_percent": 16.9, "reset_display": "23m", "reset_in_sec": 1380},
+			"weekly":  map[string]any{"usage_percent": 6.8, "reset_display": "5d", "reset_in_sec": 432000},
+			"monthly": map[string]any{"usage_percent": 3.4, "reset_display": "30d", "reset_in_sec": 2592000},
+		},
+	}
+
+	result := runQuotaCardTest(t, map[string]any{
+		"type":    "adapter",
+		"adapter": "opencode",
+		"dto":     dto,
+	})
+
+	if !strings.Contains(result, `data-name="yahqnt@ethanxie.top/Personal"`) {
+		t.Error("OpenCode card must carry formatted workspace name in data-name")
+	}
+	if !strings.Contains(result, "yahqnt@ethanxie.top/Personal") {
+		t.Error("OpenCode card must display yahqnt@ethanxie.top/Personal as account name")
+	}
+}
+
 // TestOpenCodeGoCardStructure proves the OpenCode Go card uses the shared
 // foundation structure with Rolling, Weekly, and optional Monthly rows.
 func TestOpenCodeGoCardStructure(t *testing.T) {

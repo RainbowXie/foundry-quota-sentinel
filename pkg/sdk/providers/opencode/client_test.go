@@ -250,6 +250,17 @@ func TestFetchDefaultOrgIDReturnsFirstOrgID(t *testing.T) {
 	}
 }
 
+func TestFetchOrganizations(t *testing.T) {
+	tr := &opencodeRecordingTransport{body: `[{"id":"org_01JXYZ","name":"Personal"},{"id":"org_SECOND","name":"Team"}]`}
+	orgs, err := FetchOrganizations("__Host-console_session=synthetic", &http.Client{Transport: tr})
+	if err != nil {
+		t.Fatalf("FetchOrganizations must succeed: %v", err)
+	}
+	if len(orgs) != 2 || orgs[0].ID != "org_01JXYZ" || orgs[1].ID != "org_SECOND" {
+		t.Fatalf("unexpected organizations: %+v", orgs)
+	}
+}
+
 func TestFetchDefaultOrgIDSkipsEmptyIDs(t *testing.T) {
 	tr := &opencodeRecordingTransport{body: `[{"id":"","name":"placeholder"},{"id":"wrk_ABC123","name":"Legacy"}]`}
 	got, err := FetchDefaultOrgID("console_session=synthetic", &http.Client{Transport: tr})

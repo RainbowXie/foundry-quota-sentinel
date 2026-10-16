@@ -2,12 +2,16 @@ package opencode
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// ErrNoGoSubscription 标记当前工作空间或组织未开通 Go 订阅。
+var ErrNoGoSubscription = errors.New("organization has no go subscription")
 
 // consoleStatusPayload 只声明配额计算真正需要的字段：上游还有 renewalPending、
 // cancelAtPeriodEnd 等合同字段，encoding/json 默认忽略未知字段，无需跟随上游增删而改解析器。
@@ -57,6 +61,9 @@ func parseConsoleStatusJSON(text string) (*QuotaData, error) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "null" {
 		return lapsedQuotaData(), nil
+	}
+	if strings.Contains(trimmed, `"_tag":"NotFound"`) {
+		return nil, ErrNoGoSubscription
 	}
 	var payload consoleStatusPayload
 	if err := json.Unmarshal([]byte(trimmed), &payload); err != nil {

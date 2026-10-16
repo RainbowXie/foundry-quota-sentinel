@@ -23,3 +23,16 @@ type QuotaData struct {
 	Lapsed    bool        `json:"lapsed,omitempty"`
 	FetchedAt time.Time   `json:"fetched_at"`
 }
+
+// Organization 记录 OpenCode 控制台组织/工作空间的基础元信息。
+type Organization struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+}
+
+// WorkspaceQuota 记录一个工作空间及其对应的有效 Go 订阅配额。
+type WorkspaceQuota struct {
+	Organization Organization
+	Quota        *QuotaData
+}

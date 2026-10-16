@@ -2435,9 +2435,10 @@
                     .catch(function () { return false; });
             }
             function ocDoLogin(name) {
+                var loginName = name ? name.split("/")[0] : "";
                 fetch(
                     "/api/opencode/login" +
-                        (name ? "?name=" + encodeURIComponent(name) : ""),
+                        (loginName ? "?name=" + encodeURIComponent(loginName) : ""),
                 )
                     .then(function () {
                         // card-shell-first-async-load: render the new

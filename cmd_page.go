@@ -18,6 +18,13 @@ func deleteAccountFromConfig(provider, name string) error {
 	return config.Mutate(func(c *config.Config) error {
 		switch provider {
 		case "opencode":
+			profileName := name
+			if strings.Contains(name, "/") {
+				profileName, _, _ = strings.Cut(name, "/")
+			}
+			if _, ok := c.Profiles[profileName]; ok {
+				return c.DeleteProfile(profileName)
+			}
 			return c.DeleteProfile(name)
 		case "deepseek":
 			return c.DeleteDeepSeekAccount(name)
@@ -129,18 +136,37 @@ func cmdOpenPage() {
 
 	switch provider {
 	case "opencode":
-		p, ok := cfg.Profiles[name]
-		if !ok || p.Cookie == "" || p.WorkspaceID == "" {
+		profileName := name
+		wsName := ""
+		if strings.Contains(name, "/") {
+			profileName, wsName, _ = strings.Cut(name, "/")
+		}
+		p, ok := cfg.Profiles[profileName]
+		if !ok || p.Cookie == "" {
+			p, ok = cfg.Profiles[name]
+		}
+		if !ok || p.Cookie == "" {
 			pageErr(fmt.Sprintf("OpenCode 账户 %q 不存在或缺少凭证", name))
 		}
-		// 与 `quota` 命令共用同一白名单：非法标识会拼出畸形账户页地址，
-		// 这里先给出可执行的提示，而不是让浏览器打开一个拼错的路径。
-		if !opencode.ValidWorkspaceID(p.WorkspaceID) {
+		targetWSID := p.WorkspaceID
+		if wsName != "" {
+			if opencode.ValidWorkspaceID(wsName) {
+				targetWSID = wsName
+			} else if orgs, err := opencode.FetchOrganizations(p.Cookie, nil); err == nil {
+				for _, o := range orgs {
+					if strings.EqualFold(o.Name, wsName) || o.ID == wsName {
+						targetWSID = o.ID
+						break
+					}
+				}
+			}
+		}
+		if !opencode.ValidWorkspaceID(targetWSID) {
 			pageErr(fmt.Sprintf("OpenCode 账户 %q 的工作区标识格式非法，请重新登录", name))
 		}
-		url := "https://opencode.ai/console/" + p.WorkspaceID + "/go"
+		url := "https://opencode.ai/console/" + targetWSID + "/go"
 		auth.OpenCodePageSyncSave = func(cookie, wsid string) error {
-			return config.SaveOpenCodeProfile(name, cookie, wsid)
+			return config.SaveOpenCodeProfile(profileName, cookie, wsid)
 		}
 		if err := auth.RunOpenCodePage(url, p.Cookie); err != nil {
 			pageErr(fmt.Sprintf("OpenCode 账户页浏览器不可用: %v", err))

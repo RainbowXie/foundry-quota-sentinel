@@ -54,11 +54,18 @@ type CommandCodeAccount struct {
 	UserName string
 }
 
+type openCodeOrgEntry struct {
+	orgs      []opencode.Organization
+	fetchedAt time.Time
+}
+
 // Server 负责处理所有 HTTP API 请求与嵌入式静态资源托管。
 type Server struct {
 	addr                string
 	accounts            []Account
 	accountsFn          func() []Account
+	openCodeOrgCacheMu  sync.RWMutex
+	openCodeOrgCache    map[string]openCodeOrgEntry
 	dsAccounts          []DeepSeekAccount
 	dsFn                func() []DeepSeekAccount
 	ollamaAccounts      []OllamaAccount
@@ -91,9 +98,10 @@ type Server struct {
 // NewServer 创建 Server 实例。
 func NewServer(accounts []Account) *Server {
 	return &Server{
-		addr:     ":8788",
-		accounts: accounts,
-		deepseek: deepseek.NewDeepSeekQuerier(),
+		addr:             ":8788",
+		accounts:         accounts,
+		openCodeOrgCache: make(map[string]openCodeOrgEntry),
+		deepseek:         deepseek.NewDeepSeekQuerier(),
 	}
 }
 

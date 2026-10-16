@@ -2,6 +2,7 @@ package opencode
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,35 +59,88 @@ func (q *OpenCodeQuerier) FetchQuota() (*QuotaData, error) {
 	return ParseQuotaResponse(string(body))
 }
 
-// FetchDefaultOrgID 用已捕获的会话 Cookie 查询 Console 组织列表，返回首个非空组织 ID。
-// 新版登录页落地在 /console/login?next=/console/go，前端路由可能停留在 /console 或 /console/go
-// 而不带 org/wrk 路径段，此时该接口是唯一可确定工作区标识的来源。
-func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
+// FetchOrganizations 用已捕获的会话 Cookie 查询 Console 组织列表，返回所有合法的组织元信息。
+func FetchOrganizations(cookie string, client *http.Client) ([]Organization, error) {
 	if cookie == "" {
-		return "", fmt.Errorf("OpenCode 登录状态无效")
+		return nil, fmt.Errorf("OpenCode 登录状态无效")
 	}
 	body, err := openCodeConsoleGET(cookie, "", "/orgs", client)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	var orgs []struct {
-		ID string `json:"id"`
-	}
+	var orgs []Organization
 	if err := json.Unmarshal(body, &orgs); err != nil {
-		return "", fmt.Errorf("parse orgs response: %w", err)
+		return nil, fmt.Errorf("parse orgs response: %w", err)
 	}
+	validOrgs := make([]Organization, 0, len(orgs))
 	for _, org := range orgs {
 		if org.ID == "" {
 			continue
 		}
-		// 只取首个非空 ID 并整体校验：若它格式非法，说明上游返回了意料外的数据，
-		// 此时宁可失败也不能改挑后面的组织，否则可能把配额查到另一个组织上。
 		if !ValidWorkspaceID(org.ID) {
-			return "", fmt.Errorf("orgs response contains a malformed org id")
+			return nil, fmt.Errorf("orgs response contains a malformed org id")
 		}
-		return org.ID, nil
+		validOrgs = append(validOrgs, org)
 	}
-	return "", fmt.Errorf("orgs response contains no org id")
+	if len(validOrgs) == 0 {
+		return nil, fmt.Errorf("orgs response contains no org id")
+	}
+	return validOrgs, nil
+}
+
+// FetchDefaultOrgID 用已捕获的会话 Cookie 查询 Console 组织列表，返回首个非空组织 ID。
+// 新版登录页落地在 /console/login?next=/console/go，前端路由可能停留在 /console 或 /console/go
+// 而不带 org/wrk 路径段，此时该接口是唯一可确定工作区标识的来源。
+func FetchDefaultOrgID(cookie string, client *http.Client) (string, error) {
+	orgs, err := FetchOrganizations(cookie, client)
+	if err != nil {
+		return "", err
+	}
+	return orgs[0].ID, nil
+}
+
+// FetchAllSubscribedQuotas 并发拉取当前账号所有合法组织的工作空间配额，滤除未开通 Go 订阅的组织。
+func FetchAllSubscribedQuotas(cookie string, client *http.Client) ([]WorkspaceQuota, error) {
+	orgs, err := FetchOrganizations(cookie, client)
+	if err != nil {
+		return nil, err
+	}
+	type fetchRes struct {
+		wq  WorkspaceQuota
+		ok  bool
+		err error
+	}
+	resCh := make(chan fetchRes, len(orgs))
+	for _, org := range orgs {
+		go func(o Organization) {
+			q := &OpenCodeQuerier{Cookie: cookie, WorkspaceID: o.ID, Client: client}
+			d, err := q.FetchQuota()
+			if err != nil {
+				if errors.Is(err, ErrNoGoSubscription) {
+					resCh <- fetchRes{ok: false}
+					return
+				}
+				resCh <- fetchRes{err: err}
+				return
+			}
+			resCh <- fetchRes{wq: WorkspaceQuota{Organization: o, Quota: d}, ok: true}
+		}(org)
+	}
+	var results []WorkspaceQuota
+	var firstErr error
+	for i := 0; i < len(orgs); i++ {
+		r := <-resCh
+		if r.err != nil && firstErr == nil {
+			firstErr = r.err
+		}
+		if r.ok {
+			results = append(results, r.wq)
+		}
+	}
+	if len(results) == 0 && firstErr != nil {
+		return nil, firstErr
+	}
+	return results, nil
 }
 
 // openCodeConsoleGET 发起 Console API GET 请求；orgID 为空时不带 x-org-id 头，
